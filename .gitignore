@@ -27,12 +27,21 @@ out/
 *.jks
 
 # Large data and runtime files
-data/
+/data/
 models/
 backups/
 *.parquet
 *.osm.pbf
 *.dump
+
+# Tashu collector runtime data
+data-pipeline/collector/data/
+data-pipeline/collector/health.json
+data-pipeline/collector/collector_state.json
+data-pipeline/collector/**/health.json
+data-pipeline/collector/**/collector_state.json
+data-pipeline/collector/**/snapshots-*.csv
+data-pipeline/collector/**/*.log
 
 # OS files
 .DS_Store
