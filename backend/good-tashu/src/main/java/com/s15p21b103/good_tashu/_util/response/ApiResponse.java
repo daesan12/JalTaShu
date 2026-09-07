@@ -1,4 +1,4 @@
-package com.b204.datame._util.response;
+package com.s15p21b103.good_tashu._util.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

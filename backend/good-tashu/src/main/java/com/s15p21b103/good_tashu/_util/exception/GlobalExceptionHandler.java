@@ -1,6 +1,6 @@
 package com.s15p21b103.good_tashu._util.exception;
 
-import com.b204.datame._util.response.ApiResponse;
+import com.s15p21b103.good_tashu._util.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
