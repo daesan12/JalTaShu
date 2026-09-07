@@ -1,0 +1,39 @@
+# IntelliJ
+.idea/
+*.iml
+out/
+
+# Java / Gradle
+.gradle/
+**/build/
+
+# Node
+**/node_modules/
+**/dist/
+
+# Python
+**/.venv/
+**/venv/
+**/__pycache__/
+**/.pytest_cache/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+
+# Large data and runtime files
+data/
+models/
+backups/
+*.parquet
+*.osm.pbf
+*.dump
+
+# OS files
+.DS_Store
+Thumbs.db
