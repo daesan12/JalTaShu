@@ -4,11 +4,11 @@
 
 진행 상황 ✅
 
-[ ]  todo1
+[]  todo1
 
-[ ]  todo2
+[]  todo2
 
-[ ]  todo3
+[]  todo3
 
 작업 내용 캡쳐 (optional) 😁
 
