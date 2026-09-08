@@ -2,10 +2,9 @@ package com.s15p21b103.good_tashu.fcm.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
-public record FcmMessageDto(
+public record FcmMessageRequest(
         @NotBlank String token,
-        String title,
-        String body,
-        String data
+        @NotBlank String title,
+        @NotBlank String body
 ) {
 }
