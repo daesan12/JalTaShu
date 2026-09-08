@@ -1,10 +1,12 @@
 🔘 Part
 
-[x] BE
+[x]BE
 
-[ ] FE
+[ ]FE
 
-[ ] AI
+[ ]AI
+
+[ ]Data
 
 ➕ 이슈 링크
 
