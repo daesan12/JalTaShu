@@ -8,12 +8,16 @@ import com.s15p21b103.good_tashu.fcm.domain.FcmTokenEntity;
 import com.s15p21b103.good_tashu.fcm.dto.FcmMessageRequest;
 import com.s15p21b103.good_tashu.fcm.dto.FcmTokenDeactivateRequest;
 import com.s15p21b103.good_tashu.fcm.dto.FcmTokenRegisterRequest;
+import com.s15p21b103.good_tashu.fcm.exception.FcmException;
 import com.s15p21b103.good_tashu.fcm.repository.FcmTokenRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+
+import static com.s15p21b103.good_tashu.fcm.exception.FcmErrorCode.FAIL_TRANSFER_FCM_MESSAGE;
+import static com.s15p21b103.good_tashu.fcm.exception.FcmErrorCode.NOT_AVAILABLE_TOKEN;
 
 @Service
 @RequiredArgsConstructor
@@ -39,18 +43,18 @@ public class FcmService {
     @Transactional
     public void deactivateToken(FcmTokenDeactivateRequest request) {
         fcmTokenRepository.findByToken(request.token())
-                .orElseThrow(() -> new IllegalArgumentException("토큰이 존재하지 않습니다."))
+                .orElseThrow(() -> new FcmException(NOT_AVAILABLE_TOKEN))
                 .deactivate();
     }
 
     //해당 토큰으로 메세지 전송
     public String sendToToken(FcmMessageRequest request) {
         FcmTokenEntity fcmTokenEntity = fcmTokenRepository.findByToken(request.token())
-                .orElseThrow(() -> new IllegalArgumentException("토큰이 존재하지 않습니다."));
+                .orElseThrow(() -> new FcmException(NOT_AVAILABLE_TOKEN));
 
         //활성여부 확인
         if(!Boolean.TRUE.equals(fcmTokenEntity.getEnabled())) {
-            throw new IllegalArgumentException("토큰이 활성화 되어있지 않습니다.");
+            throw new FcmException(NOT_AVAILABLE_TOKEN);
         }
         Notification notification = Notification.builder()
                 .setTitle(request.title())
@@ -65,7 +69,7 @@ public class FcmService {
         try {
             return FirebaseMessaging.getInstance().send(message);
         } catch (FirebaseMessagingException e) {
-            throw new IllegalStateException("FCM메시지 전송에 실패하였습니다.", e);
+            throw new FcmException(FAIL_TRANSFER_FCM_MESSAGE);
         }
     }
 }
