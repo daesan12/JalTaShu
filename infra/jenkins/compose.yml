@@ -1,0 +1,89 @@
+name: tashu-jenkins
+
+services:
+  controller:
+    build:
+      context: ./controller
+    image: tashu/jenkins-controller:2.568.3-3
+    container_name: tashu-jenkins-controller
+    restart: unless-stopped
+    group_add:
+      - "${JENKINS_SECRET_GID:?run generate-secrets.sh and use its runtime env file}"
+    environment:
+      JAVA_OPTS: >-
+        -Xms512m
+        -Xmx1536m
+        -Djenkins.install.runSetupWizard=false
+      CASC_JENKINS_CONFIG: /usr/share/jenkins/ref/jenkins.yaml
+      TZ: UTC
+    ports:
+      - 127.0.0.1:8080:8080
+    volumes:
+      - jenkins-home:/var/jenkins_home
+    secrets:
+      - jenkins_admin_password
+      - jenkins_agent_private_key
+      - jenkins_agent_host_key
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl --fail --silent --show-error http://127.0.0.1:8080/login >/dev/null
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+    cpus: 1.5
+    mem_limit: 2g
+    networks:
+      - jenkins
+
+  agent:
+    build:
+      context: ./agent
+    image: tashu/jenkins-build-agent:2
+    container_name: tashu-jenkins-build-agent
+    restart: unless-stopped
+    environment:
+      DOCKER_GID: "${DOCKER_GID:?run generate-secrets.sh and use its runtime env file}"
+      JENKINS_AGENT_SSH_PUBKEY: "${JENKINS_AGENT_SSH_PUBKEY:?run generate-secrets.sh and use its runtime env file}"
+      TZ: UTC
+    expose:
+      - "22"
+    volumes:
+      - jenkins-agent-work:/home/jenkins/agent
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /srv/tashu/data/jenkins-agent-ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key:ro
+      - /srv/tashu/data/jenkins-agent-ssh/ssh_host_ed25519_key.pub:/etc/ssh/ssh_host_ed25519_key.pub:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - ssh-keyscan -T 2 127.0.0.1 >/dev/null 2>&1
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    cpus: 1.5
+    mem_limit: 2g
+    depends_on:
+      controller:
+        condition: service_healthy
+    networks:
+      - jenkins
+
+secrets:
+  jenkins_admin_password:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/admin-password
+  jenkins_agent_private_key:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/agent-ed25519
+  jenkins_agent_host_key:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/agent-host-key
+
+volumes:
+  jenkins-home:
+    name: tashu-jenkins-home
+  jenkins-agent-work:
+    name: tashu-jenkins-agent-work
+
+networks:
+  jenkins:
+    name: tashu-jenkins
