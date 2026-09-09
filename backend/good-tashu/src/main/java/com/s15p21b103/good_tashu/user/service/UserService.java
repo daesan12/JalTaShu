@@ -2,6 +2,7 @@ package com.s15p21b103.good_tashu.user.service;
 
 import com.s15p21b103.good_tashu.user.domain.SocialLoginProvider;
 import com.s15p21b103.good_tashu.user.domain.UserEntity;
+import com.s15p21b103.good_tashu.user.domain.UserRole;
 import com.s15p21b103.good_tashu.user.domain.UserTermEntity;
 import com.s15p21b103.good_tashu.user.dto.req.InitUserRequestDto;
 import com.s15p21b103.good_tashu.user.exception.UserErrorCode;
@@ -34,6 +35,7 @@ public class UserService {
                         // oauth2User.getName()은 provider에서 제공하는 식별자이다.
                         .providerUserId(oauth2User.getName())
                         .nickname(null)
+                        .role(UserRole.GUEST)
                         .build()));
     }
 
@@ -63,5 +65,8 @@ public class UserService {
 
         // 닉네임 설정
         user.setNickname(request.nickname());
+
+        // 닉네임과 권한을 설정했으므로 USER권한으로 올림
+        user.setRole(UserRole.USER);
     }
 }

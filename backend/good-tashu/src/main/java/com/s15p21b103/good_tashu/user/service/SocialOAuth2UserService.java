@@ -36,7 +36,7 @@ public class SocialOAuth2UserService extends DefaultOAuth2UserService {
 
         // 일반 사용자 권한 부여
         authorities.add(
-                new SimpleGrantedAuthority("ROLE_USER")
+                new SimpleGrantedAuthority("ROLE_"+user.getRole().name())
         );
 
         return new SocialOAuth2User(
