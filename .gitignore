@@ -43,6 +43,9 @@ data-pipeline/collector/**/collector_state.json
 data-pipeline/collector/**/snapshots-*.csv
 data-pipeline/collector/**/*.log
 
+# Claude Code
+.claude/
+
 # OS files
 .DS_Store
 Thumbs.db
