@@ -1,0 +1,31 @@
+[Unit]
+Description=Tashu real-time station collector
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=tashu-collector
+Group=tashu-collector
+WorkingDirectory=/opt/tashu/collector/app
+EnvironmentFile=/etc/tashu/collector.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+RuntimeDirectory=tashu-collector
+RuntimeDirectoryMode=0750
+ExecStart=/usr/bin/flock --nonblock /run/tashu-collector/collector.lock /opt/tashu/collector/venv/bin/python /opt/tashu/collector/app/collect.py
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=120s
+KillSignal=SIGTERM
+UMask=0022
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/tashu/data/collector
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tashu-collector
+
+[Install]
+WantedBy=multi-user.target
