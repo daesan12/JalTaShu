@@ -71,11 +71,15 @@ Agent와 관측성, 이후 Kafka·Spark가 같은 Server B를 사용하므로 �
 6. Agent가 `online`이고 Java·Git·Docker 명령을 실행하는지 확인한다.
 7. Controller와 Agent 재시작 뒤 node 연결과 두 volume의 유지 여부를 확인한다.
 
+## Pipeline 코드 상태
+
+- 저장소 루트 Jenkinsfile과 pipeline/의 서비스별 Docker build 환경을 추가했다.
+- Collector test와 Frontend lint·build는 실행 가능한 기준선을 확인했다.
+- Backend는 gradle-wrapper.properties가 준비되면 자동으로 test를 실행한다.
+
 ## 아직 하지 않는 것
 
-- GitLab credential·Webhook·Poll SCM
-- Multibranch Pipeline 생성
+- GitLab 읽기 전용 credential 등록
+- Multibranch Pipeline UI 생성과 Poll SCM 검증
 - ECR credential과 배포용 SSH key
 - Jenkins home 정기 backup
-
-Agent 기준선이 검증된 다음 최소 Pipeline과 GitLab 연결을 추가한다.
