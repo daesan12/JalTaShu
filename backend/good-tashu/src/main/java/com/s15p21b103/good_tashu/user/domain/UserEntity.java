@@ -1,13 +1,11 @@
 package com.s15p21b103.good_tashu.user.domain;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Getter
@@ -33,6 +31,7 @@ public class UserEntity {
     private String providerUserId;
 
     @Column(name="nickname", nullable = true)
+    @Setter
     private String nickname;
 
     @Column(name="created_at")
@@ -49,4 +48,7 @@ public class UserEntity {
         this.providerUserId = providerUserId;
         this.nickname = nickname;
     }
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    List<UserTermEntity> userTerms;
 }
