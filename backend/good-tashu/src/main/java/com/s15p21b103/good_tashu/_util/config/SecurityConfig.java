@@ -24,7 +24,7 @@ public class SecurityConfig {
                                 "/",
                                 "/error",
                                 // 소셜 로그인의 모든 요청(클라이언트 및 소셜 로그인 서버)를 받을 수 있도록
-                                "/auth/oauth/**"
+                                "/api/auth/oauth/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -32,15 +32,16 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                         // 소셜 로그인을 요청할 경로(기본은 /oauth2/authorization/{registrationId})
                         .authorizationEndpoint(authorizationEndpointConfig ->
-                                authorizationEndpointConfig.baseUri("/auth/oauth")
+                                authorizationEndpointConfig.baseUri("/api/auth/oauth")
                         )
                         // 리다이렉트 받을 경로(기본은 /login/oauth2/code/{registrationId})
                         .redirectionEndpoint(redirection -> redirection
                                 .baseUri("/auth/oauth/callback/*")
                         )
+                        // 로그인 정보를 기반으로 DB에 유저 저장(해당 service의 loadUser()호출)
                         .userInfoEndpoint(userInfoEndpointConfig ->
                                 userInfoEndpointConfig.userService(socialOAuth2UserService))
-                        .defaultSuccessUrl("/users/me", true)
+                        .defaultSuccessUrl("/api/users/me", true)
                 );
 
         return http.build();
