@@ -1,5 +1,6 @@
 package com.s15p21b103.good_tashu.fcm.domain;
 
+import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,8 +21,8 @@ public class FcmTokenEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    //@JoinColumn()
-    //private User userId;
+    @JoinColumn(name = "user_id")
+    private UserEntity userEntity;
 
     @Column(nullable = false, unique = true, length = 512)
     private String token;
