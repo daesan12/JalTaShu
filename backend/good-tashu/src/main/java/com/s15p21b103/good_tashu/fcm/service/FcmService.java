@@ -5,9 +5,9 @@ import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.Notification;
 import com.s15p21b103.good_tashu.fcm.domain.FcmTokenEntity;
-import com.s15p21b103.good_tashu.fcm.dto.FcmMessageRequest;
-import com.s15p21b103.good_tashu.fcm.dto.FcmTokenDeactivateRequest;
-import com.s15p21b103.good_tashu.fcm.dto.FcmTokenRegisterRequest;
+import com.s15p21b103.good_tashu.fcm.dto.req.FcmMessageRequest;
+import com.s15p21b103.good_tashu.fcm.dto.req.FcmTokenDeactivateRequest;
+import com.s15p21b103.good_tashu.fcm.dto.req.FcmTokenRegisterRequest;
 import com.s15p21b103.good_tashu.fcm.exception.FcmException;
 import com.s15p21b103.good_tashu.fcm.repository.FcmTokenRepository;
 import jakarta.transaction.Transactional;
@@ -16,8 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
-import static com.s15p21b103.good_tashu.fcm.exception.FcmErrorCode.FAIL_TRANSFER_FCM_MESSAGE;
-import static com.s15p21b103.good_tashu.fcm.exception.FcmErrorCode.NOT_AVAILABLE_TOKEN;
+import static com.s15p21b103.good_tashu.fcm.exception.FcmErrorCode.*;
 
 @Service
 @RequiredArgsConstructor

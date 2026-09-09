@@ -1,7 +1,7 @@
 package com.s15p21b103.good_tashu.fcm.controller;
 
-import com.s15p21b103.good_tashu.fcm.dto.FcmTokenDeactivateRequest;
-import com.s15p21b103.good_tashu.fcm.dto.FcmTokenRegisterRequest;
+import com.s15p21b103.good_tashu.fcm.dto.req.FcmTokenDeactivateRequest;
+import com.s15p21b103.good_tashu.fcm.dto.req.FcmTokenRegisterRequest;
 import com.s15p21b103.good_tashu.fcm.service.FcmService;
 import com.s15p21b103.good_tashu._util.response.*;
 import jakarta.validation.Valid;
