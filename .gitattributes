@@ -4,6 +4,7 @@
 Dockerfile text eol=lf
 .env.example text eol=lf
 .dockerignore text eol=lf
+infra/jenkins/controller/plugins.txt text eol=lf
 *.json text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf

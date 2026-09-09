@@ -1,0 +1,14 @@
+configuration-as-code
+workflow-aggregator
+workflow-multibranch
+pipeline-model-definition
+pipeline-stage-view
+git
+gitlab-plugin
+credentials-binding
+docker-workflow
+ssh-agent
+ssh-slaves
+junit
+ws-cleanup
+lockable-resources
