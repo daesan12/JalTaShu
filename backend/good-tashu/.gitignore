@@ -35,3 +35,8 @@ out/
 
 ### VS Code ###
 .vscode/
+/src/main/resources/firebase/goodtashu-firebase-adminsdk-fbsvc-cefcbcef45.json
+/src/main/resources/firebase/service-account.json
+/src/main/resources/firebase/fcm-key.json
+/backend-local.env
+/mysql_data/
