@@ -36,7 +36,7 @@ public class SecurityConfig {
                         )
                         // 리다이렉트 받을 경로(기본은 /login/oauth2/code/{registrationId})
                         .redirectionEndpoint(redirection -> redirection
-                                .baseUri("/auth/oauth/callback/*")
+                                .baseUri("/api/auth/oauth/callback/*")
                         )
                         // 로그인 정보를 기반으로 DB에 유저 저장(해당 service의 loadUser()호출)
                         .userInfoEndpoint(userInfoEndpointConfig ->
