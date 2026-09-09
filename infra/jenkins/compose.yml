@@ -4,7 +4,7 @@ services:
   controller:
     build:
       context: ./controller
-    image: tashu/jenkins-controller:2.568.3-3
+    image: tashu/jenkins-controller:2.568.3-4
     container_name: tashu-jenkins-controller
     restart: unless-stopped
     group_add:
@@ -15,6 +15,7 @@ services:
         -Xmx1536m
         -Djenkins.install.runSetupWizard=false
       CASC_JENKINS_CONFIG: /usr/share/jenkins/ref/jenkins.yaml
+      CASC_STRICT_SECRET_RESOLUTION: 'true'
       TZ: UTC
     ports:
       - 127.0.0.1:8080:8080
@@ -24,6 +25,8 @@ services:
       - jenkins_admin_password
       - jenkins_agent_private_key
       - jenkins_agent_host_key
+      - gitlab_username
+      - gitlab_token
     healthcheck:
       test:
         - CMD-SHELL
@@ -77,6 +80,10 @@ secrets:
     file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/agent-ed25519
   jenkins_agent_host_key:
     file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/agent-host-key
+  gitlab_username:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/gitlab-username
+  gitlab_token:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/gitlab-token
 
 volumes:
   jenkins-home:

@@ -24,9 +24,10 @@ Jenkins Controller는 빌드를 실행하지 않는다. `docker` label의 Build 
 
 ## 외부 설정 상태
 
-- `gitlab-readonly` Credential 등록 완료
-- `tashu-ci` Multibranch Pipeline과 2분 branch scan 등록 완료
+- 첫 `gitlab-readonly` UI 등록과 Build는 성공했으나 Controller 재시작 후 JCasC가 제거한 문제를 확인
+- `tashu-ci` Multibranch Pipeline과 2분 branch scan을 등록했으나 Credential 영속화 적용 전까지 timer를 일시 중지
 - 첫 branch scan과 Build #1 `SUCCESS` 확인
+- Docker Secret 기반 JCasC Credential 영속화 설정 준비, 서버 적용·재검증 대기
 - Backend 팀이 Gradle Wrapper의 `gradle-wrapper.properties`를 Git에 추가하면 Backend test 활성화
 - GitLab Webhook과 ECR·staging 배포는 후속 단계
 

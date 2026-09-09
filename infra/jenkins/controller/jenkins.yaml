@@ -54,6 +54,12 @@ credentials:
               privateKeySource:
                 directEntry:
                   privateKey: "${jenkins_agent_private_key}"
+          - usernamePassword:
+              scope: GLOBAL
+              id: "gitlab-readonly"
+              username: "${gitlab_username}"
+              password: "${gitlab_token}"
+              description: "GitLab read-only deploy token for S15P21B103"
 
 unclassified:
   location:
