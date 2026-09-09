@@ -1,6 +1,7 @@
 package com.s15p21b103.good_tashu._util.exception;
 
 import com.s15p21b103.good_tashu._util.response.ApiResponse;
+import com.s15p21b103.good_tashu.user.exception.UserException;
 import com.s15p21b103.good_tashu.fcm.exception.FcmException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -49,4 +50,14 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR.value(), "INTERNAL_SERVER_ERROR"));
     }
+
+    // 유저 예외 처리
+    @ExceptionHandler(UserException.class)
+    public ResponseEntity<ApiResponse<Void>> handleValidation(UserException e) {
+        log.warn("유저에서 예외 발생: {}", e.getErrorCode().getMessage());
+        return ResponseEntity
+                .status(e.getErrorCode().getStatus())
+                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
+    }
+
 }
