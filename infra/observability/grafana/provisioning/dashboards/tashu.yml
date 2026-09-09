@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: Tashu
+    orgId: 1
+    folder: Tashu
+    type: file
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

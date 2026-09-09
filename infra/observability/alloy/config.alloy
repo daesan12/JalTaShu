@@ -1,0 +1,27 @@
+loki.source.journal "collector" {
+  forward_to = [loki.write.server_b.receiver]
+  matches    = "_SYSTEMD_UNIT=tashu-collector.service"
+  max_age    = "1h"
+  labels = {
+    server      = "server-a",
+    service     = "tashu-collector",
+    environment = "production",
+  }
+}
+
+loki.source.journal "s3_sync" {
+  forward_to = [loki.write.server_b.receiver]
+  matches    = "_SYSTEMD_UNIT=tashu-s3-sync.service"
+  max_age    = "1h"
+  labels = {
+    server      = "server-a",
+    service     = "tashu-s3-sync",
+    environment = "production",
+  }
+}
+
+loki.write "server_b" {
+  endpoint {
+    url = sys.env("LOKI_PUSH_URL")
+  }
+}

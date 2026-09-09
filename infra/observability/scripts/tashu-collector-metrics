@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""Convert Collector health JSON to Prometheus textfile metrics atomically."""
+
+import datetime as dt
+import json
+import os
+from pathlib import Path
+import time
+
+HEALTH_PATH = Path("/srv/tashu/data/collector/health.json")
+OUTPUT_PATH = Path("/var/lib/node_exporter/textfile_collector/tashu_collector.prom")
+
+
+def parse_timestamp(value: str) -> float:
+    return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+
+
+def render_metrics() -> str:
+    generated_at = time.time()
+    try:
+        health = json.loads(HEALTH_PATH.read_text(encoding="utf-8"))
+        last_success = parse_timestamp(health["last_success_at"])
+        station_count = int(health["station_count"])
+        health_file_ok = 1
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        last_success = 0
+        station_count = 0
+        health_file_ok = 0
+
+    return "\n".join(
+        [
+            "# HELP tashu_collector_health_file_ok Whether Collector health.json was read and parsed.",
+            "# TYPE tashu_collector_health_file_ok gauge",
+            f"tashu_collector_health_file_ok {health_file_ok}",
+            "# HELP tashu_collector_last_success_timestamp_seconds Unix timestamp of the last successful snapshot.",
+            "# TYPE tashu_collector_last_success_timestamp_seconds gauge",
+            f"tashu_collector_last_success_timestamp_seconds {last_success:.3f}",
+            "# HELP tashu_collector_station_count Stations in the last successful snapshot.",
+            "# TYPE tashu_collector_station_count gauge",
+            f"tashu_collector_station_count {station_count}",
+            "# HELP tashu_collector_metrics_generated_timestamp_seconds Unix timestamp when this file was generated.",
+            "# TYPE tashu_collector_metrics_generated_timestamp_seconds gauge",
+            f"tashu_collector_metrics_generated_timestamp_seconds {generated_at:.3f}",
+            "",
+        ]
+    )
+
+
+def main() -> None:
+    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = OUTPUT_PATH.with_suffix(".prom.tmp")
+    temporary_path.write_text(render_metrics(), encoding="utf-8", newline="\n")
+    os.chmod(temporary_path, 0o644)
+    os.replace(temporary_path, OUTPUT_PATH)
+
+
+if __name__ == "__main__":
+    main()
