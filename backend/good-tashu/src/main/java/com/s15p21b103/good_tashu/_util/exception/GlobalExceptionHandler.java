@@ -31,6 +31,14 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
     }
 
+    @ExceptionHandler(FcmException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCycleException(FcmException e) {
+        log.warn("Cycle에서 에러 발생: {}", e.getErrorCode().getMessage());
+        return ResponseEntity
+                .status(e.getErrorCode().getStatus())
+                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException e) {
         String message = e.getBindingResult().getFieldError() != null
