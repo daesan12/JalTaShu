@@ -25,7 +25,15 @@ public class CycleEntity {
     private LocalDateTime registeredAt;
 
     @ManyToOne
-    @JoinColumn(name = "station_id", nullable = false)
+    @JoinColumn(name = "station_id")
     private StationEntity stationEntity;
 
+    public void startRental() {
+        this.status = Status.RENTING;
+        this.stationEntity = null;
+    }
+    public void returnRental(StationEntity stationEntity) {
+        this.status = Status.READY;
+        this.stationEntity = stationEntity;
+    }
 }

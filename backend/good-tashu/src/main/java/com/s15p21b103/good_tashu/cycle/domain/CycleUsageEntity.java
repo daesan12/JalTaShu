@@ -30,7 +30,7 @@ public class CycleUsageEntity {
     private CycleEntity cycleEntity;
 
     @ManyToOne
-    @JoinColumn(name = "rental_station_id", nullable = false)
+    @JoinColumn(name = "rental_station_id")
     private StationEntity rentalStationEntity;
 
     @ManyToOne
@@ -42,4 +42,9 @@ public class CycleUsageEntity {
 
     @Column(name = "return_at")
     private LocalDateTime returnAt;
+
+    public void returning(StationEntity returnStationEntity, LocalDateTime returnAt) {
+        this.returnStationEntity = returnStationEntity;
+        this.returnAt = returnAt;
+    }
 }

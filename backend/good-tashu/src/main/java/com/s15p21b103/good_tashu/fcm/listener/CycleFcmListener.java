@@ -1,6 +1,7 @@
 package com.s15p21b103.good_tashu.fcm.listener;
 
 import com.s15p21b103.good_tashu.cycle.event.CycleRentalStartedEvent;
+import com.s15p21b103.good_tashu.cycle.event.CycleReturnEvent;
 import com.s15p21b103.good_tashu.fcm.service.FcmService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +13,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class RentalStartedFcmListener {
+public class CycleFcmListener {
     private final FcmService fcmService;
 
     @Async
@@ -27,4 +28,15 @@ public class RentalStartedFcmListener {
         }
     }
 
+    @Async
+    @TransactionalEventListener(
+            phase = TransactionPhase.AFTER_COMMIT
+    )
+    public void handle(CycleReturnEvent event) {
+        try {
+            fcmService.sendReturnNotification(event.userId(), event.returnAt());
+        } catch (Exception e) {
+            log.warn("{}의 반납 완료 알림 발송에 실패하였습니다., {}", event.userId(), e);
+        }
+    }
 }

@@ -64,11 +64,24 @@ public class FcmService {
 
     //대여 시작 알림 발송
     public void sendRentalStartedNotification(Long userId, LocalDateTime currentTime) {
+        //TODO: 토큰별로 에러 분리하기
         fcmTokenRepository.findAllByUserEntity_UserIdAndEnabledTrue(userId)
                 .forEach(token->
                         sendToToken(new FcmMessageRequest(token.getToken()
                                 , "대여가 시작되었습니다."
                                 ,"대여 시작시간은"+formatDateTime(currentTime)+"입니다."))
+
+                );
+    }
+
+    //대여 시작 알림 발송
+    public void sendReturnNotification(Long userId, LocalDateTime currentTime) {
+        //TODO: 토큰별로 에러 분리하기
+        fcmTokenRepository.findAllByUserEntity_UserIdAndEnabledTrue(userId)
+                .forEach(token->
+                        sendToToken(new FcmMessageRequest(token.getToken()
+                                , "대여가 완료되었습니다."
+                                ,"대여 완료시간은"+formatDateTime(currentTime)+"입니다."))
 
                 );
     }
