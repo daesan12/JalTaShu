@@ -1,9 +1,6 @@
 package com.s15p21b103.good_tashu.cycle.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,6 +19,7 @@ public class StationLogEntity {
     @Column(name = "station_log_id")
     private String stationLogId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "station_id", nullable = false)
     private StationEntity stationEntity;
 

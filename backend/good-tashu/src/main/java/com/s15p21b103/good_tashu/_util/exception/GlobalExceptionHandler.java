@@ -1,6 +1,7 @@
 package com.s15p21b103.good_tashu._util.exception;
 
 import com.s15p21b103.good_tashu._util.response.ApiResponse;
+import com.s15p21b103.good_tashu.cycle.exception.CycleException;
 import com.s15p21b103.good_tashu.user.exception.UserException;
 import com.s15p21b103.good_tashu.fcm.exception.FcmException;
 import lombok.extern.slf4j.Slf4j;
@@ -31,8 +32,8 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
     }
 
-    @ExceptionHandler(FcmException.class)
-    public ResponseEntity<ApiResponse<Void>> handleCycleException(FcmException e) {
+    @ExceptionHandler(CycleException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCycleException(CycleException e) {
         log.warn("Cycle에서 에러 발생: {}", e.getErrorCode().getMessage());
         return ResponseEntity
                 .status(e.getErrorCode().getStatus())

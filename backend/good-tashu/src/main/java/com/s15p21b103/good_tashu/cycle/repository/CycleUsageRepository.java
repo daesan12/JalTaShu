@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface CycleUsageRepository extends JpaRepository<CycleUsageEntity, Long> {
+    boolean existsByUserEntity_UserIdAndReturnAtIsNull(Long userId);
 }

@@ -3,6 +3,7 @@ package com.s15p21b103.good_tashu.cycle.service;
 import com.s15p21b103.good_tashu.cycle.domain.CycleEntity;
 import com.s15p21b103.good_tashu.cycle.domain.CycleUsageEntity;
 import com.s15p21b103.good_tashu.cycle.domain.Status;
+import com.s15p21b103.good_tashu.cycle.dto.req.CycleRentalRequest;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
 import com.s15p21b103.good_tashu.cycle.repository.CycleRepository;
 import com.s15p21b103.good_tashu.cycle.repository.CycleUsageRepository;
@@ -30,18 +31,25 @@ public class CycleService {
     private final CycleUsageRepository cycleUsageRepository;
     private final UserRepository userRepository;
     private final FcmService fcmService;
-    private final FcmTokenRepository fcmTokenRepository;
 
+    //TODO: 동시성 처리
     @Transactional
-    public LocalDateTime rentalCycle(Long userId, String cycleId) {
+    public LocalDateTime rentalCycle(Long userId, CycleRentalRequest request) {
         UserEntity userEntity = userRepository.findById(userId)
                 .orElseThrow(() -> new UserException(NOT_EXISTS_USER));
 
-        //조회 및 상태 확인
-        CycleEntity cycleEntity = cycleRepository.findById(cycleId)
+        //조회
+        CycleEntity cycleEntity = cycleRepository.findById(request.cycleId())
                 .orElseThrow(() -> new CycleException(NOT_EXIST_CYCLE_ID));
+
+        //자전거 대여가능상태 확인
         if(cycleEntity.getStatus() != Status.READY) {
             throw new CycleException(CYCLE_NOT_READY);
+        }
+
+        //해당 사용자가 이미 빌린 자전거 있는지 확인
+        if (cycleUsageRepository.existsByUserEntity_UserIdAndReturnAtIsNull(userId)) {
+            throw new CycleException(ALREADY_RENTING);
         }
 
         //대여 상태 변경
@@ -56,8 +64,12 @@ public class CycleService {
                 .build());
 
         //알림 전송
+        //TODO: 트랜잭션 분리
         fcmService.sendRentalStartedNotification(userId, currentTime);
 
         return currentTime;
+    }
+
+    public LocalDateTime returnCycle(Long userId, CycleRentalRequest request) {
     }
 }

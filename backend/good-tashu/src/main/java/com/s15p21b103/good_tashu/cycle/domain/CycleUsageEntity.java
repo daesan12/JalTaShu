@@ -37,7 +37,6 @@ public class CycleUsageEntity {
     @JoinColumn(name = "return_station_id")
     private StationEntity returnStationEntity;
 
-    @CreationTimestamp
     @Column(name = "rental_at", nullable = false)
     private LocalDateTime rentalAt;
 
