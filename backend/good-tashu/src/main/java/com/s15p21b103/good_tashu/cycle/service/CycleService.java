@@ -4,6 +4,7 @@ import com.s15p21b103.good_tashu.cycle.domain.CycleEntity;
 import com.s15p21b103.good_tashu.cycle.domain.CycleUsageEntity;
 import com.s15p21b103.good_tashu.cycle.domain.Status;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleRentalRequest;
+import com.s15p21b103.good_tashu.cycle.event.CycleRentalStartedEvent;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
 import com.s15p21b103.good_tashu.cycle.repository.CycleRepository;
 import com.s15p21b103.good_tashu.cycle.repository.CycleUsageRepository;
@@ -16,6 +17,7 @@ import com.s15p21b103.good_tashu.user.exception.UserException;
 import com.s15p21b103.good_tashu.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -30,7 +32,7 @@ public class CycleService {
     private final CycleRepository cycleRepository;
     private final CycleUsageRepository cycleUsageRepository;
     private final UserRepository userRepository;
-    private final FcmService fcmService;
+    private final ApplicationEventPublisher eventPublisher;
 
     //TODO: 동시성 처리
     @Transactional
@@ -65,11 +67,11 @@ public class CycleService {
 
         //알림 전송
         //TODO: 트랜잭션 분리
-        fcmService.sendRentalStartedNotification(userId, currentTime);
+        eventPublisher.publishEvent(new CycleRentalStartedEvent(userId, currentTime));
 
         return currentTime;
     }
 
-    public LocalDateTime returnCycle(Long userId, CycleRentalRequest request) {
-    }
+    //public LocalDateTime returnCycle(Long userId, CycleRentalRequest request) {
+    //}
 }
