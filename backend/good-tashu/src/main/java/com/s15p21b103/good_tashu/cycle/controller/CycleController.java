@@ -1,6 +1,7 @@
 package com.s15p21b103.good_tashu.cycle.controller;
 
 import com.s15p21b103.good_tashu._util.response.ApiResponse;
+import com.s15p21b103.good_tashu.cycle.dto.req.CycleClaimRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleRentalRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleReturnRequest;
 import com.s15p21b103.good_tashu.cycle.service.CycleService;
@@ -36,7 +37,12 @@ public class CycleController {
         return ApiResponse.success(localDateTime);
     }
     //자전거 상태제보
-
+    @PostMapping("/claim")
+    public ApiResponse<CycleClaimRequest> claimCycle(@currentUserId Long userId,
+                                                  @Valid @RequestBody CycleClaimRequest request){
+        CycleClaimRequest cycleClaimRequest = cycleService.claimCycle(userId, request);
+        return ApiResponse.success(cycleClaimRequest);
+    }
     //자전거 제보리스트 조회
     //자전거 상태제보 신고
     //개인이용내역 전체 통계 조회

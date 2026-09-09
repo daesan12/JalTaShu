@@ -4,6 +4,7 @@ import com.s15p21b103.good_tashu.cycle.domain.CycleEntity;
 import com.s15p21b103.good_tashu.cycle.domain.CycleUsageEntity;
 import com.s15p21b103.good_tashu.cycle.domain.StationEntity;
 import com.s15p21b103.good_tashu.cycle.domain.Status;
+import com.s15p21b103.good_tashu.cycle.dto.req.CycleClaimRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleRentalRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleReturnRequest;
 import com.s15p21b103.good_tashu.cycle.event.CycleRentalStartedEvent;
@@ -20,6 +21,7 @@ import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import com.s15p21b103.good_tashu.user.exception.UserException;
 import com.s15p21b103.good_tashu.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -109,5 +111,8 @@ public class CycleService {
         return currentTime;
     }
 
+    @Transactional
+    public CycleClaimRequest claimCycle(Long userId, CycleClaimRequest request) {
 
+    }
 }
