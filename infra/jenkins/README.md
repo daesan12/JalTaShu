@@ -77,9 +77,24 @@ Agent와 관측성, 이후 Kafka·Spark가 같은 Server B를 사용하므로 �
 - Collector test와 Frontend lint·build는 실행 가능한 기준선을 확인했다.
 - Backend는 gradle-wrapper.properties가 준비되면 자동으로 test를 실행한다.
 
+## Multibranch Pipeline 설정
+
+Jenkins UI의 `tashu-ci` Job은 다음 값으로 구성했다.
+
+| 항목 | 값과 의미 |
+| --- | --- |
+| Item type | `Multibranch Pipeline`: 브랜치별로 루트 Jenkinsfile을 찾아 별도 Build를 만든다. |
+| Branch source | GitLab 프로젝트 HTTPS URL |
+| Credential | `gitlab-readonly`: `read_repository`만 가진 Deploy Token을 Jenkins가 암호화해 보관한다. |
+| Behaviour | `Discover branches`: 원격 브랜치를 탐색한다. |
+| Script Path | `Jenkinsfile`: 저장소 루트의 Pipeline 정의를 사용한다. |
+| Scan trigger | 2분: Webhook 연결 전 Polling fallback이다. |
+
+첫 scan은 원격 브랜치 6개를 확인하고 루트 Jenkinsfile이 있는 `chore/#73-jenkins-multibranch-ci`만 Build 대상으로 등록했다. Build #1은 Build Agent에서 Git checkout, Collector 테스트 12개와 Frontend lint·build를 실행해 `SUCCESS`가 됐다. Backend는 저장소의 `gradle-wrapper.properties`가 준비될 때까지 명시적으로 보류된다.
+
 ## 아직 하지 않는 것
 
-- GitLab 읽기 전용 credential 등록
-- Multibranch Pipeline UI 생성과 Poll SCM 검증
+- GitLab Webhook 연결과 Polling 대체
 - ECR credential과 배포용 SSH key
+- develop의 staging 자동 배포
 - Jenkins home 정기 backup

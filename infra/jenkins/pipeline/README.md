@@ -22,10 +22,12 @@ Jenkins Controller는 빌드를 실행하지 않는다. `docker` label의 Build 
 - Collector: `python:3.12.14-slim-bookworm`
 - Backend: `eclipse-temurin:21.0.12_8-jdk-noble`
 
-## 아직 필요한 외부 설정
+## 외부 설정 상태
 
-- Jenkins Credentials에 GitLab 읽기 전용 credential을 `gitlab-readonly` ID로 등록
-- Jenkins에서 Multibranch Pipeline을 만들고 저장소 URL과 credential 연결
-- Backend 팀이 Gradle Wrapper의 `gradle-wrapper.properties`를 Git에 추가
+- `gitlab-readonly` Credential 등록 완료
+- `tashu-ci` Multibranch Pipeline과 2분 branch scan 등록 완료
+- 첫 branch scan과 Build #1 `SUCCESS` 확인
+- Backend 팀이 Gradle Wrapper의 `gradle-wrapper.properties`를 Git에 추가하면 Backend test 활성화
+- GitLab Webhook과 ECR·staging 배포는 후속 단계
 
 실제 token과 비밀번호는 이 디렉터리나 Jenkinsfile에 기록하지 않는다.
