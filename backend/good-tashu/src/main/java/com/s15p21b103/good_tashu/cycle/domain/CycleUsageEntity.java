@@ -1,5 +1,6 @@
 package com.s15p21b103.good_tashu.cycle.domain;
 
+import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,9 +21,9 @@ public class CycleUsageEntity {
     @Column(name = "cycle_usage_id")
     private Long cycleUsageId;
 
-    //@ManyToOne
-    //@JoinColumn(name = "user_id")
-    //private User user;
+    @ManyToOne
+    @JoinColumn(name = "user_id")
+    private UserEntity userEntity;
 
     @ManyToOne
     @JoinColumn(name = "cycle_id", nullable = false)
