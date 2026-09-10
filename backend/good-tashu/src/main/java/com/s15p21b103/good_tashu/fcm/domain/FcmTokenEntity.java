@@ -1,5 +1,6 @@
 package com.s15p21b103.good_tashu.fcm.domain;
 
+import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,13 +16,15 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@Table(name = "fcm_tokens")
 public class FcmTokenEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    //@JoinColumn()
-    //private User userId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private UserEntity userEntity;
 
     @Column(nullable = false, unique = true, length = 512)
     private String token;

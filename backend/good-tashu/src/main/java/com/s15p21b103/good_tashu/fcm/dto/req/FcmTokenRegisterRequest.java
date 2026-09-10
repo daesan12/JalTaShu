@@ -1,4 +1,4 @@
-package com.s15p21b103.good_tashu.fcm.dto;
+package com.s15p21b103.good_tashu.fcm.dto.req;
 
 import com.s15p21b103.good_tashu.fcm.domain.Platform;
 import jakarta.validation.constraints.NotBlank;
