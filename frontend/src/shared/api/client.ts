@@ -2,6 +2,13 @@ import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 import { ENV } from '@/shared/config/env';
 import type { ApiResponse } from '@/shared/api/types';
 
+// 요청별로 401 전역 리다이렉트를 건너뛸 수 있는 커스텀 옵션 (예: 로그인 여부 확인용 /users/me)
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    skipAuthRedirect?: boolean;
+  }
+}
+
 /** 백엔드 에러를 화면에서 그대로 쓸 수 있게 정규화한 에러 */
 export class ApiError extends Error {
   readonly code: number;
@@ -18,6 +25,22 @@ export const client = axios.create({
   timeout: 10_000,
   // 백엔드 인증이 세션 쿠키(JSESSIONID) 방식이라 모든 요청에 쿠키 포함 필수
   withCredentials: true,
+});
+
+/** 앱 사용 중 세션이 만료(401)되면 로그인 화면으로 보낸다 (새로고침 효과로 상태도 초기화) */
+client.interceptors.response.use(undefined, (error: unknown) => {
+  if (
+    error instanceof AxiosError &&
+    error.response?.status === 401 &&
+    !error.config?.skipAuthRedirect
+  ) {
+    const loginUrl = `${import.meta.env.BASE_URL}login`;
+    // 이미 로그인 화면이면 리다이렉트 루프 방지
+    if (window.location.pathname !== loginUrl) {
+      window.location.assign(loginUrl);
+    }
+  }
+  return Promise.reject(error);
 });
 
 function unwrap<T>(body: ApiResponse<T>): T {

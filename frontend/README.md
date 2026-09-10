@@ -19,6 +19,7 @@ npm run dev
 | `npm run dev` | 개발 서버 (기본 http://localhost:5173) |
 | `npm run build` | 타입체크 + 프로덕션 빌드 |
 | `npm run lint` | oxlint 검사 |
+| `npm test` | Vitest 유닛 테스트 (감시 모드: `npm run test:watch`) |
 | `npm run preview` | 빌드 결과 로컬 확인 |
 
 ## 폴더 구조
