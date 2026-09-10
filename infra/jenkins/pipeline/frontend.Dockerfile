@@ -1,4 +1,4 @@
-FROM node:24.20.0-bookworm-slim
+FROM node:22.23.2-bookworm-slim
 
 WORKDIR /workspace
 ENV CI=true

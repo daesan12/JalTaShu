@@ -34,6 +34,7 @@ pipeline {
                     test -f frontend/package-lock.json
                     test -f data-pipeline/collector/requirements.txt
                     test -f backend/good-tashu/build.gradle
+                    test -f backend/good-tashu/Dockerfile
                     test -f infra/jenkins/pipeline/frontend.Dockerfile
                     test -f infra/jenkins/pipeline/collector.Dockerfile
                     test -f infra/jenkins/pipeline/backend.Dockerfile
