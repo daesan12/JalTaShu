@@ -9,7 +9,8 @@
 | jenkins-push-policy.template.json | Jenkins 전용 AWS 자격증명에 부여할 Push 권한 템플릿이다. tashu/* repository에만 이미지를 올릴 수 있다. |
 | runtime-pull-policy.template.json | SSAFY 실행 서버용 Pull 권한 템플릿이다. 이미지를 내려받고 조회할 수 있지만 Push와 삭제는 할 수 없다. |
 | lifecycle-policy.json | 각 repository에서 untagged image는 1일 뒤 삭제하고, tagged image는 최신 10개만 남긴다. |
-| create-repositories.sh | AWS CLI로 현재 필요한 repository 두 개를 생성하고 tag 불변성·scan·보관 정책을 반복 적용한다. |
+| registry-scanning-configuration.json | ECR 레지스트리에서 `tashu/*` repository만 Push 시 기본 취약점 스캔하도록 지정한다. |
+| create-repositories.sh | AWS CLI로 현재 필요한 repository 두 개를 생성하고 tag 불변성·보관 정책·레지스트리 스캔 정책을 반복 적용한다. |
 
 ## 첫 단계에 생성할 private repository
 
@@ -37,5 +38,15 @@ AI·Collector·Streaming은 실제 runtime image가 생긴 뒤 같은 기준으�
 - Commit SHA 기반의 고유 tag를 사용하고 latest를 배포 기준으로 사용하지 않는다.
 - tag immutability를 활성화해 같은 tag 덮어쓰기를 막는다.
 - 기본 암호화 AES-256을 사용한다.
+- Repository별 `scanOnPush` 설정은 deprecated이므로 사용하지 않는다. 레지스트리 수준에서 Basic scanning과 `tashu/*` Push 시 스캔 규칙을 적용한다.
+- Enhanced scanning은 Amazon Inspector 비용이 발생할 수 있어 현재 3주 프로젝트 범위에서는 사용하지 않는다.
 - Jenkins와 실행 서버는 서로 다른 AWS 자격증명을 사용한다.
 - 실제 생성과 IAM 연결은 AWS Console 단계에서 사용자가 항목을 확인하며 진행한다.
+
+## 2026-09-10 AWS Console 검증 상태
+
+- 서울 리전에 `tashu/frontend`, `tashu/backend` private repository를 생성했다.
+- 두 repository에서 image tag 불변성과 AES-256 기본 암호화를 확인했다.
+- 레지스트리 수준 Basic scanning에서 `tashu/*` Push 시 스캔 규칙을 확인했다.
+- 두 repository에 untagged image 1일 만료와 tagged image 최신 10개 보관 정책을 적용했다.
+- 실제 Commit SHA image Push와 스캔 결과 확인은 Jenkins Credential 연결 후 진행한다.
