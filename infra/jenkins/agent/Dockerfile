@@ -2,7 +2,7 @@ FROM jenkins/ssh-agent:latest-jdk21@sha256:4609eba9f086fc7321de8e40e217601158280
 
 USER root
 
-ARG AWS_CLI_VERSION=2.36.10
+ARG AWS_CLI_VERSION=2.36.42
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl git unzip \
