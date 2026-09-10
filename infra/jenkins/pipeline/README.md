@@ -33,3 +33,15 @@ Jenkins Controller는 빌드를 실행하지 않는다. `docker` label의 Build 
 - GitLab Webhook과 ECR·staging 배포는 후속 단계
 
 실제 token과 비밀번호는 이 디렉터리나 Jenkinsfile에 기록하지 않는다.
+
+## ECR stage
+
+기능 브랜치와 MR은 Service CI까지만 수행한다. `develop` Job만 테스트가 모두 성공한 뒤 배포용 Frontend·Backend image를 추가로 빌드하고 private ECR에 Push한다.
+
+- Credential ID: `aws-ecr-push`
+- Region: `ap-northeast-2`
+- Tag: Git Commit SHA 앞 12자리
+- Frontend build: `/staging/`, `/staging-api`, `/staging-auth`, MSW 비활성화
+- Repository: `tashu/frontend`, `tashu/backend`
+
+Jenkins Agent의 AWS CLI가 `sts`로 자격증명을 확인하고, ECR에 같은 tag가 실제로 조회되는 데까지 성공해야 Stage가 끝난다. ECR tag immutability 때문에 같은 Commit SHA를 덮어쓸 수 없으며, 동일 Commit을 재실행하면 기존 image를 확인하고 Push를 건너뛴다.

@@ -10,6 +10,9 @@ pipeline {
 
     environment {
         CI = 'true'
+        AWS_DEFAULT_REGION = 'ap-northeast-2'
+        AWS_EC2_METADATA_DISABLED = 'true'
+        AWS_PAGER = ''
     }
 
     stages {
@@ -88,6 +91,104 @@ pipeline {
                 }
             }
         }
+
+        stage('Build and push staging images') {
+            when {
+                branch 'develop'
+            }
+            options {
+                lock(resource: 'server-b-heavy')
+            }
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-ecr-push',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    sh '''
+                        set -eu
+                        set +x
+
+                        account_id="$(aws sts get-caller-identity --query Account --output text)"
+                        registry="${account_id}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+                        frontend_local="tashu/runtime-frontend:${GIT_SHORT_SHA}"
+                        backend_local="tashu/runtime-backend:${GIT_SHORT_SHA}"
+                        frontend_remote="${registry}/tashu/frontend:${GIT_SHORT_SHA}"
+                        backend_remote="${registry}/tashu/backend:${GIT_SHORT_SHA}"
+
+                        cleanup_ecr_session() {
+                            docker logout "${registry}" >/dev/null 2>&1 || true
+                            docker image rm --force \
+                              "${frontend_remote}" \
+                              "${backend_remote}" \
+                              >/dev/null 2>&1 || true
+                        }
+                        trap cleanup_ecr_session EXIT
+
+                        aws ecr describe-repositories \
+                          --repository-names tashu/frontend tashu/backend \
+                          >/dev/null
+
+                        docker build \
+                          --file infra/runtime/frontend/Dockerfile \
+                          --build-arg FRONTEND_API_PATH=/staging-api \
+                          --build-arg FRONTEND_LOGIN_PATH=/staging-auth \
+                          --build-arg FRONTEND_BASE_PATH=/staging/ \
+                          --build-arg FRONTEND_ENABLE_MSW=false \
+                          --tag "${frontend_local}" \
+                          .
+
+                        docker build \
+                          --file backend/good-tashu/Dockerfile \
+                          --tag "${backend_local}" \
+                          backend/good-tashu
+
+                        docker tag "${frontend_local}" "${frontend_remote}"
+                        docker tag "${backend_local}" "${backend_remote}"
+
+                        aws ecr get-login-password \
+                          | docker login \
+                              --username AWS \
+                              --password-stdin "${registry}"
+
+                        if aws ecr describe-images \
+                          --repository-name tashu/frontend \
+                          --image-ids imageTag="${GIT_SHORT_SHA}" \
+                          >/dev/null 2>&1; then
+                            printf 'ECR image already exists: frontend tag=%s\n' "${GIT_SHORT_SHA}"
+                        else
+                            docker push "${frontend_remote}"
+                        fi
+
+                        if aws ecr describe-images \
+                          --repository-name tashu/backend \
+                          --image-ids imageTag="${GIT_SHORT_SHA}" \
+                          >/dev/null 2>&1; then
+                            printf 'ECR image already exists: backend tag=%s\n' "${GIT_SHORT_SHA}"
+                        else
+                            docker push "${backend_remote}"
+                        fi
+
+                        aws ecr describe-images \
+                          --repository-name tashu/frontend \
+                          --image-ids imageTag="${GIT_SHORT_SHA}" \
+                          --query 'imageDetails[0].imageDigest' \
+                          --output text \
+                          >/dev/null
+                        aws ecr describe-images \
+                          --repository-name tashu/backend \
+                          --image-ids imageTag="${GIT_SHORT_SHA}" \
+                          --query 'imageDetails[0].imageDigest' \
+                          --output text \
+                          >/dev/null
+
+                        printf 'ECR push verified: frontend/backend tag=%s\n' "${GIT_SHORT_SHA}"
+                    '''
+                }
+            }
+        }
     }
 
     post {
@@ -98,6 +199,12 @@ pipeline {
                       "tashu/ci-collector:${CI_IMAGE_TAG}" \
                       "tashu/ci-frontend:${CI_IMAGE_TAG}" \
                       "tashu/ci-backend:${CI_IMAGE_TAG}" \
+                      >/dev/null 2>&1 || true
+                fi
+                if [ -n "${GIT_SHORT_SHA:-}" ]; then
+                    docker image rm --force \
+                      "tashu/runtime-frontend:${GIT_SHORT_SHA}" \
+                      "tashu/runtime-backend:${GIT_SHORT_SHA}" \
                       >/dev/null 2>&1 || true
                 fi
             '''

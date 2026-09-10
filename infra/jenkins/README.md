@@ -29,6 +29,7 @@ PC --SSH tunnel--> 127.0.0.1:8080 on Server B
 | `agent/README.md` | Agent 권한, 내부 연결, workspace와 포함 도구 설명 |
 | `scripts/generate-secrets.sh` | 관리자 비밀번호, Agent 전용 SSH key pair와 Compose runtime 환경파일 생성 |
 | `scripts/configure-gitlab-credential.sh` | GitLab Deploy Token을 화면에 출력하지 않고 JCasC용 Secret 파일 두 개로 저장 |
+| `scripts/configure-ecr-credential.sh` | ECR Push 전용 AWS Access Key를 화면에 출력하지 않고 JCasC용 Secret 파일 두 개로 저장 |
 
 ## 왜 built-in executor를 0으로 두는가
 
@@ -77,6 +78,7 @@ Agent와 관측성, 이후 Kafka·Spark가 같은 Server B를 사용하므로 �
 - 저장소 루트 Jenkinsfile과 pipeline/의 서비스별 Docker build 환경을 추가했다.
 - Collector test와 Node 22 Frontend lint·build는 실행 가능한 기준선을 확인했다.
 - Backend Gradle 9.7.1 Wrapper를 복구했고 Build #4~#6에서 Backend test가 실제 실행됐다.
+- ECR 연동 세대는 Controller image `2.568.3-5`, AWS CLI가 추가된 Agent image `3`을 사용한다. 이전 운영 image `2.568.3-4`와 `2`는 rollback 기준으로 남긴다.
 
 ## Multibranch Pipeline 설정
 
@@ -113,6 +115,7 @@ Controller 재시작 시험에서는 Job과 Build 결과는 유지됐지만 UI�
 ## 아직 하지 않는 것
 
 - GitLab Webhook 연결과 Polling fallback 제거
-- ECR credential과 배포용 SSH key
+- ECR credential 운영 주입과 실제 `develop` image push 검증
+- 배포용 SSH key
 - develop의 staging 자동 배포
 - Jenkins home 정기 backup

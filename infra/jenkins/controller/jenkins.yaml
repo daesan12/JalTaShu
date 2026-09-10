@@ -60,6 +60,12 @@ credentials:
               username: "${gitlab_username}"
               password: "${gitlab_token}"
               description: "GitLab read-only deploy token for S15P21B103"
+          - usernamePassword:
+              scope: GLOBAL
+              id: "aws-ecr-push"
+              username: "${aws_ecr_access_key_id}"
+              password: "${aws_ecr_secret_access_key}"
+              description: "AWS credentials restricted to pushing Tashu ECR images"
 
 unclassified:
   location:

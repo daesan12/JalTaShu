@@ -9,11 +9,17 @@
 | jenkins-push-policy.template.json | Jenkins 전용 AWS 자격증명에 부여할 Push 권한 템플릿이다. tashu/* repository에만 이미지를 올릴 수 있다. |
 | runtime-pull-policy.template.json | SSAFY 실행 서버용 Pull 권한 템플릿이다. 이미지를 내려받고 조회할 수 있지만 Push와 삭제는 할 수 없다. |
 | lifecycle-policy.json | 각 repository에서 untagged image는 1일 뒤 삭제하고, tagged image는 최신 10개만 남긴다. |
+| create-repositories.sh | AWS CLI로 현재 필요한 repository 두 개를 생성하고 tag 불변성·scan·보관 정책을 반복 적용한다. |
 
-## 생성할 private repository
+## 첫 단계에 생성할 private repository
 
 - tashu/frontend
 - tashu/backend
+
+AI·Collector·Streaming은 실제 runtime image가 생긴 뒤 같은 기준으로 추가한다. 빈 repository는 비용이 거의 없지만, 지금 사용하지 않는 구성을 미리 늘리지 않는다.
+
+## 이후 필요할 repository
+
 - tashu/ai
 - tashu/collector
 - tashu/streaming
