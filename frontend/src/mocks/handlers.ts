@@ -17,6 +17,11 @@ function fail(code: number, message: string) {
   return HttpResponse.json({ code, message, data: null }, { status: code });
 }
 
+/** 백엔드는 모든 API가 세션 필수(.anyRequest().authenticated()) — 동일하게 흉내 */
+function requireAuth() {
+  return getAuthState().loggedIn ? null : fail(401, '로그인이 필요합니다.');
+}
+
 /** 가짜 로그인 세션 — 새로고침에도 유지되도록 localStorage 사용 (개발 초기화: 브라우저 저장소 삭제) */
 const AUTH_STATE_KEY = 'msw_auth_state';
 
@@ -157,12 +162,16 @@ export const handlers = [
 
   http.get('/api/reports/my', async () => {
     await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
     return HttpResponse.json(ok(getMockReports()));
   }),
 
   // ── 자전거 (18 자전거 상태 — 백엔드 API 미정, 임시 스키마) ──────────
   http.get('/api/bikes/:code', async ({ params }) => {
     await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
     const code = String(params.code);
     const dayMs = 24 * 60 * 60 * 1000;
 
@@ -218,11 +227,15 @@ export const handlers = [
   // ── 대여소 ─────────────────────────────────────────────────────────
   http.get('/api/stations', async () => {
     await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
     return HttpResponse.json(ok(STATIONS));
   }),
 
   http.get('/api/stations/:stationId/predictions', async ({ params }) => {
     await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
     const station = STATIONS.find((s) => s.stationId === params.stationId);
     if (!station) {
       return HttpResponse.json(

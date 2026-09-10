@@ -7,9 +7,9 @@ export interface Me {
   nickname: string | null;
 }
 
-/** GET /api/users/me — 비로그인 시 401 ApiError */
+/** GET /api/users/me — 비로그인 시 401 ApiError (로그인 여부 확인용이라 전역 리다이렉트 제외) */
 export function getMe(): Promise<Me> {
-  return apiGet<Me>('/users/me');
+  return apiGet<Me>('/users/me', { skipAuthRedirect: true });
 }
 
 /**
