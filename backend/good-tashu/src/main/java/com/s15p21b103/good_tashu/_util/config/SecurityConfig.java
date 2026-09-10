@@ -23,8 +23,6 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/",
                                 "/error",
-                                "/actuator/health",
-                                "/actuator/health/**",
                                 // 소셜 로그인의 모든 요청(클라이언트 및 소셜 로그인 서버)를 받을 수 있도록
                                 "/auth/oauth/**"
                         ).permitAll()
