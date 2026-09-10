@@ -89,20 +89,26 @@ Jenkins UI의 `tashu-ci` Job은 다음 값으로 구성했다.
 | Credential | `gitlab-readonly`: `read_repository`만 가진 Deploy Token을 Jenkins가 암호화해 보관한다. |
 | Behaviour | `Discover branches`: 원격 브랜치를 탐색한다. |
 | Script Path | `Jenkinsfile`: 저장소 루트의 Pipeline 정의를 사용한다. |
-| Scan trigger | 2분 Polling fallback을 구성했지만, 현재는 Credential 영속화 적용 전 반복 실패를 막기 위해 일시 중지했다. |
+| Scan trigger | `2m` Periodic Folder Trigger. Webhook 연결 전까지 새 Commit을 자동 탐색하는 fallback이다. |
 
 첫 scan은 원격 브랜치 6개를 확인하고 루트 Jenkinsfile이 있는 `chore/#73-jenkins-multibranch-ci`만 Build 대상으로 등록했다. Build #1은 Build Agent에서 Git checkout, Collector 테스트 12개와 Frontend lint·build를 실행해 `SUCCESS`가 됐다. Backend는 저장소의 `gradle-wrapper.properties`가 준비될 때까지 명시적으로 보류된다.
 
 Controller 재시작 시험에서는 Job과 Build 결과는 유지됐지만 UI에서 수동 등록한 `gitlab-readonly` Credential이 JCasC의 선언 목록에 없어 제거됐다. 그 결과 첫 timer scan이 HTTP Basic 인증 실패로 끝났고, 반복 실패를 막기 위해 2분 Polling을 일시 중지했다. 이를 해결하기 위해 Compose가 `/etc/tashu/jenkins/gitlab-username`과 `gitlab-token`을 Docker Secret으로 mount하고, JCasC가 시작할 때마다 동일 ID의 Username/Password Credential을 생성하도록 구성했다. `CASC_STRICT_SECRET_RESOLUTION=true`는 파일이 없을 때 빈 Credential로 덮어쓰지 않고 시작을 실패시킨다.
 
-`configure-gitlab-credential.sh`는 사용자가 서버 터미널에서 값을 직접 입력받아 두 파일을 `0640 root:tashu-jenkins`로 atomic 교체한다. 값은 터미널, Git, 문서와 프로세스 인자에 출력하지 않는다. 실제 Secret 입력과 Controller 재생성은 사용자와 함께 검증한 뒤 수행한다.
+`configure-gitlab-credential.sh`는 사용자가 서버 터미널에서 값을 직접 입력받아 두 파일을 `0640 root:tashu-jenkins`로 atomic 교체한다. 값은 터미널, Git, 문서와 프로세스 인자에 출력하지 않는다. 운영 적용에서도 값 대신 파일 소유자·권한·크기만 확인했다.
 
-배포 전 검증에서는 실제 Deploy Token 대신 임시 값을 사용했다. Compose 최종 설정과 셸 문법이 통과했고, 새 Controller image 	ashu/jenkins-controller:2.568.3-4가 독립 컨테이너에서 기동해 gitlab-readonly를 생성했다. gitlab-token 파일을 의도적으로 빼면 strict resolution이 Jenkins 시작을 차단하는 것도 확인했다. 현재 운영 Controller는 기존 2.568.3-3 상태를 유지한다.
+배포 전 검증에서는 실제 Deploy Token 대신 임시 값을 사용했다. Compose 최종 설정과 셸 문법이 통과했고, 새 Controller image `tashu/jenkins-controller:2.568.3-4`가 독립 컨테이너에서 기동해 `gitlab-readonly`를 생성했다. `gitlab-token` 파일을 의도적으로 빼면 strict resolution이 Jenkins 시작을 차단하는 것도 확인했다.
 
+## Credential 영속화 운영 검증
+
+- 설정과 Jenkins home volume을 각각 gzip archive로 백업하고 무결성을 검사했다.
+- 운영 Controller를 `2.568.3-4`로 교체한 뒤 `healthy`와 Jenkins 완전 기동 로그를 확인했다.
+- Controller를 한 번 더 재시작해 `gitlab-readonly`, `tashu-ci`, Build #1과 Build Agent 연결이 모두 유지되는 것을 확인했다.
+- Jenkins·Grafana·Prometheus 관리 UI는 계속 `127.0.0.1`에만 bind하며 UFW를 변경하지 않았다.
+- `tashu-ci`에 2분 Periodic Folder Trigger를 다시 등록했다.
 ## 아직 하지 않는 것
 
-- GitLab Secret 파일 설치와 JCasC Credential 재시작 검증
-- GitLab Webhook 연결과 Polling 대체
+- GitLab Webhook 연결과 Polling fallback 제거
 - ECR credential과 배포용 SSH key
 - develop의 staging 자동 배포
 - Jenkins home 정기 backup
