@@ -75,8 +75,8 @@ Agent와 관측성, 이후 Kafka·Spark가 같은 Server B를 사용하므로 �
 ## Pipeline 코드 상태
 
 - 저장소 루트 Jenkinsfile과 pipeline/의 서비스별 Docker build 환경을 추가했다.
-- Collector test와 Frontend lint·build는 실행 가능한 기준선을 확인했다.
-- Backend는 gradle-wrapper.properties가 준비되면 자동으로 test를 실행한다.
+- Collector test와 Node 22 Frontend lint·build는 실행 가능한 기준선을 확인했다.
+- Backend Gradle 9.7.1 Wrapper를 복구했고 Build #4~#6에서 Backend test가 실제 실행됐다.
 
 ## Multibranch Pipeline 설정
 
@@ -91,7 +91,9 @@ Jenkins UI의 `tashu-ci` Job은 다음 값으로 구성했다.
 | Script Path | `Jenkinsfile`: 저장소 루트의 Pipeline 정의를 사용한다. |
 | Scan trigger | `2m` Periodic Folder Trigger. Webhook 연결 전까지 새 Commit을 자동 탐색하는 fallback이다. |
 
-첫 scan은 원격 브랜치 6개를 확인하고 루트 Jenkinsfile이 있는 `chore/#73-jenkins-multibranch-ci`만 Build 대상으로 등록했다. Build #1은 Build Agent에서 Git checkout, Collector 테스트 12개와 Frontend lint·build를 실행해 `SUCCESS`가 됐다. Backend는 저장소의 `gradle-wrapper.properties`가 준비될 때까지 명시적으로 보류된다.
+첫 scan은 원격 브랜치 6개를 확인하고 루트 Jenkinsfile이 있는 `chore/#73-jenkins-multibranch-ci`만 Build 대상으로 등록했다. Build #1은 Build Agent에서 Git checkout, Collector 테스트 12개와 Frontend lint·build를 실행해 `SUCCESS`가 됐다. 당시 Backend는 저장소에 `gradle-wrapper.properties`가 없어 명시적으로 보류됐다.
+
+이후 Gradle Wrapper 설정을 복구하고 Frontend CI를 Node 22 LTS로 맞췄다. Build #4부터 Backend Gradle 단계가 실제 실행됐고, 인프라가 추가했던 Backend Health 구현을 제거한 Build #5도 성공했다. 최신 `develop`의 프론트 변경을 병합한 Build #6은 Checkout, Repository contract, Collector tests, Frontend lint·build, Backend test와 Post Actions가 모두 `SUCCESS`였으며 총 49초가 걸렸다. Health endpoint 자체는 백엔드 담당이 구현하고 인프라는 배포 검증에서 사용한다.
 
 Controller 재시작 시험에서는 Job과 Build 결과는 유지됐지만 UI에서 수동 등록한 `gitlab-readonly` Credential이 JCasC의 선언 목록에 없어 제거됐다. 그 결과 첫 timer scan이 HTTP Basic 인증 실패로 끝났고, 반복 실패를 막기 위해 2분 Polling을 일시 중지했다. 이를 해결하기 위해 Compose가 `/etc/tashu/jenkins/gitlab-username`과 `gitlab-token`을 Docker Secret으로 mount하고, JCasC가 시작할 때마다 동일 ID의 Username/Password Credential을 생성하도록 구성했다. `CASC_STRICT_SECRET_RESOLUTION=true`는 파일이 없을 때 빈 Credential로 덮어쓰지 않고 시작을 실패시킨다.
 
