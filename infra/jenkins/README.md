@@ -76,7 +76,7 @@ Agent와 관측성, 이후 Kafka·Spark가 같은 Server B를 사용하므로 �
 ## Pipeline 코드 상태
 
 - 저장소 루트 Jenkinsfile과 pipeline/의 서비스별 Docker build 환경을 추가했다.
-- Collector test와 Node 22 Frontend lint·build는 실행 가능한 기준선을 확인했다.
+- Collector test와 Node 22 Frontend test·lint·build는 실행 가능한 기준선을 구성했다.
 - Backend Gradle 9.7.1 Wrapper를 복구했고 Build #4~#6에서 Backend test가 실제 실행됐다.
 - ECR 연동 세대는 Controller image `2.568.3-5`, AWS CLI `2.36.42`가 추가된 Agent image `3`을 사용한다. 이전 운영 image `2.568.3-4`와 `2`는 rollback 기준으로 남긴다.
 

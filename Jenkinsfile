@@ -61,7 +61,7 @@ pipeline {
                     }
                 }
 
-                stage('Frontend lint and build') {
+                stage('Frontend test, lint and build') {
                     steps {
                         sh '''
                             docker build \

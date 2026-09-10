@@ -7,5 +7,6 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+RUN npm test
 RUN npm run lint
 RUN npm run build

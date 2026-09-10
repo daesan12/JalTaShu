@@ -6,7 +6,7 @@
 
 | 파일 | 역할 |
 | --- | --- |
-| `frontend.Dockerfile` | Node.js 22 LTS 환경에서 `npm ci`, lint와 production build를 실행한다. |
+| `frontend.Dockerfile` | Node.js 22 LTS 환경에서 `npm ci` 후 test, lint, production build를 차례로 실행한다. |
 | `collector.Dockerfile` | Python 3.12 환경에서 Collector 의존성을 설치하고 단위 테스트 12개를 실행한다. |
 | `backend.Dockerfile` | Java 21 환경에서 Gradle Wrapper test를 실행한다. Wrapper 설정이 있으면 Jenkins가 Backend 단계도 자동 실행한다. |
 
@@ -37,6 +37,8 @@ Jenkins Controller는 빌드를 실행하지 않는다. `docker` label의 Build 
 ## ECR stage
 
 기능 브랜치와 MR은 Service CI까지만 수행한다. `develop` Job만 테스트가 모두 성공한 뒤 배포용 Frontend·Backend image를 추가로 빌드하고 private ECR에 Push한다.
+
+Frontend CI 순서는 `npm ci → npm test → npm run lint → npm run build`다. `npm ci`가 lock file에 고정된 의존성을 깨끗하게 설치하고, 테스트나 정적 검사 중 하나라도 실패하면 뒤 단계와 image push를 실행하지 않는다.
 
 - Credential ID: `aws-ecr-push`
 - Region: `ap-northeast-2`
