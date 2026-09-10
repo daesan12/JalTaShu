@@ -11,6 +11,9 @@
 | lifecycle-policy.json | 각 repository에서 untagged image는 1일 뒤 삭제하고, tagged image는 최신 10개만 남긴다. |
 | registry-scanning-configuration.json | ECR 레지스트리에서 `tashu/*` repository만 Push 시 기본 취약점 스캔하도록 지정한다. |
 | create-repositories.sh | AWS CLI로 현재 필요한 repository 두 개를 생성하고 tag 불변성·보관 정책·레지스트리 스캔 정책을 반복 적용한다. |
+| scripts/configure-runtime-pull-credential.sh | Server A의 ECR Pull 전용 Access Key를 기존 S3 자격증명과 분리해 입력한다. |
+| scripts/verify-runtime-pull-access.sh | ECR 인증·조회 허용과 S3 전체 조회 거부를 확인한다. |
+| scripts/pull-runtime-image.sh | 임시 Docker 인증 설정으로 Commit SHA 이미지를 Pull한 뒤 로그인 정보를 제거한다. |
 
 ## 첫 단계에 생성할 private repository
 
@@ -50,3 +53,34 @@ AI·Collector·Streaming은 실제 runtime image가 생긴 뒤 같은 기준으�
 - 레지스트리 수준 Basic scanning에서 `tashu/*` Push 시 스캔 규칙을 확인했다.
 - 두 repository에 untagged image 1일 만료와 tagged image 최신 10개 보관 정책을 적용했다.
 - 실제 Commit SHA image Push와 스캔 결과 확인은 Jenkins Credential 연결 후 진행한다.
+## Server A Pull 자격증명
+
+Server A에는 S3 Bronze 동기화용 AWS 자격증명이 이미 있다. ECR Pull 키를 기본 profile에 덮어쓰지 않고 `/etc/tashu/ecr-pull/credentials`에 별도로 저장한다.
+
+```bash
+sudo /opt/tashu/infra/aws/ecr/scripts/configure-runtime-pull-credential.sh
+sudo /opt/tashu/infra/aws/ecr/scripts/verify-runtime-pull-access.sh
+```
+
+자격증명 파일은 `root:root`, mode `0600`이며 Git에 포함하지 않는다. 검증 스크립트는 Secret 값을 출력하지 않고 다음 항목만 확인한다.
+
+- AWS STS 인증 주체 확인
+- ECR authorization token 발급 가능
+- `tashu/frontend`, `tashu/backend` image 조회 가능
+- S3 전체 bucket 조회 불가
+
+ECR image를 Pull할 때는 repository와 불변 tag를 명시한다.
+
+```bash
+sudo /opt/tashu/infra/aws/ecr/scripts/pull-runtime-image.sh tashu/frontend <COMMIT_SHA_TAG>
+sudo /opt/tashu/infra/aws/ecr/scripts/pull-runtime-image.sh tashu/backend <COMMIT_SHA_TAG>
+```
+
+스크립트는 `/run` 아래에 임시 Docker config를 만들고 ECR 로그인 토큰을 저장한다. Pull 완료 여부와 관계없이 trap으로 logout하고 임시 디렉터리를 삭제한다. AWS ECR authorization token의 유효기간은 12시간이지만 이 구성은 실행이 끝난 뒤 즉시 폐기한다.
+
+허용 repository는 `tashu/frontend`, `tashu/backend` 두 개다. `latest` 대신 Jenkins가 생성한 Commit SHA tag를 사용한다.
+
+## 공식 자료
+
+- [Amazon ECR private registry authentication](https://docs.aws.amazon.com/AmazonECR/latest/userguide/registry_auth.html)
+- [Amazon ECR service authorization reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_ecr.html)
