@@ -46,6 +46,8 @@ export function BottomSheet({
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragStartY = useRef<number | null>(null);
   const showBackdrop = backdrop ?? (snapPoint === 'half' || snapPoint === 'tall');
+  // snap 변경 콜백이 없는 시트(고정 높이)는 위로 드래그를 잠근다
+  const canExpand = Boolean(onSnapChange);
 
   /** 드래그 종료·취소 시 인라인 스타일을 걷어내고 스냅 클래스로 복귀 */
   const endDrag = () => {
@@ -66,7 +68,12 @@ export function BottomSheet({
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (dragStartY.current === null || !sheetRef.current) return;
-    const delta = clampDragDelta(snapPoint, e.clientY - dragStartY.current, window.innerHeight);
+    const delta = clampDragDelta(
+      snapPoint,
+      e.clientY - dragStartY.current,
+      window.innerHeight,
+      canExpand,
+    );
     // Tailwind v4의 -translate-x-1/2(가로 중앙)를 유지하면서 세로만 이동
     sheetRef.current.style.translate = `-50% ${delta}px`;
   };
@@ -113,6 +120,8 @@ export function BottomSheet({
         <div className="h-[calc(100%-21px)] overflow-y-auto overscroll-contain px-4">
           {children}
         </div>
+        {/* 위로 드래그할 때 시트 아래가 끊겨 보이지 않게 하는 꼬리 배경 */}
+        <div aria-hidden className="absolute inset-x-0 top-full h-48 bg-surface" />
       </div>
     </>
   );
