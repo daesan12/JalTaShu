@@ -43,6 +43,39 @@ function setAuthState(state: MockAuthState) {
   }
 }
 
+/** 가짜 민원 내역 — 새로고침에도 유지되도록 localStorage 사용 */
+const REPORTS_KEY = 'msw_reports';
+
+interface MockReport {
+  id: number;
+  type: string;
+  bikeCode: string | null;
+  tag: string | null;
+  tagDetail: string | null;
+  content: string;
+  nickname: string;
+  status: string;
+  createdAt: string;
+}
+
+function getMockReports(): MockReport[] {
+  try {
+    const raw = localStorage.getItem(REPORTS_KEY);
+    if (raw) return JSON.parse(raw) as MockReport[];
+  } catch {
+    // 파싱 실패 시 빈 목록
+  }
+  return [];
+}
+
+function setMockReports(reports: MockReport[]) {
+  try {
+    localStorage.setItem(REPORTS_KEY, JSON.stringify(reports));
+  } catch {
+    // 저장 불가 환경 무시
+  }
+}
+
 /** 대전 실제 좌표 기반 목업 대여소 (07-1 팝업 와이어프레임 데이터 반영) */
 const STATIONS: Station[] = [
   { stationId: 'ST0001', name: '유성구청역 대여소', lat: 36.362, lng: 127.3565, currentBikes: 7 },
@@ -93,6 +126,93 @@ export const handlers = [
 
     setAuthState({ loggedIn: true, nickname });
     return HttpResponse.json({ code: 200, message: '가입에 성공했습니다.', data: null });
+  }),
+
+  // ── 민원 (17-x — 백엔드 API 미정, 임시 스키마) ─────────────────────
+  http.post('/api/reports', async ({ request }) => {
+    await delay(400);
+    const body = (await request.json()) as {
+      type?: string;
+      bikeCode?: string | null;
+      tag?: string | null;
+      tagDetail?: string | null;
+      content?: string;
+    };
+    if (!body.content?.trim()) return fail(400, '상세내용을 입력해 주세요.');
+    const reports = getMockReports();
+    reports.unshift({
+      id: Date.now(),
+      type: body.type ?? 'inquiry',
+      bikeCode: body.bikeCode ?? null,
+      tag: body.tag ?? null,
+      tagDetail: body.tagDetail ?? null,
+      content: body.content,
+      nickname: getAuthState().nickname ?? '익명',
+      status: '접수됨',
+      createdAt: new Date().toISOString(),
+    });
+    setMockReports(reports);
+    return HttpResponse.json({ code: 200, message: '민원이 접수되었습니다.', data: null });
+  }),
+
+  http.get('/api/reports/my', async () => {
+    await delay(300);
+    return HttpResponse.json(ok(getMockReports()));
+  }),
+
+  // ── 자전거 (18 자전거 상태 — 백엔드 API 미정, 임시 스키마) ──────────
+  http.get('/api/bikes/:code', async ({ params }) => {
+    await delay(300);
+    const code = String(params.code);
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    // 내가 접수한 고장신고 중 이 자전거에 달린 것 = 제보로 노출
+    const myReports = getMockReports()
+      .filter((r) => r.type === 'broken' && r.bikeCode === code)
+      .map((r) => ({
+        tag: r.tag ?? '기타',
+        tagDetail: r.tagDetail ?? null,
+        content: r.content,
+        nickname: r.nickname,
+        createdAt: r.createdAt,
+      }));
+
+    // 데모용 씨앗 제보 (1로 끝나는 코드는 깨끗한 자전거 — 다이어그램 기본 상태 확인용)
+    const seedReports = code.endsWith('1')
+      ? []
+      : [
+          {
+            tag: '브레이크',
+            tagDetail: null,
+            content: '브레이크가 잘 안 잡혀요',
+            nickname: '달리는거북',
+            createdAt: new Date(Date.now() - 3 * dayMs).toISOString(),
+          },
+          {
+            tag: '타이어',
+            tagDetail: null,
+            content: '앞바퀴 공기압이 낮아요',
+            nickname: '바퀴요정',
+            createdAt: new Date(Date.now() - 5 * dayMs).toISOString(),
+          },
+          {
+            tag: '안장',
+            tagDetail: null,
+            content: '안장 높이가 고정되지 않아요',
+            nickname: '둔산라이더',
+            createdAt: new Date(Date.now() - 8 * dayMs).toISOString(),
+          },
+        ];
+
+    return HttpResponse.json(
+      ok({
+        code,
+        rideable: !code.endsWith('0'), // 0으로 끝나는 코드는 점검 필요 상태 (상태 배지 확인용)
+        lastUsedAt: new Date(Date.now() - 2 * dayMs).toISOString(),
+        lastStationName: '유성구청역 대여소',
+        reports: [...myReports, ...seedReports],
+      }),
+    );
   }),
 
   // ── 대여소 ─────────────────────────────────────────────────────────
