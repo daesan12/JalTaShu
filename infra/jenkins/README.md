@@ -95,6 +95,8 @@ Jenkins UI의 `tashu-ci` Job은 다음 값으로 구성했다.
 
 이후 Gradle Wrapper 설정을 복구하고 Frontend CI를 Node 22 LTS로 맞췄다. Build #4부터 Backend Gradle 단계가 실제 실행됐고, 인프라가 추가했던 Backend Health 구현을 제거한 Build #5도 성공했다. 최신 `develop`의 프론트 변경을 병합한 Build #6은 Checkout, Repository contract, Collector tests, Frontend lint·build, Backend test와 Post Actions가 모두 `SUCCESS`였으며 총 49초가 걸렸다. Health endpoint 자체는 백엔드 담당이 구현하고 인프라는 배포 검증에서 사용한다.
 
+프론트 환경별 배포 설정 MR !16이 `develop`에 병합된 뒤 현재 브랜치에도 동기화했다. `VITE_BASE_PATH`와 `VITE_AUTH_BASE_URL` 변경이 포함된 Build #8에서 Frontend lint·build와 Collector·Backend 검증이 모두 `SUCCESS`였다. 따라서 Nginx는 후속 CD 단계에서 `/staging/`, `/staging-api/`, `/staging-auth/` 경로를 연결할 수 있다.
+
 Controller 재시작 시험에서는 Job과 Build 결과는 유지됐지만 UI에서 수동 등록한 `gitlab-readonly` Credential이 JCasC의 선언 목록에 없어 제거됐다. 그 결과 첫 timer scan이 HTTP Basic 인증 실패로 끝났고, 반복 실패를 막기 위해 2분 Polling을 일시 중지했다. 이를 해결하기 위해 Compose가 `/etc/tashu/jenkins/gitlab-username`과 `gitlab-token`을 Docker Secret으로 mount하고, JCasC가 시작할 때마다 동일 ID의 Username/Password Credential을 생성하도록 구성했다. `CASC_STRICT_SECRET_RESOLUTION=true`는 파일이 없을 때 빈 Credential로 덮어쓰지 않고 시작을 실패시킨다.
 
 `configure-gitlab-credential.sh`는 사용자가 서버 터미널에서 값을 직접 입력받아 두 파일을 `0640 root:tashu-jenkins`로 atomic 교체한다. 값은 터미널, Git, 문서와 프로세스 인자에 출력하지 않는다. 운영 적용에서도 값 대신 파일 소유자·권한·크기만 확인했다.

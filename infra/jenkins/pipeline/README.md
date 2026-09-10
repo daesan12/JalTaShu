@@ -25,9 +25,10 @@ Jenkins Controller는 빌드를 실행하지 않는다. `docker` label의 Build 
 ## 외부 설정 상태
 
 - `gitlab-readonly` Credential을 Docker Secret과 JCasC로 관리하며 Controller 재시작 후 유지됨을 확인
-- `tashu-ci` Multibranch Pipeline과 2분 branch scan으로 Build #2~#6 `SUCCESS` 확인
+- `tashu-ci` Multibranch Pipeline과 2분 branch scan으로 Build #2~#8 `SUCCESS` 확인
 - Backend Gradle 9.7.1 Wrapper 설정을 복구했고 Build #4~#6에서 Backend test 단계 실제 실행 확인
 - 최신 `develop`의 프론트 변경을 병합한 Build #6에서 Collector·Frontend·Backend와 Post Actions 모두 `SUCCESS` 확인
+- 프론트 환경별 배포 설정 MR !16의 `VITE_BASE_PATH`·`VITE_AUTH_BASE_URL` 변경을 포함한 Build #8 `SUCCESS` 확인
 - Backend Health endpoint 구현은 백엔드 담당 영역이며, 인프라는 합의된 endpoint를 staging·Blue/Green 배포 검증에 사용
 - GitLab Webhook과 ECR·staging 배포는 후속 단계
 
