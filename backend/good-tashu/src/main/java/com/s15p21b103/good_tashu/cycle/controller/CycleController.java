@@ -9,50 +9,43 @@ import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimListResponse;
 import com.s15p21b103.good_tashu.cycle.service.CycleService;
 import com.s15p21b103.good_tashu.user.annotation.currentUserId;
-import com.s15p21b103.good_tashu.user.domain.SocialOAuth2User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @RequiredArgsConstructor
 @RestController
+@RequestMapping("/api/cycle")
 public class CycleController {
     private final CycleService cycleService;
     //대여 요청
-    @PostMapping("/api/cycle/rental")
+    @PostMapping("/rental")
     public ApiResponse<LocalDateTime> rentalCycle(@currentUserId Long userId,
                                                   @Valid @RequestBody CycleRentalRequest request){
         LocalDateTime localDateTime = cycleService.rentalCycle(userId, request);
         return ApiResponse.success(localDateTime);
     }
     //반납 요청
-    @PostMapping("/api/cycle/return")
+    @PostMapping("return")
     public ApiResponse<LocalDateTime> returnCycle(@currentUserId Long userId,
                                                   @Valid @RequestBody CycleReturnRequest request){
         LocalDateTime localDateTime = cycleService.returnCycle(userId, request);
         return ApiResponse.success(localDateTime);
     }
     //자전거 상태제보
-    @PostMapping(value = "/api/cycle/claim", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/claim", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<CycleClaimResponse> claimCycle(@currentUserId Long userId,
                                                   @Valid @ModelAttribute CycleClaimRequest request){
         CycleClaimResponse response = cycleService.claimCycle(userId, request);
         return ApiResponse.success(response);
     }
     //자전거 제보리스트 조회
-    @GetMapping("/cycle/claim/list")
+    @GetMapping("/list")
     public ApiResponse<List<CycleClaimListResponse>> getCycleClaims(
             @RequestParam(name = "cycleId") String cycleId) {
         List<CycleClaimListResponse> response = cycleService.getCycleClaims(cycleId);
@@ -60,7 +53,7 @@ public class CycleController {
     }
 
     //자전거 상태제보 신고
-    @PostMapping(value = "/cycle/claims/{claimId}/reports")
+    @PostMapping(value = "/claims/{claimId}/reports")
     public ResponseEntity<ApiResponse<Void>> reportCycleClaim(
             @currentUserId Long userId,
             @PathVariable(name = "claimId") Long claimId,
