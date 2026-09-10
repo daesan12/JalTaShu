@@ -32,7 +32,7 @@ public class CycleClaimEntity  {
 
     @Column(name = "category", nullable = false)
     @Enumerated(EnumType.STRING)
-    private Category category;
+    private ClaimCategory claimCategory;
 
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;

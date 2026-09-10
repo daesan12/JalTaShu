@@ -19,6 +19,7 @@ public class CycleEntity {
 
     @Setter
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private CycleStatus status;
 
     @CreationTimestamp

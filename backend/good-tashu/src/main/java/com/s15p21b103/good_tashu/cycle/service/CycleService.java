@@ -62,8 +62,6 @@ public class CycleService {
             throw new CycleException(ALREADY_RENTING);
         }
 
-        //대여 상태 변경
-        cycleEntity.startRental();
         //이용 내역 저장
         LocalDateTime currentTime = LocalDateTime.now();
         cycleUsageRepository.save(CycleUsageEntity.builder()
@@ -72,6 +70,9 @@ public class CycleService {
                 .rentalStationEntity(cycleEntity.getStationEntity())
                 .rentalAt(currentTime)
                 .build());
+
+        //대여 상태 변경
+        cycleEntity.startRental();
 
         //알림 전송
         eventPublisher.publishEvent(new CycleRentalStartedEvent(userId, currentTime));
@@ -139,7 +140,7 @@ public class CycleService {
         CycleClaimEntity cycleClaimEntity = CycleClaimEntity.builder()
                 .cycleEntity(cycleEntity)
                 .userEntity(userEntity)
-                .category(request.category())
+                .claimCategory(request.claimCategory())
                 .content(request.content())
                 .status(ClaimStatus.READY)
                 .path(path)
@@ -163,7 +164,7 @@ public class CycleService {
                 .map(claim -> new CycleClaimListResponse(
                         claim.getId(),
                         claim.getUserEntity().getNickname(),
-                        claim.getCategory(),
+                        claim.getClaimCategory(),
                         claim.getContent(),
                         claim.getCreatedAt()))
                 .toList();

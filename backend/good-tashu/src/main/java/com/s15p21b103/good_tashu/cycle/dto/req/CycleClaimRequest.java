@@ -1,14 +1,15 @@
 package com.s15p21b103.good_tashu.cycle.dto.req;
 
-import com.s15p21b103.good_tashu.cycle.domain.Category;
+import com.s15p21b103.good_tashu.cycle.domain.ClaimCategory;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import org.hibernate.validator.constraints.Length;
 import org.springframework.web.multipart.MultipartFile;
 
 public record CycleClaimRequest(
         @NotBlank String cycleId,
-        @NotNull Category category,
-        @NotBlank String content,
+        @NotNull ClaimCategory claimCategory,
+        @NotBlank @Length(max = 500) String content,
         MultipartFile file
 ) {
 }
