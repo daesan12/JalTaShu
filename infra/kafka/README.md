@@ -64,6 +64,17 @@ sudo ufw status numbered
 
 정상 결과는 `tashu-kafka`가 `healthy`, 9092가 Server B 사설 IP에만 LISTEN, 9093이 loopback에만 LISTEN, 임시 메시지 왕복 시험 성공이다.
 
+## 2026-09-10 운영 검증
+
+- Server B에서 `tashu-kafka` health가 `healthy`로 유지됐다.
+- 임시 topic의 create → produce → consume → delete smoke test가 성공했다.
+- Kafka container 재시작 후 health가 복구되고 smoke test가 다시 성공했다.
+- 재시작 전에 저장한 임시 메시지를 재시작 후 소비해 named volume 영속성을 확인했다.
+- 9092는 Server B 사설 주소, 9093은 loopback에만 LISTEN했다.
+- UFW는 Server A에서 Server B 9092로 들어오는 연결만 허용했다.
+- Server A에서 9092 TCP 연결이 성공했고 기존 Collector는 중단 없이 최신 snapshot을 계속 저장했다.
+- Jenkins Controller·Build Agent와 관측성 container, 실패 systemd unit 0개 상태를 유지했다.
+
 ## 업무 topic 계약: 아직 미확정
 
 기존 인프라 설계는 `station-availability.raw.v1` topic에 `station_id`를 key로 한 대여소별 event를 넣는다. 데이터 파트의 새 제안은 `tashu.station-snapshots.v1`이라는 snapshot 단위 topic이다. 두 방식은 메시지 크기, partition 활용과 중복 제거 기준이 다르므로 이름만 바꾸지 않는다.
