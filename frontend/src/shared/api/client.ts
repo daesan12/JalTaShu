@@ -16,6 +16,8 @@ export class ApiError extends Error {
 export const client = axios.create({
   baseURL: ENV.API_BASE_URL,
   timeout: 10_000,
+  // 백엔드 인증이 세션 쿠키(JSESSIONID) 방식이라 모든 요청에 쿠키 포함 필수
+  withCredentials: true,
 });
 
 function unwrap<T>(body: ApiResponse<T>): T {
