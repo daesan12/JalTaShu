@@ -102,6 +102,54 @@ export const handlers = [
     return HttpResponse.json(ok({ nickname: state.nickname }));
   }),
 
+  // ── 공지사항 (고객센터 — 백엔드 API 미정, 임시 스키마) ──────────────
+  http.get('/api/notices', async () => {
+    await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    return HttpResponse.json(
+      ok([
+        { id: 5, title: '임시 폐쇄 대여소 안내 (2026. 9. 10.)', date: '2026/09/10' },
+        { id: 4, title: '♣2026년 공공 데이터 활용 설문조사 실시', date: '2026/08/25' },
+        { id: 3, title: '공영자전거 타슈 이용약관 개정 알림', date: '2026/04/10' },
+        { id: 2, title: '"타슈" 대여 전 안전수칙 확인 후 대여하도록 절차 개선', date: '2025/10/28' },
+        { id: 1, title: '타슈 대여소에 반드시 반납해주세요!!!', date: '2023/08/02' },
+      ]),
+    );
+  }),
+
+  // ── 프로필 (24 — 백엔드 API 미정, 임시 스키마) ─────────────────────
+  http.get('/api/users/me/stats', async () => {
+    await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    return HttpResponse.json(ok({ monthlyRides: 12, distanceKm: 38.2, durationMin: 84 }));
+  }),
+
+  http.put('/api/users/me', async ({ request }) => {
+    await delay(400);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const body = (await request.json()) as { nickname?: string };
+    const nickname = body.nickname ?? '';
+    if (
+      nickname.length < NICKNAME_MIN ||
+      nickname.length > NICKNAME_MAX ||
+      !NICKNAME_PATTERN.test(nickname)
+    ) {
+      return fail(400, '닉네임 형식이 올바르지 않습니다.');
+    }
+    setAuthState({ loggedIn: true, nickname });
+    return HttpResponse.json({ code: 200, message: '닉네임이 변경되었습니다.', data: null });
+  }),
+
+  // 백엔드에 로그아웃 API가 아직 없음 — 확정 시 경로 맞출 것
+  http.post('/api/auth/logout', async () => {
+    await delay(300);
+    setAuthState({ loggedIn: false, nickname: getAuthState().nickname });
+    return HttpResponse.json(ok(null));
+  }),
+
   // 실제 백엔드에는 없는 개발용 엔드포인트 — 카카오 OAuth 리다이렉트를 대신함
   http.post('/api/auth/mock-login', async () => {
     await delay(400);

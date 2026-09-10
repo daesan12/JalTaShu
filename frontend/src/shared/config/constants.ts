@@ -11,6 +11,7 @@ export const RECENT_SEARCH_MAX = 10;
 /** localStorage 키 모음 — 문자열 하드코딩 금지, 반드시 여기서 가져다 쓸 것 */
 export const STORAGE_KEYS = {
   onboardingDone: 'onboarding_done',
+  settings: 'app_settings',
 } as const;
 
 /**

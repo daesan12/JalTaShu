@@ -51,7 +51,7 @@ export function ReportPage() {
             <span className="block font-semibold text-gray-900">문제가 생기셨나요?</span>
             <button
               type="button"
-              onClick={() => selectType('inquiry')}
+              onClick={() => navigate('/mypage/support')}
               className="font-medium text-blue-500"
             >
               고객센터
