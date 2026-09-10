@@ -112,10 +112,20 @@ Controller 재시작 시험에서는 Job과 Build 결과는 유지됐지만 UI�
 - Controller를 한 번 더 재시작해 `gitlab-readonly`, `tashu-ci`, Build #1과 Build Agent 연결이 모두 유지되는 것을 확인했다.
 - Jenkins·Grafana·Prometheus 관리 UI는 계속 `127.0.0.1`에만 bind하며 UFW를 변경하지 않았다.
 - `tashu-ci`에 2분 Periodic Folder Trigger를 다시 등록했다.
+
+## ECR Credential 운영 검증
+
+- Jenkins ECR Push 전용 IAM 사용자를 기존 Server A S3 사용자와 분리했다.
+- 실제 키 값 대신 Secret 파일의 `0640 root:tashu-jenkins` 권한과 크기만 확인했다.
+- STS 인증 주체가 Jenkins 전용 사용자이며 `tashu/frontend`, `tashu/backend` 조회는 허용되고 S3 전체 조회는 거부됨을 확인했다.
+- Controller `2.568.3-5`와 AWS CLI `2.36.42`가 포함된 Agent `3`으로 교체한 뒤 모두 healthy 상태를 확인했다.
+- Controller 재시작 뒤 `aws-ecr-push`, `tashu-ci` Job과 Agent 연결이 유지됐다.
+- Jenkins 관리 포트는 `127.0.0.1:8080`, UFW는 active 상태를 유지했다.
+
 ## 아직 하지 않는 것
 
 - GitLab Webhook 연결과 Polling fallback 제거
-- ECR credential 운영 주입과 실제 `develop` image push 검증
+- 실제 `develop` image push와 ECR scan 결과 검증
 - 배포용 SSH key
 - develop의 staging 자동 배포
 - Jenkins home 정기 backup
