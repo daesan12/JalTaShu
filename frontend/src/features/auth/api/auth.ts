@@ -21,9 +21,8 @@ export async function startKakaoLogin(): Promise<void> {
     await apiPost<null>('/auth/mock-login');
     return;
   }
-  // API_BASE_URL(예: /api 또는 https://서버/api)에서 백엔드 origin을 얻는다
-  const backendOrigin = ENV.API_BASE_URL.replace(/\/api\/?$/, '');
-  window.location.href = `${backendOrigin}/auth/oauth/kakao`;
+  // OAuth 경로는 API(/api)와 별개라 전용 env(VITE_AUTH_BASE_URL)를 사용 (staging에서 경로가 다름)
+  window.location.href = `${ENV.AUTH_BASE_URL}/oauth/kakao`;
 }
 
 /**
