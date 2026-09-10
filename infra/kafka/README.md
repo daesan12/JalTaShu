@@ -73,6 +73,7 @@ sudo ufw status numbered
 - 9092는 Server B 사설 주소, 9093은 loopback에만 LISTEN했다.
 - UFW는 Server A에서 Server B 9092로 들어오는 연결만 허용했다.
 - Server A에서 9092 TCP 연결이 성공했고 기존 Collector는 중단 없이 최신 snapshot을 계속 저장했다.
+- Server A의 일회성 공식 Kafka client가 broker metadata와 지원 API를 읽어 advertised listener까지 검증했다. 검증 container와 image cache는 이후 제거했다.
 - Jenkins Controller·Build Agent와 관측성 container, 실패 systemd unit 0개 상태를 유지했다.
 
 ## 업무 topic 계약: 아직 미확정
