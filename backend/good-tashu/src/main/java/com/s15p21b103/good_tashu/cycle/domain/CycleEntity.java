@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@Table(name = "cycles")
 public class CycleEntity {
     @Id
     @Column(name = "cycle_id")
@@ -18,7 +19,7 @@ public class CycleEntity {
 
     @Setter
     @Enumerated(EnumType.STRING)
-    private Status status;
+    private CycleStatus status;
 
     @CreationTimestamp
     @Column(name = "registered_at")
@@ -29,11 +30,11 @@ public class CycleEntity {
     private StationEntity stationEntity;
 
     public void startRental() {
-        this.status = Status.RENTING;
+        this.status = CycleStatus.RENTING;
         this.stationEntity = null;
     }
     public void returnRental(StationEntity stationEntity) {
-        this.status = Status.READY;
+        this.status = CycleStatus.READY;
         this.stationEntity = stationEntity;
     }
 }

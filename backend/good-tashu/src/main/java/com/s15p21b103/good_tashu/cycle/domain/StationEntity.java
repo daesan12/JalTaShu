@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@Table(name = "stations")
 public class StationEntity {
     @Id
     @Column(name = "station_id")

@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@Table(name = "fcm_tokens")
 public class FcmTokenEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
