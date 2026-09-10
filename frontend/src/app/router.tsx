@@ -8,7 +8,11 @@ import { MapHomePage } from '@/features/map/pages/MapHomePage';
 import { HistoryPage } from '@/features/history/pages/HistoryPage';
 import { MyPage } from '@/features/mypage/pages/MyPage';
 import { OnboardingPage } from '@/features/onboarding/pages/OnboardingPage';
-import { RentalPage } from '@/features/rental/pages/RentalPage';
+import { BikeReportsPage } from '@/features/rental/pages/BikeReportsPage';
+import { BikeStatusPage } from '@/features/rental/pages/BikeStatusPage';
+import { QrScanPage } from '@/features/rental/pages/QrScanPage';
+import { MyReportsPage } from '@/features/report/pages/MyReportsPage';
+import { ReportPage } from '@/features/report/pages/ReportPage';
 
 export const router = createBrowserRouter([
   {
@@ -19,7 +23,11 @@ export const router = createBrowserRouter([
         element: <MobileLayout />,
         children: [
           { path: '/', element: <MapHomePage /> }, // 07~16 지도·경로 (만두)
-          { path: '/rental', element: <RentalPage /> }, // 17~18 QR·자전거 확인 (경호)
+          { path: '/report', element: <ReportPage /> }, // 17-0~17-3 자전거·민원 (?type= 전환)
+          { path: '/report/scan', element: <QrScanPage /> }, // QR 스캔 (상태확인·신고 공용)
+          { path: '/report/bikes/:code', element: <BikeStatusPage /> }, // 18 자전거 상태
+          { path: '/report/bikes/:code/reports', element: <BikeReportsPage /> }, // 20 제보 리스트
+          { path: '/report/my', element: <MyReportsPage /> }, // 17-4 내 민원 내역
           { path: '/history', element: <HistoryPage /> }, // 22~23 기록 (경호)
           { path: '/mypage', element: <MyPage /> }, // 24~34 프로필·이용안내 (경호)
         ],
