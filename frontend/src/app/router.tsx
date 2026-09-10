@@ -10,7 +10,11 @@ import { MyPage } from '@/features/mypage/pages/MyPage';
 import { OnboardingPage } from '@/features/onboarding/pages/OnboardingPage';
 import { RentalPage } from '@/features/rental/pages/RentalPage';
 
-export const router = createBrowserRouter([
+/** 배포 경로(예: /staging/)에서도 라우팅이 동작하도록 Vite base를 basename으로 사용 */
+const basename = import.meta.env.BASE_URL.replace(/\/+$/, '') || '/';
+
+export const router = createBrowserRouter(
+  [
   {
     // 메인 4탭 — 온보딩·로그인·가입을 통과해야 진입 (RequireAuth)
     element: <RequireAuth />,
@@ -52,4 +56,6 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+  ],
+  { basename },
+);
