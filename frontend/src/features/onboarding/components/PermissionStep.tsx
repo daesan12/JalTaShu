@@ -59,6 +59,16 @@ const PERMISSIONS: { name: string; required: boolean; description: string; icon:
     ),
   },
   {
+    name: '전화',
+    required: true,
+    description: '로그인/회원가입 시 전화번호 자동입력',
+    icon: (
+      <svg viewBox="0 0 28 28" className={cls}>
+        <path d="M5.5 4.5 9 4l2 4.5-2.2 2.2a13 13 0 0 0 8.5 8.5L19.5 17l4.5 2-.5 3.5c-.2 1-1.1 1.7-2.1 1.6C12.6 23.3 4.7 15.4 3.9 6.6c-.1-1 .6-1.9 1.6-2.1Z" {...s} />
+      </svg>
+    ),
+  },
+  {
     name: '알림',
     required: false,
     description: '공지 및 대여소 고갈 위험 알림',
