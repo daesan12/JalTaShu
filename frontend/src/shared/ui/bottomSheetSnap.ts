@@ -45,14 +45,19 @@ export function resolveSnapAfterDrag(
   return best;
 }
 
-/** 드래그 중 이동량 제한: tall 위로는 못 올리고, 바닥 아래로는 시트 높이만큼만 */
+/**
+ * 드래그 중 이동량 제한.
+ * @param canExpand snap 변경이 가능한 시트인지 — 고정 높이 시트(예: 닉네임 변경)는
+ *                  위로 끌 수 없고 아래로 내려서 닫기만 가능
+ */
 export function clampDragDelta(
   current: SnapPoint,
   deltaY: number,
   viewportHeight: number,
+  canExpand: boolean,
 ): number {
   const heights = getSnapHeights(viewportHeight);
-  const min = -(heights.tall - heights[current]); // 위로 최대 (tall까지)
+  const min = canExpand ? -(heights.tall - heights[current]) : 0; // 위로 최대 (tall까지)
   const max = heights[current]; // 아래로 최대 (완전히 사라질 때까지)
   return Math.min(max, Math.max(min, deltaY));
 }
