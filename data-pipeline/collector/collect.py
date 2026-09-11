@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import math
@@ -22,6 +23,8 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import requests
+
+from kafka_publisher import KafkaOutbox, KafkaPublishError, KafkaPublisher
 
 
 API_URL = "https://apis.data.go.kr/B551982/pbdo_v2/inf_101_00010002_v2"
@@ -118,6 +121,7 @@ class Collector:
         self.key_labels = ["primary"] + (["fallback"] if len(self.api_keys) == 2 else [])
         self.interval_seconds = _env_int("TASHU_INTERVAL_SECONDS", 45)
         self.write_csv = _env_bool("TASHU_WRITE_CSV", False)
+        self.kafka_enabled = _env_bool("TASHU_KAFKA_ENABLED", False)
         self.webhook_url = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
         self.session = requests.Session()
         self.stop_requested = False
@@ -126,6 +130,12 @@ class Collector:
         self.consecutive_failures = 0
         self.failure_alert_sent = False
         self.state = self._load_state()
+        self.kafka_outbox: KafkaOutbox | None = None
+        if self.kafka_enabled:
+            spool_dir = _env_path(
+                "TASHU_KAFKA_SPOOL_DIR", str(DATA_ROOT / "kafka-spool")
+            )
+            self.kafka_outbox = KafkaOutbox(KafkaPublisher.from_env(), spool_dir)
 
     def _load_state(self) -> dict[str, Any]:
         default: dict[str, Any] = {"calls": {}, "stats": {}, "last_summary_date": None}
@@ -150,12 +160,22 @@ class Collector:
     @staticmethod
     def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        temporary = path.with_name(
+            f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        )
         with temporary.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle, ensure_ascii=False, indent=2)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        for attempt in range(5):
+            try:
+                os.replace(temporary, path)
+                break
+            except PermissionError:
+                if attempt == 4:
+                    raise
+                # Windows antivirus/indexers can briefly hold the destination.
+                time.sleep(0.02 * (attempt + 1))
 
     def _save_state(self) -> None:
         self._atomic_json(STATE_PATH, self.state)
@@ -435,12 +455,71 @@ class Collector:
         ) * self.interval_seconds
         time.sleep(max(0.0, next_timestamp - timestamp))
 
+    def _replay_kafka(self) -> None:
+        if self.kafka_outbox is None:
+            return
+        try:
+            result = self.kafka_outbox.replay_pending()
+        except (KafkaPublishError, OSError):
+            logging.exception(
+                "Kafka replay 실패: spool을 보존하고 다음 수집 때 재시도합니다"
+            )
+            return
+        if result.delivered_snapshots:
+            logging.info(
+                "Kafka replay 성공 snapshots=%d messages=%d pending=%d",
+                result.delivered_snapshots,
+                result.delivered_messages,
+                result.pending_snapshots,
+            )
+
+    def _enqueue_kafka(self, frame: pd.DataFrame, snapshot_id: str) -> None:
+        if self.kafka_outbox is None:
+            return
+        try:
+            path = self.kafka_outbox.enqueue_snapshot(frame, snapshot_id)
+            logging.info(
+                "Kafka spool 저장 snapshot_id=%s stations=%d path=%s",
+                snapshot_id,
+                len(frame),
+                path,
+            )
+        except (KafkaPublishError, OSError):
+            logging.exception("Kafka spool 저장 실패 snapshot_id=%s", snapshot_id)
+            return
+        self._replay_kafka()
+
     def request_stop(self, signum: int, _frame: Any) -> None:
         logging.info("종료 신호 수신 signal=%s", signum)
         self.stop_requested = True
 
+    def _store_successful_snapshot(self, frame: pd.DataFrame, slot_day: date) -> None:
+        collected_at = frame["collected_at"].iloc[0].to_pydatetime()
+        snapshot_id = str(uuid.uuid4())
+        self.buffer.append(frame)
+        self._enqueue_kafka(frame, snapshot_id)
+        self._record_slot(slot_day, True, len(frame))
+        self._update_health(collected_at, len(frame))
+        self.consecutive_failures = 0
+        self.failure_alert_sent = False
+        logging.info(
+            "수집 성공 snapshot_id=%s collected_at=%s stations=%d",
+            snapshot_id,
+            collected_at.isoformat(),
+            len(frame),
+        )
+
+    def run_once(self) -> None:
+        """Collect, publish, and persist exactly one complete snapshot."""
+        now = datetime.now(KST)
+        self._send_due_summary(now)
+        frame = self.fetch_snapshot()
+        self._store_successful_snapshot(frame, now.date())
+        self.flush()
+
     def run(self) -> None:
         self.notify_discord(f"🚲 타슈 수집기 시작: {datetime.now(KST).isoformat()}")
+        self._replay_kafka()
         while not self.stop_requested:
             self._sleep_until_next_slot()
             if self.stop_requested:
@@ -460,13 +539,7 @@ class Collector:
                     )
                     self.failure_alert_sent = True
             else:
-                collected_at = frame["collected_at"].iloc[0].to_pydatetime()
-                self.buffer.append(frame)
-                self._record_slot(slot_day, True, len(frame))
-                self._update_health(collected_at, len(frame))
-                self.consecutive_failures = 0
-                self.failure_alert_sent = False
-                logging.info("수집 성공 collected_at=%s stations=%d", collected_at.isoformat(), len(frame))
+                self._store_successful_snapshot(frame, slot_day)
             if time.monotonic() - self.last_flush >= FLUSH_SECONDS:
                 self.flush()
 
@@ -475,6 +548,8 @@ class Collector:
             self.flush()
         finally:
             self.session.close()
+            if self.kafka_outbox is not None:
+                self.kafka_outbox.close()
             if normal:
                 self.notify_discord(f"🛑 타슈 수집기 정상 종료: {datetime.now(KST).isoformat()}")
 
@@ -490,6 +565,13 @@ def configure_logging() -> None:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Collect Tashu station snapshots")
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="collect, publish, and persist exactly one snapshot, then exit",
+    )
+    args = parser.parse_args()
     configure_logging()
     try:
         collector = Collector()
@@ -500,7 +582,10 @@ def main() -> int:
     signal.signal(signal.SIGINT, collector.request_stop)
     normal = False
     try:
-        collector.run()
+        if args.once:
+            collector.run_once()
+        else:
+            collector.run()
         normal = True
         return 0
     except Exception:
