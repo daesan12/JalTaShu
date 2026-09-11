@@ -14,6 +14,7 @@ import { SettingsPage } from '@/features/mypage/pages/SettingsPage';
 import { SupportPage } from '@/features/mypage/pages/SupportPage';
 import { MyPage } from '@/features/mypage/pages/MyPage';
 import { PaymentMethodsPage } from '@/features/mypage/pages/PaymentMethodsPage';
+import { RecommendedCoursesPage } from '@/features/mypage/pages/RecommendedCoursesPage';
 import { OnboardingPage } from '@/features/onboarding/pages/OnboardingPage';
 import { BikeReportsPage } from '@/features/rental/pages/BikeReportsPage';
 import { BikeStatusPage } from '@/features/rental/pages/BikeStatusPage';
@@ -44,6 +45,7 @@ export const router = createBrowserRouter(
           { path: '/mypage/guide', element: <GuidePage /> }, // 34 이용안내
           { path: '/mypage/payments', element: <PaymentMethodsPage /> }, // 결제수단
           { path: '/mypage/bike-info', element: <BikeInfoPage /> }, // 자전거 정보
+          { path: '/mypage/bike-info/courses', element: <RecommendedCoursesPage /> }, // 추천 코스
           { path: '/mypage/support', element: <SupportPage /> }, // 고객센터
           { path: '/mypage/support/notices', element: <NoticesPage /> }, // 공지사항
           { path: '/mypage/support/faq', element: <FaqPage /> }, // 자주 묻는 질문
