@@ -1,5 +1,5 @@
 import { delay, http, HttpResponse } from 'msw';
-import type { ApiResponse, Station, StationPrediction } from '@/shared/api/types';
+import type { ApiResponse, BikeStation, Station, StationPrediction } from '@/shared/api/types';
 import {
   NICKNAME_MAX,
   NICKNAME_MIN,
@@ -273,6 +273,18 @@ export const handlers = [
   }),
 
   // ── 대여소 ─────────────────────────────────────────────────────────
+  // 07 메인 지도용. 도보 시간은 프론트에서 좌표로 계산하므로 내려주지 않는다.
+  http.get('/api/map/bike-station', async () => {
+    await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    // 갱신 배지가 "N초 전"부터 올라가는 것을 확인할 수 있게 10초 전으로 고정
+    const updatedAt = new Date(Date.now() - 10_000).toISOString();
+    const stations: BikeStation[] = STATIONS.map((s) => ({ ...s, updatedAt }));
+    return HttpResponse.json(ok(stations));
+  }),
+
+  // 공통 기반 확인용으로 만든 엔드포인트 — 대여소 마커 이슈에서 /map/bike-station으로 합치고 제거할 것
   http.get('/api/stations', async () => {
     await delay(300);
     const authFail = requireAuth();
