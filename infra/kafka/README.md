@@ -11,6 +11,7 @@ Server B에 Apache Kafka 단일 broker를 KRaft combined mode로 실행한다. C
 | `infra/kafka/compose.yml` | broker·controller listener, 자원 제한, 보존 기간과 volume 정의 | Git 추적, Secret 없음 |
 | `infra/kafka/scripts/bootstrap-env.sh` | Server B 사설 IP와 cluster ID를 서버 전용 환경파일로 생성 | Git 추적, Secret 없음 |
 | `infra/kafka/scripts/smoke-test.sh` | 임시 topic을 만들고 한 메시지를 produce·consume한 뒤 삭제 | Git 추적, Secret 없음 |
+| `infra/kafka/scripts/ensure-topics.sh` | 합의된 운영 topic을 생성하고 partition·복제 수·보존 기간을 검증 | Git 추적, Secret 없음 |
 | `/opt/tashu/kafka` | Server B에 배포한 Compose와 스크립트 | 서버 운영 파일 |
 | `/etc/tashu/kafka.env` | Server B별 bind/advertised 주소와 cluster ID | Git 제외, `0640 root:root` |
 | `tashu-kafka-data` | Kafka log와 KRaft metadata를 보존하는 Docker named volume | Git 제외, 삭제 시 데이터 소실 |
@@ -52,6 +53,7 @@ sudo /opt/tashu/kafka/scripts/bootstrap-env.sh
 sudo docker compose --env-file /etc/tashu/kafka.env -f /opt/tashu/kafka/compose.yml config
 sudo docker compose --env-file /etc/tashu/kafka.env -f /opt/tashu/kafka/compose.yml up -d
 sudo /opt/tashu/kafka/scripts/smoke-test.sh
+sudo /opt/tashu/kafka/scripts/ensure-topics.sh
 ```
 
 기동 뒤에는 다음을 확인한다.
@@ -76,17 +78,33 @@ sudo ufw status numbered
 - Server A의 일회성 공식 Kafka client가 broker metadata와 지원 API를 읽어 advertised listener까지 검증했다. 검증 container와 image cache는 이후 제거했다.
 - Jenkins Controller·Build Agent와 관측성 container, 실패 systemd unit 0개 상태를 유지했다.
 
-## 업무 topic 계약: 아직 미확정
+## 업무 topic 계약
 
-기존 인프라 설계는 `station-availability.raw.v1` topic에 `station_id`를 key로 한 대여소별 event를 넣는다. 데이터 파트의 새 제안은 `tashu.station-snapshots.v1`이라는 snapshot 단위 topic이다. 두 방식은 메시지 크기, partition 활용과 중복 제거 기준이 다르므로 이름만 바꾸지 않는다.
+2026-09-11 데이터 파트의 로컬 Collector 검증 결과를 기준으로 다음 계약을 확정했다.
 
-결정 전에는 업무 topic을 생성하거나 Collector를 수정하지 않는다. 합의할 항목은 다음과 같다.
+| 항목 | 값 |
+| --- | --- |
+| topic | `tashu.station-availability.v1` |
+| record 단위 | 대여소 한 곳의 현재 상태 event |
+| record key | `station_id` |
+| snapshot 묶음 | 같은 수집 회차의 event가 동일한 `snapshot_id` 사용 |
+| partitions | 3 |
+| replication factor | 1 |
+| retention | 72시간 |
+| security protocol | `PLAINTEXT` |
+| SASL·SSL·Kafka ACL | 현재 미사용, Server A 전용 UFW 규칙으로 접근 제한 |
 
-- 한 Kafka record가 대여소 한 곳인지 전체 snapshot인지
-- record key가 `station_id`인지 `snapshot_id`인지
-- 최소 schema와 `schema_version`
-- 72시간 retention과 최대 record 크기
-- DLQ topic 필요 시점
+`replication factor=1`은 단일 broker 학습 구성이므로 복제본이나 고가용성을 제공하지 않는다. Kafka가 중단되면 Collector가 local spool에 event를 보존하고 복구 후 FIFO로 replay한다. Parquet 저장은 Kafka 성공 여부와 독립적으로 계속한다.
+
+운영 topic 이름에 `snapshot`을 사용하지 않는 이유는 Kafka record 한 건이 전체 snapshot이 아니라 대여소 한 곳의 상태이기 때문이다. `snapshot_id`가 같은 수집 회차의 record들을 논리적으로 묶는다.
+
+## 2026-09-11 운영 topic 검증
+
+- `tashu.station-availability.v1`을 partition 3개, replication factor 1로 명시적으로 생성했다.
+- topic별 `retention.ms=259200000`, `cleanup.policy=delete`를 적용했다.
+- partition 0~2의 leader·replica·ISR이 모두 broker 1로 정상 등록됐다.
+- Kafka 컨테이너 재시작 후 동일 TopicId와 설정이 named volume에 유지됐다.
+- Server A에서 9092 TCP 재연결에 성공했고 기존 Collector의 Parquet 수집은 계속 정상 동작했다.
 
 ## 중지와 복구
 
