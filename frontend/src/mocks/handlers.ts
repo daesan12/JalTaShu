@@ -81,6 +81,35 @@ function setMockReports(reports: MockReport[]) {
   }
 }
 
+/** 가짜 Open API 신청 내역 — 새로고침에도 유지되도록 localStorage 사용 */
+const OPEN_API_KEY = 'msw_openapi_requests';
+
+interface MockOpenApiRequest {
+  id: number;
+  purpose: string;
+  reason: string;
+  status: string;
+  createdAt: string;
+}
+
+function getOpenApiRequests(): MockOpenApiRequest[] {
+  try {
+    const raw = localStorage.getItem(OPEN_API_KEY);
+    if (raw) return JSON.parse(raw) as MockOpenApiRequest[];
+  } catch {
+    // 파싱 실패 시 빈 목록
+  }
+  return [];
+}
+
+function setOpenApiRequests(requests: MockOpenApiRequest[]) {
+  try {
+    localStorage.setItem(OPEN_API_KEY, JSON.stringify(requests));
+  } catch {
+    // 저장 불가 환경 무시
+  }
+}
+
 /** 대전 실제 좌표 기반 목업 대여소 (07-1 팝업 와이어프레임 데이터 반영) */
 const STATIONS: Station[] = [
   { stationId: 'ST0001', name: '유성구청역 대여소', lat: 36.362, lng: 127.3565, currentBikes: 7 },
@@ -116,6 +145,34 @@ export const handlers = [
         { id: 1, title: '타슈 대여소에 반드시 반납해주세요!!!', date: '2023/08/02' },
       ]),
     );
+  }),
+
+  // ── Open API 신청 (자전거 정보 — 백엔드 API 미정, 임시 스키마) ──────
+  http.post('/api/open-api/requests', async ({ request }) => {
+    await delay(400);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const body = (await request.json()) as { purpose?: string; reason?: string };
+    if (!body.purpose || !body.reason?.trim()) {
+      return fail(400, '활용구분과 신청사유를 입력해 주세요.');
+    }
+    const requests = getOpenApiRequests();
+    requests.unshift({
+      id: Date.now(),
+      purpose: body.purpose,
+      reason: body.reason,
+      status: '접수됨',
+      createdAt: new Date().toISOString(),
+    });
+    setOpenApiRequests(requests);
+    return HttpResponse.json({ code: 200, message: 'Open API 신청이 접수되었습니다.', data: null });
+  }),
+
+  http.get('/api/open-api/requests', async () => {
+    await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    return HttpResponse.json(ok(getOpenApiRequests()));
   }),
 
   // ── 프로필 (24 — 백엔드 API 미정, 임시 스키마) ─────────────────────

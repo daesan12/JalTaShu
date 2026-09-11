@@ -7,6 +7,8 @@ import { SignupPage } from '@/features/auth/pages/SignupPage';
 import { MapHomePage } from '@/features/map/pages/MapHomePage';
 import { HistoryPage } from '@/features/history/pages/HistoryPage';
 import { BikeInfoPage } from '@/features/mypage/pages/BikeInfoPage';
+import { BikeInsurancePage } from '@/features/mypage/pages/BikeInsurancePage';
+import { OpenApiPage } from '@/features/mypage/pages/OpenApiPage';
 import { FaqPage } from '@/features/mypage/pages/FaqPage';
 import { GuidePage } from '@/features/mypage/pages/GuidePage';
 import { NoticesPage } from '@/features/mypage/pages/NoticesPage';
@@ -46,6 +48,8 @@ export const router = createBrowserRouter(
           { path: '/mypage/payments', element: <PaymentMethodsPage /> }, // 결제수단
           { path: '/mypage/bike-info', element: <BikeInfoPage /> }, // 자전거 정보
           { path: '/mypage/bike-info/courses', element: <RecommendedCoursesPage /> }, // 추천 코스
+          { path: '/mypage/bike-info/insurance', element: <BikeInsurancePage /> }, // 자전거 보험
+          { path: '/mypage/bike-info/open-api', element: <OpenApiPage /> }, // Open API
           { path: '/mypage/support', element: <SupportPage /> }, // 고객센터
           { path: '/mypage/support/notices', element: <NoticesPage /> }, // 공지사항
           { path: '/mypage/support/faq', element: <FaqPage /> }, // 자주 묻는 질문

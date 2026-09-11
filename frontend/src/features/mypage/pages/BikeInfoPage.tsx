@@ -1,20 +1,17 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ListRow } from '@/shared/ui/ListRow';
 import { TopHeader } from '@/shared/ui/TopHeader';
 import { BikeDiagram } from '@/features/rental/components/BikeDiagram';
 
-/** to가 없는 항목은 콘텐츠 확정 전 (자전거 보험·Open API) */
-const MENUS: { label: string; to?: string }[] = [
+const MENUS = [
   { label: '추천 코스', to: '/mypage/bike-info/courses' },
-  { label: '자전거 보험' },
-  { label: 'Open API' },
+  { label: '자전거 보험', to: '/mypage/bike-info/insurance' },
+  { label: 'Open API', to: '/mypage/bike-info/open-api' },
 ];
 
 /** 자전거 정보 (프로필 메뉴) — 타슈 앱의 메뉴 구성을 우리 앱 스타일로 배치 */
 export function BikeInfoPage() {
   const navigate = useNavigate();
-  const [notice, setNotice] = useState<string | null>(null);
 
   return (
     <div className="flex h-full flex-col">
@@ -32,19 +29,10 @@ export function BikeInfoPage() {
         <ul className="mt-3 divide-y divide-gray-100">
           {MENUS.map((menu) => (
             <li key={menu.label}>
-              <ListRow
-                title={menu.label}
-                onClick={() => (menu.to ? navigate(menu.to) : setNotice(menu.label))}
-              />
+              <ListRow title={menu.label} onClick={() => navigate(menu.to)} />
             </li>
           ))}
         </ul>
-
-        {notice && (
-          <p className="mt-4 text-center text-sm text-gray-400">
-            &lsquo;{notice}&rsquo; 콘텐츠 연결을 준비 중이에요.
-          </p>
-        )}
       </div>
     </div>
   );
