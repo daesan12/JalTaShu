@@ -9,7 +9,7 @@ export interface OpenApiRequest {
   createdAt: string;
 }
 
-export const OPEN_API_PURPOSES = ['앱·웹 서비스 개발', '데이터 분석·연구', '학습·과제', '기타'];
+export const OPEN_API_PURPOSES = ['웹사이트 개발', '앱 개발', '참고자료', '연구 (논문)', '기타'];
 
 export function submitOpenApiRequest(body: { purpose: string; reason: string }): Promise<null> {
   return apiPost<null>('/open-api/requests', body);
