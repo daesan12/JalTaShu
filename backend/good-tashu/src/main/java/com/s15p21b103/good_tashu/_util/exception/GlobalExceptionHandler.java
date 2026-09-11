@@ -1,6 +1,7 @@
 package com.s15p21b103.good_tashu._util.exception;
 
 import com.s15p21b103.good_tashu._util.response.ApiResponse;
+import com.s15p21b103.good_tashu.map.exception.MapException;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
 import com.s15p21b103.good_tashu.notice.exception.NoticeException;
 import com.s15p21b103.good_tashu.user.exception.UserException;
@@ -16,6 +17,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(MapException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMapException(MapException e) {
+        log.warn("장소 검색 오류: {}", e.getErrorCode());
+        return ResponseEntity.status(e.getErrorCode().getStatus())
+                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException e) {
         log.warn("잘못된 요청: {}", e.getMessage());
