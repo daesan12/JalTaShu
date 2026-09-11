@@ -17,6 +17,13 @@ function fail(code: number, message: string) {
   return HttpResponse.json({ code, message, data: null }, { status: code });
 }
 
+/** 공지 팝업 목업 이미지 — 실제 이미지가 없어 색·번호만 있는 SVG를 data URI로 만든다 */
+function placeholderImage(label: string, color: string): string {
+  // Figma 공지 이미지 크기(283 x 276)와 같은 비율
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="566" height="552"><rect width="566" height="552" fill="${color}"/><text x="283" y="296" font-family="sans-serif" font-size="52" fill="#ffffff" text-anchor="middle">${label}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 /** 백엔드는 모든 API가 세션 필수(.anyRequest().authenticated()) — 동일하게 흉내 */
 function requireAuth() {
   return getAuthState().loggedIn ? null : fail(401, '로그인이 필요합니다.');
@@ -206,6 +213,24 @@ export const handlers = [
         { id: 3, title: '공영자전거 타슈 이용약관 개정 알림', date: '2026/04/10' },
         { id: 2, title: '"타슈" 대여 전 안전수칙 확인 후 대여하도록 절차 개선', date: '2025/10/28' },
         { id: 1, title: '타슈 대여소에 반드시 반납해주세요!!!', date: '2023/08/02' },
+      ]),
+    );
+  }),
+
+  // ── 공지 팝업 (07-1 — 백엔드 API 미정, 임시 스키마) ───────────────
+  // 공지사항 목록과는 별개 데이터. 관리자 페이지에서 따로 CRUD하고, 등록 시 공지사항 하나를
+  // 연결할 수 있다(linkedNoticeId). 연결하지 않은 팝업은 눌러도 이동하지 않는다.
+  http.get('/api/notice-popups', async () => {
+    await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    return HttpResponse.json(
+      ok([
+        { id: 1, imageUrl: placeholderImage('공지 1', '#4c8a12'), linkedNoticeId: 5 },
+        { id: 2, imageUrl: placeholderImage('공지 2', '#3c6e0e'), linkedNoticeId: null },
+        { id: 3, imageUrl: placeholderImage('공지 3', '#f59e0b'), linkedNoticeId: 4 },
+        { id: 4, imageUrl: placeholderImage('공지 4', '#0ea5e9'), linkedNoticeId: null },
+        { id: 5, imageUrl: placeholderImage('공지 5', '#7c3aed'), linkedNoticeId: 3 },
       ]),
     );
   }),
