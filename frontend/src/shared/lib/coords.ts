@@ -23,3 +23,37 @@ export function osrmPathToLatLngs(coords: [number, number][]): LatLng[] {
 export function latLngToOsrmParam({ lat, lng }: LatLng): string {
   return `${lng},${lat}`;
 }
+
+/** 지구 반지름 (m) */
+const EARTH_RADIUS_M = 6_371_000;
+
+/**
+ * 실제 보행 경로는 건물을 돌아가느라 직선보다 30%쯤 길다는 도시 보행 경험값.
+ * 강·철도로 막힌 구간은 이 보정으로도 부족하다.
+ */
+const WALK_DETOUR_FACTOR = 1.3;
+
+/** 도보 속도 (m/분) — 4km/h 기준 */
+const WALK_SPEED_M_PER_MIN = 67;
+
+/** 두 좌표 사이 직선거리 (m) — Haversine */
+export function distanceInMeters(a: LatLng, b: LatLng): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * 두 좌표 사이 도보 시간 (분). 직선거리 기반 **추정치**라 화면에는 "약 N분"으로 표시할 것.
+ * 강·철도로 막힌 구간은 실제보다 짧게 나온다.
+ * 정확한 값이 필요한 경로 화면(09~11)은 백엔드 `/map/path`의 실제 경로를 쓴다.
+ */
+export function walkMinutesBetween(a: LatLng, b: LatLng): number {
+  const meters = distanceInMeters(a, b) * WALK_DETOUR_FACTOR;
+  // 바로 앞 대여소가 "0분"으로 나오지 않도록 최소 1분
+  return Math.max(1, Math.round(meters / WALK_SPEED_M_PER_MIN));
+}

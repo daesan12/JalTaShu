@@ -21,6 +21,17 @@ export interface Station {
 }
 
 /**
+ * 07 메인 지도용 대여소 — 백엔드 `GET /map/bike-station` 대응. 명세 미확정 항목이 있어 임시 스키마.
+ * - 원본 명세의 `xPos`/`yPos` 중 어느 쪽이 위도인지 미확정 → 확정 전까지 lat/lng로 받는다고 가정
+ * - 도보 시간은 서버에서 받지 않는다. 출발점이 사용자마다 달라 캐시가 안 먹히고, 위치가 바뀔 때마다
+ *   재요청해야 해서 프론트에서 `walkMinutesBetween()`으로 추정한다 (coords.ts)
+ */
+export interface BikeStation extends Station {
+  /** 데이터 갱신 시각 (ISO 8601, KST) — 명세의 `time`. 07 갱신 배지에서 사용 */
+  updatedAt: string;
+}
+
+/**
  * 예측 재고 — Redis 캐시 `pred:{station_id}:{horizon_min}` 스키마와 대응.
  * 예측 캐시가 죽으면(TTL 만료) 백엔드는 prediction 없이 currentBikes만 내려줌 → nullable로 다룰 것.
  */
