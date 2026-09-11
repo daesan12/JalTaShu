@@ -40,7 +40,7 @@ class NoticeControllerTest {
         when(noticeService.getNoticeList()).thenReturn(List.of(
                 new NoticeListResponse(1L, "공지 제목", "admin01", createdAt)));
 
-        mvc.perform(get("/notice/list"))
+        mvc.perform(get("/api/notice/list"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.length()").value(1))
@@ -55,7 +55,7 @@ class NoticeControllerTest {
     @Test
     void emptyListIsAnArrayInsteadOfNull() throws Exception {
         when(noticeService.getNoticeList()).thenReturn(List.of());
-        mvc.perform(get("/notice/list"))
+        mvc.perform(get("/api/notice/list"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data").isEmpty());
@@ -66,7 +66,7 @@ class NoticeControllerTest {
         when(noticeService.getNoticeDetail(7L)).thenReturn(
                 new NoticeDetailResponse("공지 제목", "admin01", createdAt, "공지 내용"));
 
-        mvc.perform(get("/notice/7"))
+        mvc.perform(get("/api/notice/7"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.title").value("공지 제목"))
                 .andExpect(jsonPath("$.data.author").value("admin01"))
@@ -79,7 +79,7 @@ class NoticeControllerTest {
     @Test
     void missingNoticeIsReturnedAs404() throws Exception {
         when(noticeService.getNoticeDetail(99L)).thenThrow(new NoticeException(NOT_EXIST_NOTICE_ID));
-        mvc.perform(get("/notice/99"))
+        mvc.perform(get("/api/notice/99"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404))
                 .andExpect(jsonPath("$.message").value(NOT_EXIST_NOTICE_ID.getMessage()));
