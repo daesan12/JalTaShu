@@ -44,7 +44,8 @@ public class JwtConfig {
     @Bean
     public JwtDecoder accessTokenJwtDecoder(
            SecretKey jwtSecretKey,
-           JwtProperties jwtProperties
+           JwtProperties jwtProperties,
+           AuthVersionValidator authVersionValidator
     ) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder
                 .withSecretKey(jwtSecretKey)
@@ -64,10 +65,15 @@ public class JwtConfig {
                         .issuer(jwtProperties.issuer())
                         // client_id, 대상 클라이언트(토큰 발급을 요청한 앱) 검증
                         .clientId(jwtProperties.clientId())
+                        // authVersion확인
                         .build();
         // decoder에 jwt 검증기(validator) 연결
-        decoder.setJwtValidator(accessTokenValidator);
-
+        decoder.setJwtValidator(jwt -> {
+            var result = accessTokenValidator.validate(jwt);
+            if(result.hasErrors())
+                return result;
+            return authVersionValidator.validate(jwt);
+        });
         return decoder;
     }
 

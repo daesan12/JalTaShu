@@ -23,6 +23,10 @@ public record JwtProperties (
     @NotNull
     Duration accessTokenExpires,
     @NotNull
-    Duration refreshTokenExpires
+    Duration refreshTokenExpires,
+    @NotNull
+    boolean secure,
+    @NotBlank
+    String cookiePath
 ) {
 }

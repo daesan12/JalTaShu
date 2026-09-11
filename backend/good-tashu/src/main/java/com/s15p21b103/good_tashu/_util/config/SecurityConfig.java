@@ -10,6 +10,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
@@ -17,9 +18,26 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
 public class SecurityConfig {
+
+    @Bean
+    public UrlBasedCorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", configuration);
+        return source;
+    }
     
     // 소셜로그인 전용 시큐리티 필터 체인
     @Bean
@@ -30,10 +48,10 @@ public class SecurityConfig {
             OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler,
             OAuth2LoginFailureHandler oAuth2LoginFailureHandler
     ) throws Exception {
-
         http
                 // 소셜 로그인에 대해서만 받기
                 .securityMatcher("/api/auth/oauth/**")
+                .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
                         .anyRequest().permitAll()
                 )
@@ -68,6 +86,7 @@ public class SecurityConfig {
             ) throws Exception {
         http
                 .securityMatcher("/api/**")
+                .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
@@ -81,6 +100,9 @@ public class SecurityConfig {
                         // GUEST가 사용하는 API
                         .requestMatchers("/api/auth/sign-up")
                         .hasRole("GUEST")
+                        // 가입 전 사용자도 유효한 AT로 로그아웃할 수 있다.
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/logout")
+                        .authenticated()
                         // 그 외 일반 API는 USER만 허용
                         .anyRequest()
                         .hasRole("USER")

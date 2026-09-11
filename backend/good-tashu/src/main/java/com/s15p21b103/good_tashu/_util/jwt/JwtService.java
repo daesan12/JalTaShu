@@ -24,7 +24,7 @@ public class JwtService {
     private final JwtEncoder jwtEncoder;
     
     // Access Token 생성
-    public String createAccessToken(Long userId) {
+    public String createAccessToken(Long userId, String authVersion) {
         // 현재 시간
         Instant now = Instant.now();
         UserEntity user = userRepository.findById(userId)
@@ -41,6 +41,7 @@ public class JwtService {
                 .id(UUID.randomUUID().toString())
                 .claim("client_id", jwtProperties.clientId())
                 .claim("roles", List.of(user.getRole().name()))
+                .claim("authVersion", authVersion)
                 .build();
 
         // at+jwt 검증기 (RFC 9068)에 따라 at+jwt 타입임을 명시
