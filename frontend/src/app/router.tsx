@@ -6,6 +6,7 @@ import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { SignupPage } from '@/features/auth/pages/SignupPage';
 import { MapHomePage } from '@/features/map/pages/MapHomePage';
 import { HistoryPage } from '@/features/history/pages/HistoryPage';
+import { RideDetailPage } from '@/features/history/pages/RideDetailPage';
 import { BikeInfoPage } from '@/features/mypage/pages/BikeInfoPage';
 import { BikeInsurancePage } from '@/features/mypage/pages/BikeInsurancePage';
 import { OpenApiPage } from '@/features/mypage/pages/OpenApiPage';
@@ -43,7 +44,8 @@ export const router = createBrowserRouter(
           { path: '/report/bikes/:code', element: <BikeStatusPage /> }, // 18 자전거 상태
           { path: '/report/bikes/:code/reports', element: <BikeReportsPage /> }, // 20 제보 리스트
           { path: '/report/my', element: <MyReportsPage /> }, // 17-4 내 민원 내역
-          { path: '/history', element: <HistoryPage /> }, // 22~23 기록 (경호)
+          { path: '/history', element: <HistoryPage /> }, // 22 이동 기록 (경호)
+          { path: '/history/:rideId', element: <RideDetailPage /> }, // 23 기록 상세
           { path: '/mypage', element: <MyPage /> }, // 24 프로필 (경호)
           { path: '/mypage/guide', element: <GuidePage /> }, // 34 이용안내
           { path: '/mypage/payments', element: <PaymentMethodsPage /> }, // 결제수단
