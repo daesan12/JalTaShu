@@ -14,6 +14,7 @@ import { GuidePage } from '@/features/mypage/pages/GuidePage';
 import { NoticesPage } from '@/features/mypage/pages/NoticesPage';
 import { SettingsPage } from '@/features/mypage/pages/SettingsPage';
 import { SupportPage } from '@/features/mypage/pages/SupportPage';
+import { WithdrawPage } from '@/features/mypage/pages/WithdrawPage';
 import { MyPage } from '@/features/mypage/pages/MyPage';
 import { PaymentMethodsPage } from '@/features/mypage/pages/PaymentMethodsPage';
 import { RecommendedCoursesPage } from '@/features/mypage/pages/RecommendedCoursesPage';
@@ -54,6 +55,7 @@ export const router = createBrowserRouter(
           { path: '/mypage/support/notices', element: <NoticesPage /> }, // 공지사항
           { path: '/mypage/support/faq', element: <FaqPage /> }, // 자주 묻는 질문
           { path: '/mypage/settings', element: <SettingsPage /> }, // 설정
+          { path: '/mypage/withdraw', element: <WithdrawPage /> }, // 회원 탈퇴
         ],
       },
     ],

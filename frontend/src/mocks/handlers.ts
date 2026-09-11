@@ -200,6 +200,17 @@ export const handlers = [
     return HttpResponse.json({ code: 200, message: '닉네임이 변경되었습니다.', data: null });
   }),
 
+  // 회원 탈퇴 — 백엔드 API 미정. 계정·데이터를 모두 삭제한다
+  http.post('/api/users/withdraw', async () => {
+    await delay(500);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    setAuthState({ loggedIn: false, nickname: null });
+    setMockReports([]);
+    setOpenApiRequests([]);
+    return HttpResponse.json({ code: 200, message: '탈퇴가 완료되었습니다.', data: null });
+  }),
+
   // 백엔드에 로그아웃 API가 아직 없음 — 확정 시 경로 맞출 것
   http.post('/api/auth/logout', async () => {
     await delay(300);
