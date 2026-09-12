@@ -9,6 +9,7 @@ import { MapView } from '@/features/map/components/MapView';
 import { NoticeBanner } from '@/features/map/components/NoticeBanner';
 import { NoticePopup } from '@/features/map/components/NoticePopup';
 import { SearchBar } from '@/features/map/components/SearchBar';
+import { StationPeekSheet } from '@/features/map/components/StationPeekSheet';
 import { Toast } from '@/features/map/components/Toast';
 import { UpdatedBadge } from '@/features/map/components/UpdatedBadge';
 import { useToast } from '@/features/map/hooks/useToast';
@@ -22,10 +23,17 @@ import {
 /** 검색·현재위치·대여하기는 각각 별도 이슈라 지금은 안내만 띄운다 */
 const COMING_SOON = '준비 중입니다.';
 
-/** 07 메인 지도 — 네이버 지도 + 오버레이 UI. 대여소 마커는 별도 이슈. */
+/**
+ * 대여소 시트(peek 110px)가 열리면 하단 버튼을 그만큼 올린다.
+ * 시트는 화면 맨 아래(탭바 64px 포함)에 붙으므로 실제 겹침은 110 − 64 = 46px, 여기에 여백 12px.
+ */
+const CONTROLS_LIFT_CLASS = '-translate-y-[58px]';
+
+/** 07 메인 지도 — 네이버 지도 + 대여소 마커 + 오버레이 UI */
 export function MapHomePage() {
   const { message, showToast } = useToast();
   const navigate = useNavigate();
+  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
 
   // 한 번 닫으면 앱을 다시 켜기 전까지 뜨지 않는다. "7일간 보지 않기"는 저장소로 더 오래 막는다.
   // 닫힘 기억은 모듈(noticePopupHide)에 있고, 이 state는 화면을 다시 그리는 용도다
@@ -36,12 +44,14 @@ export function MapHomePage() {
     setPopupClosed(true);
   }
 
-  // 갱신 배지에 쓸 시각. 대여소 목록 자체는 마커 이슈에서 사용한다.
+  // 마커와 갱신 배지가 같은 목록을 쓴다
   const { data: stations } = useQuery({
     queryKey: BIKE_STATIONS_QUERY_KEY,
     queryFn: getBikeStations,
   });
   const updatedAt = stations?.[0]?.updatedAt;
+  // 목록이 갱신돼 선택한 대여소가 사라지면 시트도 닫힌다
+  const selectedStation = stations?.find((s) => s.stationId === selectedStationId) ?? null;
 
   // 이미 숨긴 상태면 요청 자체를 하지 않는다
   const { data: popupNotices } = useQuery({
@@ -63,7 +73,11 @@ export function MapHomePage() {
 
   return (
     <div className="relative h-full overflow-hidden">
-      <MapView />
+      <MapView
+        stations={stations}
+        selectedStationId={selectedStationId}
+        onSelectStation={setSelectedStationId}
+      />
 
       {/* 상단 — 검색바, 공지 배너, 갱신 배지 */}
       <div className="pt-safe pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-start gap-2 p-4">
@@ -77,12 +91,18 @@ export function MapHomePage() {
       </div>
 
       {/* 하단 — 현재위치 버튼과 대여하기 버튼 (홈 인디케이터 여백은 탭바가 처리) */}
-      <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4">
+      <div
+        className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${
+          selectedStation === null ? '' : CONTROLS_LIFT_CLASS
+        }`}
+      >
         <CurrentLocationButton onClick={() => showToast(COMING_SOON)} />
         <Button full onClick={() => showToast(COMING_SOON)}>
           대여하기
         </Button>
       </div>
+
+      <StationPeekSheet station={selectedStation} onClose={() => setSelectedStationId(null)} />
 
       {message && <Toast message={message} />}
 
