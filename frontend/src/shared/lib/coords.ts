@@ -23,3 +23,8 @@ export function osrmPathToLatLngs(coords: [number, number][]): LatLng[] {
 export function latLngToOsrmParam({ lat, lng }: LatLng): string {
   return `${lng},${lat}`;
 }
+
+/** 백엔드 좌표 필드 {xPos: 경도, yPos: 위도} → {lat, lng} (대여소·장소 검색 공용) */
+export function posToLatLng({ xPos, yPos }: { xPos: number; yPos: number }): LatLng {
+  return { lat: yPos, lng: xPos };
+}

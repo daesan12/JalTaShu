@@ -1,12 +1,11 @@
 interface SearchBarProps {
   onClick: () => void;
+  /** 08에서 고른 목적지 이름. 없으면 안내 문구 */
+  value?: string | null;
 }
 
-/**
- * 목적지 검색 진입점.
- * 지금은 눌러도 입력할 수 없고 안내만 뜬다 — 08 검색 화면은 별도 이슈.
- */
-export function SearchBar({ onClick }: SearchBarProps) {
+/** 목적지 검색 진입점 — 누르면 08 검색 오버레이가 열린다 */
+export function SearchBar({ onClick, value = null }: SearchBarProps) {
   return (
     <button
       type="button"
@@ -31,7 +30,11 @@ export function SearchBar({ onClick }: SearchBarProps) {
           strokeLinecap="round"
         />
       </svg>
-      <span className="text-base text-gray-400">어디로 갈까요?</span>
+      {value ? (
+        <span className="truncate text-base text-gray-900">{value}</span>
+      ) : (
+        <span className="text-base text-gray-400">어디로 갈까요?</span>
+      )}
     </button>
   );
 }

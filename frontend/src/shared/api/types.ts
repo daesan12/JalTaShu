@@ -44,3 +44,18 @@ export interface StationPrediction {
   /** 예측 생성 시각 (ISO 8601, KST) */
   updatedAt: string;
 }
+
+/**
+ * 장소 검색 결과 한 건 — 백엔드 `GET /map?query=`(#18) 응답 그대로. 최근 검색(`GET /map/recent`)과
+ * 저장 요청(`POST /map/location/recent`)도 같은 형태다.
+ * `xPos`=경도, `yPos`=위도(백엔드 확정). 지도에 찍을 때는 `posToLatLng()`로만 바꾼다.
+ */
+export interface PlaceSearchResult {
+  title: string;
+  /** 지번 주소. 네이버 응답에 없으면 빈 문자열 */
+  address: string;
+  /** 도로명 주소. 네이버 응답에 없으면 빈 문자열 */
+  roadAddress: string;
+  xPos: number;
+  yPos: number;
+}

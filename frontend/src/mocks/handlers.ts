@@ -1,5 +1,11 @@
 import { delay, http, HttpResponse } from 'msw';
-import type { ApiResponse, BikeStation, Station, StationPrediction } from '@/shared/api/types';
+import type {
+  ApiResponse,
+  BikeStation,
+  PlaceSearchResult,
+  Station,
+  StationPrediction,
+} from '@/shared/api/types';
 import {
   NICKNAME_MAX,
   NICKNAME_MIN,
@@ -162,6 +168,39 @@ const STATIONS: Station[] = [
   { stationId: 'ST0007', name: '카이스트 본원', lat: 36.3722, lng: 127.3604, currentBikes: 2 },
   { stationId: 'ST0008', name: '한밭수목원', lat: 36.3667, lng: 127.3887, currentBikes: 11 },
 ];
+
+/** 08 장소 검색 목업 — 네이버 지역검색 응답을 백엔드가 정리한 형태(xPos=경도, yPos=위도) */
+const PLACES: PlaceSearchResult[] = [
+  { title: '대전광역시청', address: '대전광역시 서구 둔산동 1420', roadAddress: '대전광역시 서구 둔산로 100', xPos: 127.3845, yPos: 36.3504 },
+  { title: '대전시청역 1번 출구', address: '대전광역시 서구 둔산동', roadAddress: '대전광역시 서구 둔산로 지하 100', xPos: 127.3858, yPos: 36.3516 },
+  { title: '대전시청 남문광장', address: '대전광역시 서구 둔산동 1420', roadAddress: '대전광역시 서구 둔산로 100', xPos: 127.3849, yPos: 36.3495 },
+  { title: '대전역', address: '대전광역시 동구 정동 1-1', roadAddress: '대전광역시 동구 중앙로 215', xPos: 127.4346, yPos: 36.3315 },
+  { title: '대전복합터미널', address: '대전광역시 동구 용전동 63-3', roadAddress: '대전광역시 동구 동서대로 1689', xPos: 127.4372, yPos: 36.3512 },
+  { title: '충남대학교 정문', address: '대전광역시 유성구 궁동 220', roadAddress: '대전광역시 유성구 대학로 99', xPos: 127.3442, yPos: 36.3623 },
+  { title: '유성온천역 5번 출구', address: '대전광역시 유성구 봉명동', roadAddress: '대전광역시 유성구 계룡로 지하 105', xPos: 127.3383, yPos: 36.3538 },
+  { title: '한밭수목원', address: '대전광역시 서구 만년동 396', roadAddress: '대전광역시 서구 둔산대로 169', xPos: 127.3887, yPos: 36.3667 },
+  { title: '대전월드컵경기장', address: '대전광역시 유성구 노은동 270', roadAddress: '대전광역시 유성구 월드컵대로 32', xPos: 127.3216, yPos: 36.3664 },
+  { title: '정부대전청사', address: '대전광역시 서구 둔산동 920', roadAddress: '대전광역시 서구 청사로 189', xPos: 127.3915, yPos: 36.3616 },
+  { title: '갑천 네이처브리지', address: '대전광역시 서구 만년동', roadAddress: '대전광역시 서구 둔산대로 123', xPos: 127.3893, yPos: 36.3688 },
+  { title: '카이스트 본원', address: '대전광역시 유성구 구성동 373-1', roadAddress: '대전광역시 유성구 대학로 291', xPos: 127.3604, yPos: 36.3722 },
+  { title: '한밭도서관', address: '대전광역시 중구 문화동 145-3', roadAddress: '대전광역시 중구 문화로 23', xPos: 127.4046, yPos: 36.3172 },
+  { title: '대전유성구도서관', address: '대전광역시 유성구 봉명동 1013', roadAddress: '대전광역시 유성구 유성대로 654', xPos: 127.3416, yPos: 36.3542 },
+  { title: '대전시립 가오도서관', address: '대전광역시 동구 가오동 158', roadAddress: '대전광역시 동구 은어송로 58', xPos: 127.4529, yPos: 36.3062 },
+  { title: '대전학생교육문화원 도서관', address: '대전광역시 서구 둔산동 1339', roadAddress: '대전광역시 서구 둔산서로 175', xPos: 127.3742, yPos: 36.3605 },
+  { title: '대전서구어린이도서관', address: '대전광역시 서구 갈마동 1012', roadAddress: '대전광역시 서구 갈마로 105', xPos: 127.3667, yPos: 36.3466 },
+  { title: '한밭대학교 도서관', address: '대전광역시 유성구 덕명동 16-1', roadAddress: '대전광역시 유성구 동서대로 125', xPos: 127.2986, yPos: 36.3510 },
+];
+
+/** 최근 검색 목업 저장소 — 서버 `recent_places`처럼 고를 때마다 한 줄씩 쌓인다(중복 제거 없음) */
+const RECENT_PLACES_KEY = 'msw_recent_places';
+
+function getMockRecentPlaces(): PlaceSearchResult[] {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_PLACES_KEY) ?? '[]') as PlaceSearchResult[];
+  } catch {
+    return [];
+  }
+}
 
 export const handlers = [
   // ── 인증 (백엔드 세션 쿠키 방식을 흉내) ─────────────────────────────
@@ -491,5 +530,46 @@ export const handlers = [
       };
     });
     return HttpResponse.json(ok(predictions));
+  }),
+
+  // ── 장소 검색 (08) — 백엔드 #18 MapController와 동일 경로 ─────────
+  http.get('/api/map', async ({ request }) => {
+    await delay(400);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const query = new URL(request.url).searchParams.get('query')?.trim() ?? '';
+    if (!query) return fail(400, '검색어를 입력해주세요.');
+    // 네이버 지역검색 display=5 → 최대 5건
+    const results = PLACES.filter(
+      (p) => p.title.includes(query) || p.address.includes(query) || p.roadAddress.includes(query),
+    ).slice(0, 5);
+    return HttpResponse.json(ok(results));
+  }),
+
+  http.get('/api/map/recent', async ({ request }) => {
+    await delay(200);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const limit = Number(new URL(request.url).searchParams.get('limit'));
+    if (!Number.isFinite(limit) || limit < 1) return fail(400, '조회 개수는 1 이상이어야 합니다.');
+    return HttpResponse.json(ok(getMockRecentPlaces().slice(0, limit)));
+  }),
+
+  http.post('/api/map/location/recent', async ({ request }) => {
+    await delay(200);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const body = (await request.json()) as Partial<PlaceSearchResult>;
+    if (!body.title?.trim()) return fail(400, '장소 이름은 필수입니다.');
+    const recent = getMockRecentPlaces();
+    recent.unshift({
+      title: body.title.trim(),
+      address: body.address ?? '',
+      roadAddress: body.roadAddress ?? '',
+      xPos: Number(body.xPos),
+      yPos: Number(body.yPos),
+    });
+    localStorage.setItem(RECENT_PLACES_KEY, JSON.stringify(recent));
+    return HttpResponse.json({ code: 200, message: '최근 검색한 장소가 등록되었습니다.', data: null });
   }),
 ];
