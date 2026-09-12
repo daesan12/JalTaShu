@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BikeStation } from '@/shared/api/types';
+import type { BikeStation, PlaceSearchResult } from '@/shared/api/types';
+import { DestinationMarker } from '@/features/map/components/DestinationMarker';
 import { StationMarkers } from '@/features/map/components/StationMarkers';
 import {
   loadNaverMaps,
@@ -40,10 +41,17 @@ interface MapViewProps {
   stations: BikeStation[] | undefined;
   selectedStationId: string | null;
   onSelectStation: (stationId: string | null) => void;
+  /** 08에서 고른 목적지. null이면 핀 없음 */
+  destination: PlaceSearchResult | null;
 }
 
-/** 07 메인 화면의 네이버 지도 + 대여소 마커 */
-export function MapView({ stations, selectedStationId, onSelectStation }: MapViewProps) {
+/** 07 메인 화면의 네이버 지도 + 대여소 마커 + 목적지 핀 */
+export function MapView({
+  stations,
+  selectedStationId,
+  onSelectStation,
+  destination,
+}: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [failure, setFailure] = useState<MapLoadFailure | null>(null);
   // 마커는 지도 인스턴스가 생긴 뒤에야 붙일 수 있어 state로 내려준다
@@ -95,6 +103,8 @@ export function MapView({ stations, selectedStationId, onSelectStation }: MapVie
           onSelectStation={onSelectStation}
         />
       ) : null}
+
+      {map !== null ? <DestinationMarker map={map} destination={destination} /> : null}
 
       {failure === null ? null : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-background px-8 text-center">
