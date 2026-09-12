@@ -88,6 +88,34 @@ function setMockReports(reports: MockReport[]) {
   }
 }
 
+/** 가짜 Open API 신청 내역 — 새로고침에도 유지되도록 localStorage 사용 */
+const OPEN_API_KEY = 'msw_openapi_requests';
+
+interface MockOpenApiRequest {
+  id: number;
+  purpose: string;
+  reason: string;
+  status: string;
+  createdAt: string;
+}
+
+function getOpenApiRequests(): MockOpenApiRequest[] {
+  try {
+    const raw = localStorage.getItem(OPEN_API_KEY);
+    if (raw) return JSON.parse(raw) as MockOpenApiRequest[];
+  } catch {
+    // 파싱 실패 시 빈 목록
+  }
+  return [];
+}
+
+function setOpenApiRequests(requests: MockOpenApiRequest[]) {
+  try {
+    localStorage.setItem(OPEN_API_KEY, JSON.stringify(requests));
+  } catch {
+    // 저장 불가 환경 무시
+  }
+}
 /** 이동 기록 목업 (22·23 — 잘타슈 내비게이션 기록, 프레임 데이터 기반) */
 const RIDE_PAGE_SIZE = 5;
 const RIDE_SUMMARIES = [
@@ -217,6 +245,34 @@ export const handlers = [
     );
   }),
 
+  // ── Open API 신청 (자전거 정보 — 백엔드 API 미정, 임시 스키마) ──────
+  http.post('/api/open-api/requests', async ({ request }) => {
+    await delay(400);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const body = (await request.json()) as { purpose?: string; reason?: string };
+    if (!body.purpose || !body.reason?.trim()) {
+      return fail(400, '활용구분과 신청사유를 입력해 주세요.');
+    }
+    const requests = getOpenApiRequests();
+    requests.unshift({
+      id: Date.now(),
+      purpose: body.purpose,
+      reason: body.reason,
+      status: '접수됨',
+      createdAt: new Date().toISOString(),
+    });
+    setOpenApiRequests(requests);
+    return HttpResponse.json({ code: 200, message: 'Open API 신청이 접수되었습니다.', data: null });
+  }),
+
+  http.get('/api/open-api/requests', async () => {
+    await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    return HttpResponse.json(ok(getOpenApiRequests()));
+  }),
+
   // ── 공지 팝업 (07-1 — 백엔드 API 미정, 임시 스키마) ───────────────
   // 공지사항 목록과는 별개 데이터. 관리자 페이지에서 따로 CRUD하고, 등록 시 공지사항 하나를
   // 연결할 수 있다(linkedNoticeId). 연결하지 않은 팝업은 눌러도 이동하지 않는다.
@@ -258,6 +314,17 @@ export const handlers = [
     }
     setAuthState({ loggedIn: true, nickname });
     return HttpResponse.json({ code: 200, message: '닉네임이 변경되었습니다.', data: null });
+  }),
+
+  // 회원 탈퇴 — 백엔드 API 미정. 계정·데이터를 모두 삭제한다
+  http.post('/api/users/withdraw', async () => {
+    await delay(500);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    setAuthState({ loggedIn: false, nickname: null });
+    setMockReports([]);
+    setOpenApiRequests([]);
+    return HttpResponse.json({ code: 200, message: '탈퇴가 완료되었습니다.', data: null });
   }),
 
   // 백엔드에 로그아웃 API가 아직 없음 — 확정 시 경로 맞출 것

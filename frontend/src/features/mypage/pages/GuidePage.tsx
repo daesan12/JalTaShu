@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { TopHeader } from '@/shared/ui/TopHeader';
-import { RentGuideTab, ReturnGuideTab, SafetyGuideTab } from '@/features/mypage/components/guide/placeholderTabs';
+import { RentGuideTab } from '@/features/mypage/components/guide/RentGuideTab';
+import { ReturnGuideTab } from '@/features/mypage/components/guide/ReturnGuideTab';
+import { SafetyGuideTab } from '@/features/mypage/components/guide/SafetyGuideTab';
 import { TashuIntroTab } from '@/features/mypage/components/guide/TashuIntroTab';
 
 /** 탭 구성 — Figma '이용안내 / Tabs' 기준. 탭별 콘텐츠는 독립 컴포넌트라 나눠서 작업 가능 */
