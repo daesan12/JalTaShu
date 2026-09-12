@@ -13,7 +13,7 @@ import {
 } from '@/features/map/api/places';
 import { PlaceRow } from '@/features/map/components/PlaceRow';
 
-/** 출발지·내 위치·지도에서 선택은 각각 별도 이슈(현재위치·09)라 지금은 안내만 띄운다 */
+/** 출발지·내 위치·지도에서 선택은 각각 별도 이슈(현재위치·지도에서 선택)라 지금은 안내만 띄운다 */
 const COMING_SOON = '준비 중입니다.';
 
 const stroke = {

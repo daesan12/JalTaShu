@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
-import type { PlaceSearchResult } from '@/shared/api/types';
+import { ApiError } from '@/shared/api/client';
+import type { PlaceSearchResult, RoutePath } from '@/shared/api/types';
 import { Button } from '@/shared/ui/Button';
 import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/stations';
 import { NOTICE_POPUPS_QUERY_KEY, getNoticePopups } from '@/features/map/api/noticePopups';
+import { getRoutePaths } from '@/features/map/api/routes';
 import { CurrentLocationButton } from '@/features/map/components/CurrentLocationButton';
+import { DestinationSheet } from '@/features/map/components/DestinationSheet';
 import { MapView } from '@/features/map/components/MapView';
 import { NoticeBanner } from '@/features/map/components/NoticeBanner';
 import { NoticePopup } from '@/features/map/components/NoticePopup';
@@ -15,6 +18,7 @@ import { StationPeekSheet } from '@/features/map/components/StationPeekSheet';
 import { Toast } from '@/features/map/components/Toast';
 import { UpdatedBadge } from '@/features/map/components/UpdatedBadge';
 import { useToast } from '@/features/map/hooks/useToast';
+import { START_POS_FALLBACK } from '@/features/map/lib/mapDefaults';
 import { NOTICES_PATH } from '@/features/map/lib/noticeLink';
 import {
   hideNoticePopupForWeek,
@@ -32,10 +36,13 @@ const COMING_SOON = '준비 중입니다.';
 const SEARCH_PARAM = 'search';
 
 /**
- * 대여소 시트(peek 110px)가 열리면 하단 버튼을 그만큼 올린다.
- * 시트는 화면 맨 아래(탭바 64px 포함)에 붙으므로 실제 겹침은 110 − 64 = 46px, 여기에 여백 12px.
+ * 시트가 열리면 하단 버튼을 시트 높이만큼 올린다.
+ * 시트는 화면 맨 아래(탭바 64px 포함)에 붙으므로 실제 겹침은 시트 높이 − 64, 여기에 여백 12px.
+ * - 대여소 시트(peek 110px): 110 − 64 + 12 = 58
+ * - 목적지 시트(mini 200px): 200 − 64 + 12 = 148
  */
-const CONTROLS_LIFT_CLASS = '-translate-y-[58px]';
+const LIFT_FOR_STATION_CLASS = '-translate-y-[58px]';
+const LIFT_FOR_DESTINATION_CLASS = '-translate-y-[148px]';
 
 /** 07 메인 지도 — 네이버 지도 + 대여소 마커 + 오버레이 UI */
 export function MapHomePage() {
@@ -45,6 +52,8 @@ export function MapHomePage() {
   const searchOpen = searchParams.get(SEARCH_PARAM) === '1';
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [destination, setDestination] = useState<PlaceSearchResult | null>(null);
+  // 경로 후보 전체(서버가 정렬·필터 없이 내려줌). 10 비교 시트(후속 이슈)가 이 목록을 칩으로 골라 그린다
+  const [, setRoutes] = useState<RoutePath[] | null>(null);
 
   // 한 번 닫으면 앱을 다시 켜기 전까지 뜨지 않는다. "7일간 보지 않기"는 저장소로 더 오래 막는다.
   // 닫힘 기억은 모듈(noticePopupHide)에 있고, 이 state는 화면을 다시 그리는 용도다
@@ -71,6 +80,20 @@ export function MapHomePage() {
     enabled: !popupClosed,
   });
 
+  // 10 비교 화면은 후속 이슈 — 지금은 목록만 보관하고 안내만 띄운다
+  const routeSearch = useMutation({
+    mutationFn: getRoutePaths,
+    onSuccess: (routes) => {
+      setRoutes(routes);
+      showToast(`경로 ${routes.length}개를 찾았어요. 비교 화면은 준비 중입니다.`);
+    },
+    onError: (error) => {
+      showToast(
+        error instanceof ApiError ? error.message : '경로를 찾지 못했습니다. 다시 시도해 주세요.',
+      );
+    },
+  });
+
   function closeForWeek() {
     hideNoticePopupForWeek();
     closePopup();
@@ -87,9 +110,22 @@ export function MapHomePage() {
     navigate(-1);
   }
 
+  // 고른 장소로 지도가 이동하고 핀·확인 시트가 뜬다(네이버 지도의 장소 확인 단계)
   function selectDestination(place: PlaceSearchResult) {
     setDestination(place);
     closeSearch();
+  }
+
+  function clearDestination() {
+    setDestination(null);
+  }
+
+  function searchRoutes() {
+    if (destination === null) return;
+    routeSearch.mutate({
+      start: START_POS_FALLBACK,
+      end: { xPos: destination.xPos, yPos: destination.yPos },
+    });
   }
 
   // 공지 상세 화면이 아직 없어 연결된 공지 번호와 상관없이 목록으로 보낸다
@@ -97,6 +133,15 @@ export function MapHomePage() {
     closePopup();
     navigate(NOTICES_PATH);
   }
+
+  // 시트는 한 번에 하나만: 대여소를 탭하면 대여소 시트가 우선하고, 검색 중에는 둘 다 숨긴다
+  const stationSheetOpen = selectedStation !== null;
+  const destinationSheetOpen = destination !== null && !stationSheetOpen && !searchOpen;
+  const liftClass = stationSheetOpen
+    ? LIFT_FOR_STATION_CLASS
+    : destinationSheetOpen
+      ? LIFT_FOR_DESTINATION_CLASS
+      : '';
 
   return (
     <div className="relative h-full overflow-hidden">
@@ -120,9 +165,7 @@ export function MapHomePage() {
 
       {/* 하단 — 현재위치 버튼과 대여하기 버튼 (홈 인디케이터 여백은 탭바가 처리) */}
       <div
-        className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${
-          selectedStation === null ? '' : CONTROLS_LIFT_CLASS
-        }`}
+        className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${liftClass}`}
       >
         <CurrentLocationButton onClick={() => showToast(COMING_SOON)} />
         <Button full onClick={() => showToast(COMING_SOON)}>
@@ -131,6 +174,13 @@ export function MapHomePage() {
       </div>
 
       <StationPeekSheet station={selectedStation} onClose={() => setSelectedStationId(null)} />
+
+      <DestinationSheet
+        destination={destinationSheetOpen ? destination : null}
+        searching={routeSearch.isPending}
+        onSearchRoutes={searchRoutes}
+        onClose={clearDestination}
+      />
 
       {/* 검색 오버레이는 탭바(z-20)를 덮고, 뒤에 오는 토스트(z-30)보다는 아래에 둔다 */}
       {searchOpen ? (
