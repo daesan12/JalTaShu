@@ -2,17 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import type { BikeStation, PlaceSearchResult } from '@/shared/api/types';
 import { DestinationMarker } from '@/features/map/components/DestinationMarker';
 import { StationMarkers } from '@/features/map/components/StationMarkers';
+import { DAEJEON_CENTER, DEFAULT_ZOOM } from '@/features/map/lib/mapDefaults';
 import {
   loadNaverMaps,
   subscribeMapAuthFailure,
   type MapLoadFailure,
 } from '@/features/map/lib/naverMaps';
-
-/** 07 진입 시 초기 중심 — 대전시청 부근 */
-const DAEJEON_CENTER = { lat: 36.3504, lng: 127.3845 } as const;
-
-/** 대여소 여러 개가 한 화면에 들어오는 줌 단계 */
-const DEFAULT_ZOOM = 14;
 
 /**
  * 실패 원인별 안내 — 컴포넌트 밖에 두어 렌더마다 새로 만들지 않는다.

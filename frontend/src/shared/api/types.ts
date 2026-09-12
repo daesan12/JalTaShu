@@ -59,3 +59,35 @@ export interface PlaceSearchResult {
   xPos: number;
   yPos: number;
 }
+
+/** 백엔드 좌표 필드 쌍 — `xPos`=경도, `yPos`=위도(확정). 지도에 찍을 때는 `posToLatLng()`로만 바꾼다 */
+export interface Pos {
+  xPos: number;
+  yPos: number;
+}
+
+/** 경로 구간 행동 — 백엔드 통보값(9/14 이의 없으면 확정). RENT/RETURN은 대여소에서의 대여·반납 */
+export type RouteBehave = 'WALK' | 'BIKE' | 'RENT' | 'RETURN';
+
+/**
+ * 경로 후보 하나 — 백엔드 `GET /map/path`(OSRM 경유) 응답 배열의 원소.
+ * ⚠ 9/14 백엔드 확인 전 프론트 가정. 실제 응답이 오면 이 타입과 `features/map/api/routes.ts`만 고친다.
+ * - 최상위 배열 = 경로 후보 4개 (가정)
+ * - `distance`(m)·`time`(초)·`behave`는 같은 인덱스가 같은 구간. 기본은 도보→자전거→도보 3구간이며,
+ *   RENT/RETURN이 길이 0 구간으로 끼어 올 수 있다(백엔드 확인 필요)
+ * - `altitude`는 `location`보다 촘촘해 인덱스로 대응시키지 않는다 → 11 고도 그래프는 위치(거리) 기준
+ */
+export interface RoutePath {
+  distance: number[];
+  time: number[];
+  behave: RouteBehave[];
+  /** 경로선 좌표 */
+  location: Pos[];
+  /** 고도 — (경도, 위도, 고도 m) 묶음 */
+  altitude: (Pos & { altitude: number })[];
+  /**
+   * 대여 대여소에 도착하는 시점에 확보 가능한 대수 (필드명 가정 — 예측 모델 지원 여부는 협의 중).
+   * 10·11에서 "도착 시 N대"로 표시. 확률은 표시하지 않는다
+   */
+  expectedBikeCnt: number;
+}

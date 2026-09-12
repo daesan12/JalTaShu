@@ -3,6 +3,8 @@ import type {
   ApiResponse,
   BikeStation,
   PlaceSearchResult,
+  Pos,
+  RoutePath,
   Station,
   StationPrediction,
 } from '@/shared/api/types';
@@ -190,6 +192,72 @@ const PLACES: PlaceSearchResult[] = [
   { title: '대전서구어린이도서관', address: '대전광역시 서구 갈마동 1012', roadAddress: '대전광역시 서구 갈마로 105', xPos: 127.3667, yPos: 36.3466 },
   { title: '한밭대학교 도서관', address: '대전광역시 유성구 덕명동 16-1', roadAddress: '대전광역시 유성구 동서대로 125', xPos: 127.2986, yPos: 36.3510 },
 ];
+
+/**
+ * 경로 후보 목업(10) — 출발·도착 사이를 잇는 4개 경로를 만든다.
+ * 가운데를 좌우로 휘게 해 경로마다 길이·시간이 다르고, 10의 뱃지(가장 빠름/자전거 많음/…)가 각각 다른
+ * 후보에 붙을 수 있게 확보 대수·고도도 다르게 준다. 실제 OSRM 경로가 아니다.
+ */
+const EARTH_RADIUS_M = 6_371_000;
+const BIKE_M_PER_SEC = 4.2; // ≈ 15km/h
+const WALK_M_PER_SEC = 1.1; // ≈ 67m/분
+
+function distanceMeters(a: Pos, b: Pos): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.yPos - a.yPos);
+  const dLng = toRad(b.xPos - a.xPos);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.yPos)) * Math.cos(toRad(b.yPos)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
+}
+
+/** 출발→도착을 잇는 곡선. bend가 클수록 가운데가 옆으로 많이 휜다(−: 왼쪽, +: 오른쪽) */
+function curvedPath(start: Pos, end: Pos, bend: number, points: number): Pos[] {
+  const dx = end.xPos - start.xPos;
+  const dy = end.yPos - start.yPos;
+  return Array.from({ length: points }, (_, i) => {
+    const t = i / (points - 1);
+    const bulge = Math.sin(Math.PI * t) * bend;
+    return {
+      xPos: start.xPos + dx * t - dy * bulge,
+      yPos: start.yPos + dy * t + dx * bulge,
+    };
+  });
+}
+
+function pathLength(path: Pos[]): number {
+  let total = 0;
+  for (let i = 1; i < path.length; i++) total += distanceMeters(path[i - 1], path[i]);
+  return total;
+}
+
+const MOCK_ROUTE_VARIANTS = [
+  { bend: 0.05, walkM: 320, expectedBikeCnt: 1, hill: 72 },
+  { bend: -0.12, walkM: 300, expectedBikeCnt: 4, hill: 45 },
+  { bend: 0.22, walkM: 380, expectedBikeCnt: 3, hill: 18 },
+  { bend: -0.3, walkM: 180, expectedBikeCnt: 6, hill: 60 },
+] as const;
+
+function buildMockRoutes(start: Pos, end: Pos): RoutePath[] {
+  return MOCK_ROUTE_VARIANTS.map(({ bend, walkM, expectedBikeCnt, hill }) => {
+    const location = curvedPath(start, end, bend, 12);
+    const bikeM = Math.max(200, pathLength(location) - walkM * 2);
+    // 고도는 경로보다 촘촘하게(3배) 주고, 가운데가 hill만큼 솟는 언덕 하나
+    const altitude = curvedPath(start, end, bend, 36).map((p, i, arr) => ({
+      ...p,
+      altitude: 50 + Math.round(Math.sin((Math.PI * i) / (arr.length - 1)) * hill),
+    }));
+    return {
+      distance: [walkM, Math.round(bikeM), walkM],
+      time: [Math.round(walkM / WALK_M_PER_SEC), Math.round(bikeM / BIKE_M_PER_SEC), Math.round(walkM / WALK_M_PER_SEC)],
+      behave: ['WALK', 'BIKE', 'WALK'],
+      location,
+      altitude,
+      expectedBikeCnt,
+    };
+  });
+}
 
 /** 최근 검색 목업 저장소 — 서버 `recent_places`처럼 고를 때마다 한 줄씩 쌓인다(중복 제거 없음) */
 const RECENT_PLACES_KEY = 'msw_recent_places';
@@ -544,6 +612,21 @@ export const handlers = [
       (p) => p.title.includes(query) || p.address.includes(query) || p.roadAddress.includes(query),
     ).slice(0, 5);
     return HttpResponse.json(ok(results));
+  }),
+
+  // ── 경로 탐색 (→10) — 백엔드 `GET /map/path`(OSRM 경유). 후보를 전부 내려주고 정렬·필터는 프론트가 한다 ──
+  http.get('/api/map/path', async ({ request }) => {
+    // 실제 서버는 예측 계산까지 3~5초 걸릴 수 있다 — 로딩 상태가 보이게 조금 기다린다
+    await delay(1500);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const q = new URL(request.url).searchParams;
+    const start: Pos = { xPos: Number(q.get('startXPos')), yPos: Number(q.get('startYPos')) };
+    const end: Pos = { xPos: Number(q.get('endXPos')), yPos: Number(q.get('endYPos')) };
+    if (![start.xPos, start.yPos, end.xPos, end.yPos].every(Number.isFinite)) {
+      return fail(400, '출발지와 목적지 좌표가 필요합니다.');
+    }
+    return HttpResponse.json(ok(buildMockRoutes(start, end)));
   }),
 
   http.get('/api/map/recent', async ({ request }) => {
