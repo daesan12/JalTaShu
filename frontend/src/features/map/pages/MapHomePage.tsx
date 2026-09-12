@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/stations';
 import { NOTICE_POPUPS_QUERY_KEY, getNoticePopups } from '@/features/map/api/noticePopups';
 import { CurrentLocationButton } from '@/features/map/components/CurrentLocationButton';
-import { MapPlaceholder } from '@/features/map/components/MapPlaceholder';
+import { MapView } from '@/features/map/components/MapView';
 import { NoticeBanner } from '@/features/map/components/NoticeBanner';
 import { NoticePopup } from '@/features/map/components/NoticePopup';
 import { SearchBar } from '@/features/map/components/SearchBar';
@@ -22,7 +22,7 @@ import {
 /** 검색·현재위치·대여하기는 각각 별도 이슈라 지금은 안내만 띄운다 */
 const COMING_SOON = '준비 중입니다.';
 
-/** 07 메인 지도 — 지도 위 오버레이 UI. 지도 표시와 대여소 마커는 별도 이슈. */
+/** 07 메인 지도 — 네이버 지도 + 오버레이 UI. 대여소 마커는 별도 이슈. */
 export function MapHomePage() {
   const { message, showToast } = useToast();
   const navigate = useNavigate();
@@ -63,7 +63,7 @@ export function MapHomePage() {
 
   return (
     <div className="relative h-full overflow-hidden">
-      <MapPlaceholder />
+      <MapView />
 
       {/* 상단 — 검색바, 공지 배너, 갱신 배지 */}
       <div className="pt-safe pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-start gap-2 p-4">
