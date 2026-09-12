@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import type { BikeStation } from '@/shared/api/types';
+import { StationMarkers } from '@/features/map/components/StationMarkers';
 import {
   loadNaverMaps,
   subscribeMapAuthFailure,
@@ -33,13 +35,19 @@ const FAILURE_TEXT: Record<MapLoadFailure, { title: string; hint: string }> = {
   },
 };
 
-/**
- * 07 메인 화면의 네이버 지도.
- * 대여소 마커는 별도 이슈에서 이 컴포넌트 위에 얹는다.
- */
-export function MapView() {
+interface MapViewProps {
+  /** 목록을 아직 못 받았으면 지도만 그린다 */
+  stations: BikeStation[] | undefined;
+  selectedStationId: string | null;
+  onSelectStation: (stationId: string | null) => void;
+}
+
+/** 07 메인 화면의 네이버 지도 + 대여소 마커 */
+export function MapView({ stations, selectedStationId, onSelectStation }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [failure, setFailure] = useState<MapLoadFailure | null>(null);
+  // 마커는 지도 인스턴스가 생긴 뒤에야 붙일 수 있어 state로 내려준다
+  const [map, setMap] = useState<naver.maps.Map | null>(null);
 
   useEffect(() => {
     let map: naver.maps.Map | null = null;
@@ -60,11 +68,13 @@ export function MapView() {
         center: new LatLng(DAEJEON_CENTER.lat, DAEJEON_CENTER.lng),
         zoom: DEFAULT_ZOOM,
       });
+      setMap(map);
     });
 
     return () => {
       cancelled = true;
-      map?.destroy?.();
+      map?.destroy();
+      setMap(null);
     };
   }, []);
 
@@ -72,9 +82,19 @@ export function MapView() {
   useEffect(() => subscribeMapAuthFailure(() => setFailure('auth-failed')), []);
 
   return (
-    <div className="absolute inset-0 bg-background">
+    // isolate: 네이버 SDK 내부 z-index(로고·축척)가 바텀시트 위로 튀어나오지 않게 지도 안에 가둔다
+    <div className="absolute inset-0 isolate bg-background">
       {/* 실패해도 컨테이너는 유지한다 — ref가 사라지면 지도를 붙일 곳이 없어진다 */}
       <div ref={containerRef} className="size-full" />
+
+      {map !== null && stations !== undefined ? (
+        <StationMarkers
+          map={map}
+          stations={stations}
+          selectedStationId={selectedStationId}
+          onSelectStation={onSelectStation}
+        />
+      ) : null}
 
       {failure === null ? null : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-background px-8 text-center">

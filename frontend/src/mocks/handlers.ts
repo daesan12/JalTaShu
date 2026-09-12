@@ -468,14 +468,6 @@ export const handlers = [
     return HttpResponse.json(ok(stations));
   }),
 
-  // 공통 기반 확인용으로 만든 엔드포인트 — 대여소 마커 이슈에서 /map/bike-station으로 합치고 제거할 것
-  http.get('/api/stations', async () => {
-    await delay(300);
-    const authFail = requireAuth();
-    if (authFail) return authFail;
-    return HttpResponse.json(ok(STATIONS));
-  }),
-
   http.get('/api/stations/:stationId/predictions', async ({ params }) => {
     await delay(300);
     const authFail = requireAuth();
