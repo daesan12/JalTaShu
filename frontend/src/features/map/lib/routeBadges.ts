@@ -37,14 +37,25 @@ export const ROUTE_BADGE: Record<
 /** 범례·뱃지 표시 순서 */
 export const ROUTE_BADGE_ORDER: RouteBadgeKind[] = ['fast', 'bikes', 'flat', 'walk'];
 
-/** 뱃지 없는 후보(5개 이상 올 때)의 경로선 색 */
-const NO_BADGE_CSS_VAR = '--color-gray-400';
+/**
+ * 선택 안 된 경로선과 뱃지 없는 후보(5개 이상 올 때)의 경로선 색.
+ * 선택한 경로만 뱃지 색을 띠어 대비가 크게 난다(2026-09-13 만두 결정)
+ */
+const MUTED_ROUTE_CSS_VAR = '--color-gray-500';
+
+function readToken(cssVar: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
+}
 
 /**
  * 네이버 Polyline은 CSS 클래스가 아니라 색 문자열을 받으므로 토큰 값을 읽어 넘긴다.
  * 토큰은 위 클래스들이 소스에 있어 항상 CSS로 나온다(Tailwind 4는 쓰이는 변수만 출력).
+ * `text-gray-500`도 여러 화면에서 쓰여 같은 이유로 나온다
  */
 export function routeStrokeColor(kind: RouteBadgeKind | null): string {
-  const cssVar = kind === null ? NO_BADGE_CSS_VAR : ROUTE_BADGE[kind].cssVar;
-  return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
+  return readToken(kind === null ? MUTED_ROUTE_CSS_VAR : ROUTE_BADGE[kind].cssVar);
+}
+
+export function mutedRouteStrokeColor(): string {
+  return readToken(MUTED_ROUTE_CSS_VAR);
 }

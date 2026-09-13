@@ -47,12 +47,12 @@ const COMING_SOON = '준비 중입니다.';
 const SEARCH_PARAM = 'search';
 
 /**
- * 10 경로 비교도 같은 방식. `/?routes=1`이면 비교 중, `&expanded=1`이 붙으면 시트가 확장 상태.
- * 확장할 때 히스토리를 하나 더 쌓아 뒤로가기가 "확장→Peek", 한 번 더 누르면 "Peek→목적지 확인 시트"가 된다(Figma 10-1).
+ * 10 경로 비교도 같은 방식. `/?routes=1`이면 비교 중이고 뒤로가기·← 버튼이 곧 "비교 끝내기 → 목적지 확인 시트".
+ * 시트는 기본으로 확장(카드 목록)돼 열리고 아래로 끌면 Peek(2026-09-13 만두 결정). 확장↔Peek은 state라
+ * 뒤로가기 단계에 끼지 않는다(Figma 10-1의 "확장→Peek 축소" 단계는 뺌).
  * 후보 목록은 state에만 있어 새로고침하면 사라진다 — 목적지(#26)와 같은 결정.
  */
 const ROUTES_PARAM = 'routes';
-const EXPANDED_PARAM = 'expanded';
 
 /**
  * 시트가 열리면 하단 버튼을 시트 높이만큼 올린다.
@@ -77,7 +77,7 @@ export function MapHomePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchOpen = searchParams.get(SEARCH_PARAM) === '1';
   const compareInUrl = searchParams.get(ROUTES_PARAM) === '1';
-  const compareExpanded = searchParams.get(EXPANDED_PARAM) === '1';
+  const [compareSnap, setCompareSnap] = useState<RouteCompareSnap>('half');
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [destination, setDestination] = useState<PlaceSearchResult | null>(null);
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
@@ -120,6 +120,8 @@ export function MapHomePage() {
     mutationFn: getRoutePaths,
     onSuccess: (routes) => {
       setRouteResult({ routes, fetchedAt: Date.now() });
+      // 새 후보는 항상 카드 목록이 펼쳐진 상태로 보여준다
+      setCompareSnap('half');
       // 기본 선택은 현재 칩 기준 1순위
       setSelectedRouteIndex(sortSummaries(summarizeRoutes(routes), routeSort)[0]?.index ?? null);
       // 다시 조회(이미 비교 중)일 때는 히스토리를 더 쌓지 않는다
@@ -169,18 +171,9 @@ export function MapHomePage() {
     });
   }
 
-  // 확장은 히스토리를 하나 쌓고, Peek로 돌아가기는 그 하나를 되감는다 → 뒤로가기 버튼과 드래그가 같은 결과
-  function changeCompareSnap(snap: RouteCompareSnap) {
-    if (snap === 'half') {
-      if (!compareExpanded) setSearchParams({ [ROUTES_PARAM]: '1', [EXPANDED_PARAM]: '1' });
-    } else if (compareExpanded) {
-      navigate(-1);
-    }
-  }
-
-  // ← 버튼: 비교를 끝내고 목적지 확인 시트로. 확장 중이면 쌓인 히스토리 두 개를 함께 되감는다
+  // ← 버튼: 비교를 끝내고 목적지 확인 시트로. 열 때 히스토리를 하나 쌓았으니 뒤로가기와 같다
   function exitCompare() {
-    navigate(compareExpanded ? -2 : -1);
+    navigate(-1);
   }
 
   // 공지 상세 화면이 아직 없어 연결된 공지 번호와 상관없이 목록으로 보낸다
@@ -216,7 +209,6 @@ export function MapHomePage() {
 
       {compareActive ? (
         <RouteCompareControls
-          badges={routeBadges}
           onBack={exitCompare}
           onRefresh={searchRoutes}
           refreshing={routeSearch.isPending}
@@ -258,8 +250,8 @@ export function MapHomePage() {
       {routeResult === null ? null : (
         <RouteCompareSheet
           open={compareSheetOpen}
-          snap={compareExpanded ? 'half' : 'peek'}
-          onSnapChange={changeCompareSnap}
+          snap={compareSnap}
+          onSnapChange={setCompareSnap}
           summaries={routeSummaries}
           badges={routeBadges}
           fetchedAt={routeResult.fetchedAt}

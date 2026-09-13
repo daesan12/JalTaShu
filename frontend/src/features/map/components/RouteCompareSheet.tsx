@@ -13,7 +13,7 @@ import {
   type RouteSummary,
 } from '@/features/map/lib/routeMetrics';
 
-/** 비교 시트는 두 단계만 쓴다 — 10-1 Peek(요약 한 줄) ↔ 10 확장(카드 목록) */
+/** 비교 시트는 두 단계만 쓴다 — 10 확장(카드 목록, 기본) ↔ 10-1 Peek(아래로 끌었을 때 요약 한 줄) */
 export type RouteCompareSnap = 'peek' | 'half';
 
 const SORT_LABEL: Record<RouteSort, string> = {
@@ -51,7 +51,7 @@ interface RouteCompareSheetProps {
 
 /**
  * 10 경로 비교·선택 시트. 후보 전체를 칩 기준으로 정렬해 카드로 보여주고, 카드를 탭하면 그 경로를 선택한다.
- * 뒤로가기(확장→Peek, Peek→이탈)와 dismiss 불가는 페이지가 URL·`dismissible`로 처리한다.
+ * 기본은 확장 상태, 아래로 끌면 Peek. Peek 이하로는 닫히지 않고(`dismissible`) 닫기는 페이지의 뒤로가기·← 버튼.
  */
 export function RouteCompareSheet({
   open,
@@ -215,7 +215,7 @@ interface PeekSummaryProps {
   onStart: () => void;
 }
 
-/** 10-1 Peek — 선택한 경로 한 줄 요약 + 안내 시작. 위로 끌면 카드 목록이 나온다 */
+/** 10-1 Peek — 선택한 경로 한 줄 요약 + 안내 시작. 위로 끌면 카드 목록으로 돌아간다 */
 function PeekSummary({ summary, badge, fetchedAt, onStart }: PeekSummaryProps) {
   const name = badge === null ? '선택한 경로' : `${ROUTE_BADGE[badge].label} 경로`;
   return (
