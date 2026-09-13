@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BikeStation, PlaceSearchResult } from '@/shared/api/types';
+import type { BikeStation, PlaceSearchResult, RoutePath } from '@/shared/api/types';
 import { DestinationMarker } from '@/features/map/components/DestinationMarker';
+import { RoutePolylines } from '@/features/map/components/RoutePolylines';
 import { StationMarkers } from '@/features/map/components/StationMarkers';
+import type { RouteBadgeKind } from '@/features/map/lib/routeMetrics';
 import { DAEJEON_CENTER, DEFAULT_ZOOM } from '@/features/map/lib/mapDefaults';
 import {
   loadNaverMaps,
@@ -38,14 +40,21 @@ interface MapViewProps {
   onSelectStation: (stationId: string | null) => void;
   /** 08에서 고른 목적지. null이면 핀 없음 */
   destination: PlaceSearchResult | null;
+  /** 10 경로 후보. null이면 경로선 없음 */
+  routes: RoutePath[] | null;
+  routeBadges: (RouteBadgeKind | null)[];
+  selectedRouteIndex: number | null;
 }
 
-/** 07 메인 화면의 네이버 지도 + 대여소 마커 + 목적지 핀 */
+/** 07 메인 화면의 네이버 지도 + 대여소 마커 + 목적지 핀 + 경로선 */
 export function MapView({
   stations,
   selectedStationId,
   onSelectStation,
   destination,
+  routes,
+  routeBadges,
+  selectedRouteIndex,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [failure, setFailure] = useState<MapLoadFailure | null>(null);
@@ -100,6 +109,15 @@ export function MapView({
       ) : null}
 
       {map !== null ? <DestinationMarker map={map} destination={destination} /> : null}
+
+      {map !== null ? (
+        <RoutePolylines
+          map={map}
+          routes={routes}
+          badges={routeBadges}
+          selectedIndex={selectedRouteIndex}
+        />
+      ) : null}
 
       {failure === null ? null : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-background px-8 text-center">
