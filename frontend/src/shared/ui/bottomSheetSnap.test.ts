@@ -53,3 +53,15 @@ describe('clampDragDelta', () => {
     expect(clampDragDelta('mini', 80, VH, false)).toBe(80); // 아래(닫기)는 가능
   });
 });
+
+describe('dismissible=false (10-1 경로 비교 시트)', () => {
+  it('아무리 내려도 닫히지 않고 peek에 멈춘다', () => {
+    expect(resolveSnapAfterDrag('peek', 300, VH, false)).toBe('peek');
+    expect(resolveSnapAfterDrag('half', 600, VH, false)).toBe('peek');
+  });
+
+  it('드래그 이동량은 peek 높이까지만 허용된다', () => {
+    expect(clampDragDelta('peek', 300, VH, true, false)).toBe(0);
+    expect(clampDragDelta('half', 600, VH, true, false)).toBeCloseTo(479.08 - 110);
+  });
+});

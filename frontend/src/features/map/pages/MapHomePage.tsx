@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ApiError } from '@/shared/api/client';
@@ -13,6 +13,11 @@ import { MapView } from '@/features/map/components/MapView';
 import { NoticeBanner } from '@/features/map/components/NoticeBanner';
 import { NoticePopup } from '@/features/map/components/NoticePopup';
 import { PlaceSearchOverlay } from '@/features/map/components/PlaceSearchOverlay';
+import { RouteCompareControls } from '@/features/map/components/RouteCompareControls';
+import {
+  RouteCompareSheet,
+  type RouteCompareSnap,
+} from '@/features/map/components/RouteCompareSheet';
 import { SearchBar } from '@/features/map/components/SearchBar';
 import { StationPeekSheet } from '@/features/map/components/StationPeekSheet';
 import { Toast } from '@/features/map/components/Toast';
@@ -25,8 +30,14 @@ import {
   isNoticePopupHidden,
   markNoticePopupClosed,
 } from '@/features/map/lib/noticePopupHide';
+import {
+  assignBadges,
+  sortSummaries,
+  summarizeRoutes,
+  type RouteSort,
+} from '@/features/map/lib/routeMetrics';
 
-/** 현재위치·대여하기는 각각 별도 이슈라 지금은 안내만 띄운다 */
+/** 현재위치·대여하기·경로 안내(11)는 각각 별도 이슈라 지금은 안내만 띄운다 */
 const COMING_SOON = '준비 중입니다.';
 
 /**
@@ -34,6 +45,14 @@ const COMING_SOON = '준비 중입니다.';
  * 라우트는 `/` 그대로라 지도가 살아 있고, 안드로이드·브라우저 뒤로가기가 그대로 "검색 닫기"가 된다.
  */
 const SEARCH_PARAM = 'search';
+
+/**
+ * 10 경로 비교도 같은 방식. `/?routes=1`이면 비교 중이고 뒤로가기·← 버튼이 곧 "비교 끝내기 → 목적지 확인 시트".
+ * 시트는 기본으로 확장(카드 목록)돼 열리고 아래로 끌면 Peek(2026-09-13 만두 결정). 확장↔Peek은 state라
+ * 뒤로가기 단계에 끼지 않는다(Figma 10-1의 "확장→Peek 축소" 단계는 뺌).
+ * 후보 목록은 state에만 있어 새로고침하면 사라진다 — 목적지(#26)와 같은 결정.
+ */
+const ROUTES_PARAM = 'routes';
 
 /**
  * 시트가 열리면 하단 버튼을 시트 높이만큼 올린다.
@@ -44,16 +63,26 @@ const SEARCH_PARAM = 'search';
 const LIFT_FOR_STATION_CLASS = '-translate-y-[58px]';
 const LIFT_FOR_DESTINATION_CLASS = '-translate-y-[148px]';
 
+interface RouteResult {
+  /** 서버가 정렬·필터 없이 준 후보 전체 */
+  routes: RoutePath[];
+  /** 받은 시각(ms). 출발은 "지금"이라 도착 예정 시각의 기준이 된다 */
+  fetchedAt: number;
+}
+
 /** 07 메인 지도 — 네이버 지도 + 대여소 마커 + 오버레이 UI */
 export function MapHomePage() {
   const { message, showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchOpen = searchParams.get(SEARCH_PARAM) === '1';
+  const compareInUrl = searchParams.get(ROUTES_PARAM) === '1';
+  const [compareSnap, setCompareSnap] = useState<RouteCompareSnap>('half');
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [destination, setDestination] = useState<PlaceSearchResult | null>(null);
-  // 경로 후보 전체(서버가 정렬·필터 없이 내려줌). 10 비교 시트(후속 이슈)가 이 목록을 칩으로 골라 그린다
-  const [, setRoutes] = useState<RoutePath[] | null>(null);
+  const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
+  const [routeSort, setRouteSort] = useState<RouteSort>('bikes');
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null);
 
   // 한 번 닫으면 앱을 다시 켜기 전까지 뜨지 않는다. "7일간 보지 않기"는 저장소로 더 오래 막는다.
   // 닫힘 기억은 모듈(noticePopupHide)에 있고, 이 state는 화면을 다시 그리는 용도다
@@ -80,12 +109,23 @@ export function MapHomePage() {
     enabled: !popupClosed,
   });
 
-  // 10 비교 화면은 후속 이슈 — 지금은 목록만 보관하고 안내만 띄운다
+  // 후보 요약·뱃지는 후보가 바뀔 때만 다시 계산한다. 뱃지는 응답에 없고 후보끼리 비교해 프론트가 붙인다
+  const routeSummaries = useMemo(
+    () => (routeResult === null ? [] : summarizeRoutes(routeResult.routes)),
+    [routeResult],
+  );
+  const routeBadges = useMemo(() => assignBadges(routeSummaries), [routeSummaries]);
+
   const routeSearch = useMutation({
     mutationFn: getRoutePaths,
     onSuccess: (routes) => {
-      setRoutes(routes);
-      showToast(`경로 ${routes.length}개를 찾았어요. 비교 화면은 준비 중입니다.`);
+      setRouteResult({ routes, fetchedAt: Date.now() });
+      // 새 후보는 항상 카드 목록이 펼쳐진 상태로 보여준다
+      setCompareSnap('half');
+      // 기본 선택은 현재 칩 기준 1순위
+      setSelectedRouteIndex(sortSummaries(summarizeRoutes(routes), routeSort)[0]?.index ?? null);
+      // 다시 조회(이미 비교 중)일 때는 히스토리를 더 쌓지 않는다
+      if (!compareInUrl) setSearchParams({ [ROUTES_PARAM]: '1' });
     },
     onError: (error) => {
       showToast(
@@ -110,14 +150,17 @@ export function MapHomePage() {
     navigate(-1);
   }
 
-  // 고른 장소로 지도가 이동하고 핀·확인 시트가 뜬다(네이버 지도의 장소 확인 단계)
+  // 고른 장소로 지도가 이동하고 핀·확인 시트가 뜬다(네이버 지도의 장소 확인 단계).
+  // 이전 목적지의 경로 후보는 더 맞지 않으니 버린다
   function selectDestination(place: PlaceSearchResult) {
     setDestination(place);
+    setRouteResult(null);
     closeSearch();
   }
 
   function clearDestination() {
     setDestination(null);
+    setRouteResult(null);
   }
 
   function searchRoutes() {
@@ -128,15 +171,24 @@ export function MapHomePage() {
     });
   }
 
+  // ← 버튼: 비교를 끝내고 목적지 확인 시트로. 열 때 히스토리를 하나 쌓았으니 뒤로가기와 같다
+  function exitCompare() {
+    navigate(-1);
+  }
+
   // 공지 상세 화면이 아직 없어 연결된 공지 번호와 상관없이 목록으로 보낸다
   function openNotice() {
     closePopup();
     navigate(NOTICES_PATH);
   }
 
-  // 시트는 한 번에 하나만: 대여소를 탭하면 대여소 시트가 우선하고, 검색 중에는 둘 다 숨긴다
+  // 시트는 한 번에 하나만: 대여소를 탭하면 대여소 시트가 우선하고, 검색 중에는 전부 숨긴다.
+  // 경로 후보가 있고 URL이 비교 중이면 목적지 확인 시트 대신 비교 시트·경로선·범례가 뜬다
   const stationSheetOpen = selectedStation !== null;
-  const destinationSheetOpen = destination !== null && !stationSheetOpen && !searchOpen;
+  const compareActive = routeResult !== null && compareInUrl && !searchOpen;
+  const compareSheetOpen = compareActive && !stationSheetOpen;
+  const destinationSheetOpen =
+    destination !== null && !stationSheetOpen && !searchOpen && !compareActive;
   const liftClass = stationSheetOpen
     ? LIFT_FOR_STATION_CLASS
     : destinationSheetOpen
@@ -150,28 +202,41 @@ export function MapHomePage() {
         selectedStationId={selectedStationId}
         onSelectStation={setSelectedStationId}
         destination={destination}
+        routes={compareActive ? routeResult.routes : null}
+        routeBadges={routeBadges}
+        selectedRouteIndex={selectedRouteIndex}
       />
 
-      {/* 상단 — 검색바, 공지 배너, 갱신 배지 */}
-      <div className="pt-safe pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-start gap-2 p-4">
-        <div className="pointer-events-auto w-full">
-          <SearchBar onClick={openSearch} value={destination?.title} />
+      {compareActive ? (
+        <RouteCompareControls
+          onBack={exitCompare}
+          onRefresh={searchRoutes}
+          refreshing={routeSearch.isPending}
+        />
+      ) : (
+        /* 상단 — 검색바, 공지 배너, 갱신 배지 */
+        <div className="pt-safe pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-start gap-2 p-4">
+          <div className="pointer-events-auto w-full">
+            <SearchBar onClick={openSearch} value={destination?.title} />
+          </div>
+          <div className="pointer-events-auto w-full">
+            <NoticeBanner onClick={() => navigate(NOTICES_PATH)} />
+          </div>
+          {updatedAt && <UpdatedBadge updatedAt={updatedAt} />}
         </div>
-        <div className="pointer-events-auto w-full">
-          <NoticeBanner onClick={() => navigate(NOTICES_PATH)} />
-        </div>
-        {updatedAt && <UpdatedBadge updatedAt={updatedAt} />}
-      </div>
+      )}
 
-      {/* 하단 — 현재위치 버튼과 대여하기 버튼 (홈 인디케이터 여백은 탭바가 처리) */}
-      <div
-        className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${liftClass}`}
-      >
-        <CurrentLocationButton onClick={() => showToast(COMING_SOON)} />
-        <Button full onClick={() => showToast(COMING_SOON)}>
-          대여하기
-        </Button>
-      </div>
+      {/* 하단 — 현재위치 버튼과 대여하기 버튼 (홈 인디케이터 여백은 탭바가 처리). 경로 비교 중에는 시트가 그 자리를 쓴다 */}
+      {compareActive ? null : (
+        <div
+          className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${liftClass}`}
+        >
+          <CurrentLocationButton onClick={() => showToast(COMING_SOON)} />
+          <Button full onClick={() => showToast(COMING_SOON)}>
+            대여하기
+          </Button>
+        </div>
+      )}
 
       <StationPeekSheet station={selectedStation} onClose={() => setSelectedStationId(null)} />
 
@@ -181,6 +246,22 @@ export function MapHomePage() {
         onSearchRoutes={searchRoutes}
         onClose={clearDestination}
       />
+
+      {routeResult === null ? null : (
+        <RouteCompareSheet
+          open={compareSheetOpen}
+          snap={compareSnap}
+          onSnapChange={setCompareSnap}
+          summaries={routeSummaries}
+          badges={routeBadges}
+          fetchedAt={routeResult.fetchedAt}
+          sort={routeSort}
+          onSortChange={setRouteSort}
+          selectedIndex={selectedRouteIndex}
+          onSelect={setSelectedRouteIndex}
+          onStart={() => showToast(COMING_SOON)}
+        />
+      )}
 
       {/* 검색 오버레이는 탭바(z-20)를 덮고, 뒤에 오는 토스트(z-30)보다는 아래에 둔다 */}
       {searchOpen ? (
