@@ -24,7 +24,7 @@ import {
   type RouteCompareSnap,
 } from '@/features/map/components/RouteCompareSheet';
 import { SearchBar } from '@/features/map/components/SearchBar';
-import { StationPeekSheet } from '@/features/map/components/StationPeekSheet';
+import { StationSheet, type StationSnap } from '@/features/map/components/StationSheet';
 import { Toast } from '@/features/map/components/Toast';
 import { UpdatedBadge } from '@/features/map/components/UpdatedBadge';
 import { LOCATION_ERROR_TEXT, useCurrentLocation } from '@/features/map/hooks/useCurrentLocation';
@@ -109,6 +109,7 @@ export function MapHomePage() {
   const guideInUrl = searchParams.get(GUIDE_PARAM) === '1';
   const [compareSnap, setCompareSnap] = useState<RouteCompareSnap>('half');
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
+  const [stationSnap, setStationSnap] = useState<StationSnap>('peek');
   const [destination, setDestination] = useState<PlaceSearchResult | null>(null);
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
   const [routeSort, setRouteSort] = useState<RouteSort>('bikes');
@@ -189,6 +190,12 @@ export function MapHomePage() {
   function closeForWeek() {
     hideNoticePopupForWeek();
     closePopup();
+  }
+
+  // 대여소를 고르면 항상 요약부터 보여준다 — 확장 상태가 다음 대여소로 따라오면 안 된다
+  function selectStation(stationId: string | null) {
+    setStationSnap('peek');
+    setSelectedStationId(stationId);
   }
 
   function openSearch() {
@@ -327,7 +334,7 @@ export function MapHomePage() {
       <MapView
         stations={stations}
         selectedStationId={selectedStationId}
-        onSelectStation={setSelectedStationId}
+        onSelectStation={selectStation}
         destination={destination}
         routes={compareActive ? routeResult.routes : null}
         routeBadges={routeBadges}
@@ -379,7 +386,12 @@ export function MapHomePage() {
         </div>
       )}
 
-      <StationPeekSheet station={selectedStation} onClose={() => setSelectedStationId(null)} />
+      <StationSheet
+        station={selectedStation}
+        snap={stationSnap}
+        onSnapChange={setStationSnap}
+        onClose={() => selectStation(null)}
+      />
 
       <DestinationSheet
         destination={destinationSheetOpen ? destination : null}

@@ -6,6 +6,7 @@ import type {
   Pos,
   RoutePath,
   Station,
+  StationForecastPoint,
   StationPrediction,
 } from '@/shared/api/types';
 import {
@@ -127,42 +128,185 @@ function setOpenApiRequests(requests: MockOpenApiRequest[]) {
 /** 이동 기록 목업 (22·23 — 잘타슈 내비게이션 기록, 프레임 데이터 기반) */
 const RIDE_PAGE_SIZE = 5;
 const RIDE_SUMMARIES = [
-  { id: 12, from: '봉명동', to: '대전시청', date: '2026-08-28', durationMin: 23, bikeCode: 'DJ-10482' },
-  { id: 11, from: '충남대 정문', to: '유성온천역', date: '2026-08-26', durationMin: 15, bikeCode: 'DJ-10517' },
-  { id: 10, from: '대전역', to: '중앙로지하상가', date: '2026-08-24', durationMin: 11, bikeCode: 'DJ-10233' },
-  { id: 9, from: '대전시청', to: '갤러리아타임월드', date: '2026-08-21', durationMin: 9, bikeCode: 'DJ-10904' },
-  { id: 8, from: '월평역', to: '정부청사역', date: '2026-08-19', durationMin: 18, bikeCode: 'DJ-10064' },
-  { id: 7, from: '한밭수목원', to: '엑스포과학공원', date: '2026-08-17', durationMin: 21, bikeCode: 'DJ-10371' },
-  { id: 6, from: '유성구청', to: '충남대 정문', date: '2026-08-14', durationMin: 12, bikeCode: 'DJ-10517' },
-  { id: 5, from: '갑천네이처브리지', to: '월평역', date: '2026-08-11', durationMin: 17, bikeCode: 'DJ-10482' },
-  { id: 4, from: '시청역', to: '대전역', date: '2026-08-08', durationMin: 26, bikeCode: 'DJ-10233' },
-  { id: 3, from: '카이스트 본원', to: '유성온천역', date: '2026-08-05', durationMin: 14, bikeCode: 'DJ-10788' },
-  { id: 2, from: '정부청사역', to: '한밭수목원', date: '2026-08-02', durationMin: 10, bikeCode: 'DJ-10064' },
-  { id: 1, from: '대전시청', to: '봉명동', date: '2026-07-30', durationMin: 24, bikeCode: 'DJ-10904' },
+  {
+    id: 12,
+    from: '봉명동',
+    to: '대전시청',
+    date: '2026-08-28',
+    durationMin: 23,
+    bikeCode: 'DJ-10482',
+  },
+  {
+    id: 11,
+    from: '충남대 정문',
+    to: '유성온천역',
+    date: '2026-08-26',
+    durationMin: 15,
+    bikeCode: 'DJ-10517',
+  },
+  {
+    id: 10,
+    from: '대전역',
+    to: '중앙로지하상가',
+    date: '2026-08-24',
+    durationMin: 11,
+    bikeCode: 'DJ-10233',
+  },
+  {
+    id: 9,
+    from: '대전시청',
+    to: '갤러리아타임월드',
+    date: '2026-08-21',
+    durationMin: 9,
+    bikeCode: 'DJ-10904',
+  },
+  {
+    id: 8,
+    from: '월평역',
+    to: '정부청사역',
+    date: '2026-08-19',
+    durationMin: 18,
+    bikeCode: 'DJ-10064',
+  },
+  {
+    id: 7,
+    from: '한밭수목원',
+    to: '엑스포과학공원',
+    date: '2026-08-17',
+    durationMin: 21,
+    bikeCode: 'DJ-10371',
+  },
+  {
+    id: 6,
+    from: '유성구청',
+    to: '충남대 정문',
+    date: '2026-08-14',
+    durationMin: 12,
+    bikeCode: 'DJ-10517',
+  },
+  {
+    id: 5,
+    from: '갑천네이처브리지',
+    to: '월평역',
+    date: '2026-08-11',
+    durationMin: 17,
+    bikeCode: 'DJ-10482',
+  },
+  {
+    id: 4,
+    from: '시청역',
+    to: '대전역',
+    date: '2026-08-08',
+    durationMin: 26,
+    bikeCode: 'DJ-10233',
+  },
+  {
+    id: 3,
+    from: '카이스트 본원',
+    to: '유성온천역',
+    date: '2026-08-05',
+    durationMin: 14,
+    bikeCode: 'DJ-10788',
+  },
+  {
+    id: 2,
+    from: '정부청사역',
+    to: '한밭수목원',
+    date: '2026-08-02',
+    durationMin: 10,
+    bikeCode: 'DJ-10064',
+  },
+  {
+    id: 1,
+    from: '대전시청',
+    to: '봉명동',
+    date: '2026-07-30',
+    durationMin: 24,
+    bikeCode: 'DJ-10904',
+  },
 ];
 
 /** 상세의 고도·경로는 대표 프로파일 하나를 공유 (프레임의 봉명동→대전시청 기준) */
 const RIDE_ELEVATION_BARS = (
   [
-    ['flat', 0.15], ['flat', 0.2], ['climb', 0.35], ['climb', 0.4], ['steep', 0.6], ['steep', 0.8],
-    ['gentle', 0.7], ['gentle', 0.5], ['flat', 0.35], ['gentle', 0.3], ['climb', 0.4],
-    ['gentle', 0.3], ['climb', 0.45], ['steep', 0.6], ['gentle', 0.5], ['flat', 0.25],
+    ['flat', 0.15],
+    ['flat', 0.2],
+    ['climb', 0.35],
+    ['climb', 0.4],
+    ['steep', 0.6],
+    ['steep', 0.8],
+    ['gentle', 0.7],
+    ['gentle', 0.5],
+    ['flat', 0.35],
+    ['gentle', 0.3],
+    ['climb', 0.4],
+    ['gentle', 0.3],
+    ['climb', 0.45],
+    ['steep', 0.6],
+    ['gentle', 0.5],
+    ['flat', 0.25],
   ] as const
 ).map(([grade, value]) => ({ grade, value }));
 
 const RIDE_PATH = [
-  { kind: 'walk', points: [[8, 54], [22, 54]] },
-  { kind: 'climb', points: [[22, 54], [27, 46], [38, 46]] },
-  { kind: 'steep', points: [[38, 46], [43, 38], [54, 38]] },
-  { kind: 'gentle', points: [[54, 38], [59, 30], [70, 30]] },
-  { kind: 'flat', points: [[70, 30], [75, 22], [84, 22]] },
-  { kind: 'walk', points: [[84, 22], [92, 18]] },
+  {
+    kind: 'walk',
+    points: [
+      [8, 54],
+      [22, 54],
+    ],
+  },
+  {
+    kind: 'climb',
+    points: [
+      [22, 54],
+      [27, 46],
+      [38, 46],
+    ],
+  },
+  {
+    kind: 'steep',
+    points: [
+      [38, 46],
+      [43, 38],
+      [54, 38],
+    ],
+  },
+  {
+    kind: 'gentle',
+    points: [
+      [54, 38],
+      [59, 30],
+      [70, 30],
+    ],
+  },
+  {
+    kind: 'flat',
+    points: [
+      [70, 30],
+      [75, 22],
+      [84, 22],
+    ],
+  },
+  {
+    kind: 'walk',
+    points: [
+      [84, 22],
+      [92, 18],
+    ],
+  },
 ];
 
 /** 대전 실제 좌표 기반 목업 대여소 (07-1 팝업 와이어프레임 데이터 반영) */
 const STATIONS: Station[] = [
   { stationId: 'ST0001', name: '유성구청역 대여소', lat: 36.362, lng: 127.3565, currentBikes: 7 },
-  { stationId: 'ST0002', name: '월드컵경기장역 대여소', lat: 36.3664, lng: 127.3216, currentBikes: 3 },
+  {
+    stationId: 'ST0002',
+    name: '월드컵경기장역 대여소',
+    lat: 36.3664,
+    lng: 127.3216,
+    currentBikes: 3,
+  },
   { stationId: 'ST0003', name: '시청역 대여소', lat: 36.3505, lng: 127.3848, currentBikes: 1 },
   { stationId: 'ST0004', name: '대전역 대여소', lat: 36.3315, lng: 127.4346, currentBikes: 5 },
   { stationId: 'ST0005', name: '충남대학교 정문', lat: 36.3623, lng: 127.3442, currentBikes: 0 },
@@ -171,26 +315,152 @@ const STATIONS: Station[] = [
   { stationId: 'ST0008', name: '한밭수목원', lat: 36.3667, lng: 127.3887, currentBikes: 11 },
 ];
 
+/**
+ * 대여소 예상 대수 목업 — 30분 간격 6칸(앞으로 3시간).
+ * 대여소마다 다르게 보이도록 ID 끝자리로 오르내림을 바꾼다. 실제 값은 예측 모델이 완성되면 백엔드가 준다.
+ * 예측이 아직 없는 대여소도 화면에서 확인할 수 있게 ST0005는 비워 둔다.
+ */
+function forecastFor(station: Station): StationForecastPoint[] | undefined {
+  if (station.stationId === 'ST0005') return undefined;
+  const seed = Number(station.stationId.slice(-1));
+  const start = Date.now();
+  return Array.from({ length: 6 }, (_, i) => {
+    const swing = Math.round(Math.sin((i + seed) / 1.6) * 3);
+    return {
+      dateTime: new Date(start + (i + 1) * 30 * 60_000).toISOString(),
+      bikeCnt: Math.max(0, station.currentBikes + swing),
+    };
+  });
+}
+
 /** 08 장소 검색 목업 — 네이버 지역검색 응답을 백엔드가 정리한 형태(xPos=경도, yPos=위도) */
 const PLACES: PlaceSearchResult[] = [
-  { title: '대전광역시청', address: '대전광역시 서구 둔산동 1420', roadAddress: '대전광역시 서구 둔산로 100', xPos: 127.3845, yPos: 36.3504 },
-  { title: '대전시청역 1번 출구', address: '대전광역시 서구 둔산동', roadAddress: '대전광역시 서구 둔산로 지하 100', xPos: 127.3858, yPos: 36.3516 },
-  { title: '대전시청 남문광장', address: '대전광역시 서구 둔산동 1420', roadAddress: '대전광역시 서구 둔산로 100', xPos: 127.3849, yPos: 36.3495 },
-  { title: '대전역', address: '대전광역시 동구 정동 1-1', roadAddress: '대전광역시 동구 중앙로 215', xPos: 127.4346, yPos: 36.3315 },
-  { title: '대전복합터미널', address: '대전광역시 동구 용전동 63-3', roadAddress: '대전광역시 동구 동서대로 1689', xPos: 127.4372, yPos: 36.3512 },
-  { title: '충남대학교 정문', address: '대전광역시 유성구 궁동 220', roadAddress: '대전광역시 유성구 대학로 99', xPos: 127.3442, yPos: 36.3623 },
-  { title: '유성온천역 5번 출구', address: '대전광역시 유성구 봉명동', roadAddress: '대전광역시 유성구 계룡로 지하 105', xPos: 127.3383, yPos: 36.3538 },
-  { title: '한밭수목원', address: '대전광역시 서구 만년동 396', roadAddress: '대전광역시 서구 둔산대로 169', xPos: 127.3887, yPos: 36.3667 },
-  { title: '대전월드컵경기장', address: '대전광역시 유성구 노은동 270', roadAddress: '대전광역시 유성구 월드컵대로 32', xPos: 127.3216, yPos: 36.3664 },
-  { title: '정부대전청사', address: '대전광역시 서구 둔산동 920', roadAddress: '대전광역시 서구 청사로 189', xPos: 127.3915, yPos: 36.3616 },
-  { title: '갑천 네이처브리지', address: '대전광역시 서구 만년동', roadAddress: '대전광역시 서구 둔산대로 123', xPos: 127.3893, yPos: 36.3688 },
-  { title: '카이스트 본원', address: '대전광역시 유성구 구성동 373-1', roadAddress: '대전광역시 유성구 대학로 291', xPos: 127.3604, yPos: 36.3722 },
-  { title: '한밭도서관', address: '대전광역시 중구 문화동 145-3', roadAddress: '대전광역시 중구 문화로 23', xPos: 127.4046, yPos: 36.3172 },
-  { title: '대전유성구도서관', address: '대전광역시 유성구 봉명동 1013', roadAddress: '대전광역시 유성구 유성대로 654', xPos: 127.3416, yPos: 36.3542 },
-  { title: '대전시립 가오도서관', address: '대전광역시 동구 가오동 158', roadAddress: '대전광역시 동구 은어송로 58', xPos: 127.4529, yPos: 36.3062 },
-  { title: '대전학생교육문화원 도서관', address: '대전광역시 서구 둔산동 1339', roadAddress: '대전광역시 서구 둔산서로 175', xPos: 127.3742, yPos: 36.3605 },
-  { title: '대전서구어린이도서관', address: '대전광역시 서구 갈마동 1012', roadAddress: '대전광역시 서구 갈마로 105', xPos: 127.3667, yPos: 36.3466 },
-  { title: '한밭대학교 도서관', address: '대전광역시 유성구 덕명동 16-1', roadAddress: '대전광역시 유성구 동서대로 125', xPos: 127.2986, yPos: 36.3510 },
+  {
+    title: '대전광역시청',
+    address: '대전광역시 서구 둔산동 1420',
+    roadAddress: '대전광역시 서구 둔산로 100',
+    xPos: 127.3845,
+    yPos: 36.3504,
+  },
+  {
+    title: '대전시청역 1번 출구',
+    address: '대전광역시 서구 둔산동',
+    roadAddress: '대전광역시 서구 둔산로 지하 100',
+    xPos: 127.3858,
+    yPos: 36.3516,
+  },
+  {
+    title: '대전시청 남문광장',
+    address: '대전광역시 서구 둔산동 1420',
+    roadAddress: '대전광역시 서구 둔산로 100',
+    xPos: 127.3849,
+    yPos: 36.3495,
+  },
+  {
+    title: '대전역',
+    address: '대전광역시 동구 정동 1-1',
+    roadAddress: '대전광역시 동구 중앙로 215',
+    xPos: 127.4346,
+    yPos: 36.3315,
+  },
+  {
+    title: '대전복합터미널',
+    address: '대전광역시 동구 용전동 63-3',
+    roadAddress: '대전광역시 동구 동서대로 1689',
+    xPos: 127.4372,
+    yPos: 36.3512,
+  },
+  {
+    title: '충남대학교 정문',
+    address: '대전광역시 유성구 궁동 220',
+    roadAddress: '대전광역시 유성구 대학로 99',
+    xPos: 127.3442,
+    yPos: 36.3623,
+  },
+  {
+    title: '유성온천역 5번 출구',
+    address: '대전광역시 유성구 봉명동',
+    roadAddress: '대전광역시 유성구 계룡로 지하 105',
+    xPos: 127.3383,
+    yPos: 36.3538,
+  },
+  {
+    title: '한밭수목원',
+    address: '대전광역시 서구 만년동 396',
+    roadAddress: '대전광역시 서구 둔산대로 169',
+    xPos: 127.3887,
+    yPos: 36.3667,
+  },
+  {
+    title: '대전월드컵경기장',
+    address: '대전광역시 유성구 노은동 270',
+    roadAddress: '대전광역시 유성구 월드컵대로 32',
+    xPos: 127.3216,
+    yPos: 36.3664,
+  },
+  {
+    title: '정부대전청사',
+    address: '대전광역시 서구 둔산동 920',
+    roadAddress: '대전광역시 서구 청사로 189',
+    xPos: 127.3915,
+    yPos: 36.3616,
+  },
+  {
+    title: '갑천 네이처브리지',
+    address: '대전광역시 서구 만년동',
+    roadAddress: '대전광역시 서구 둔산대로 123',
+    xPos: 127.3893,
+    yPos: 36.3688,
+  },
+  {
+    title: '카이스트 본원',
+    address: '대전광역시 유성구 구성동 373-1',
+    roadAddress: '대전광역시 유성구 대학로 291',
+    xPos: 127.3604,
+    yPos: 36.3722,
+  },
+  {
+    title: '한밭도서관',
+    address: '대전광역시 중구 문화동 145-3',
+    roadAddress: '대전광역시 중구 문화로 23',
+    xPos: 127.4046,
+    yPos: 36.3172,
+  },
+  {
+    title: '대전유성구도서관',
+    address: '대전광역시 유성구 봉명동 1013',
+    roadAddress: '대전광역시 유성구 유성대로 654',
+    xPos: 127.3416,
+    yPos: 36.3542,
+  },
+  {
+    title: '대전시립 가오도서관',
+    address: '대전광역시 동구 가오동 158',
+    roadAddress: '대전광역시 동구 은어송로 58',
+    xPos: 127.4529,
+    yPos: 36.3062,
+  },
+  {
+    title: '대전학생교육문화원 도서관',
+    address: '대전광역시 서구 둔산동 1339',
+    roadAddress: '대전광역시 서구 둔산서로 175',
+    xPos: 127.3742,
+    yPos: 36.3605,
+  },
+  {
+    title: '대전서구어린이도서관',
+    address: '대전광역시 서구 갈마동 1012',
+    roadAddress: '대전광역시 서구 갈마로 105',
+    xPos: 127.3667,
+    yPos: 36.3466,
+  },
+  {
+    title: '한밭대학교 도서관',
+    address: '대전광역시 유성구 덕명동 16-1',
+    roadAddress: '대전광역시 유성구 동서대로 125',
+    xPos: 127.2986,
+    yPos: 36.351,
+  },
 ];
 
 /**
@@ -250,7 +520,11 @@ function buildMockRoutes(start: Pos, end: Pos): RoutePath[] {
     }));
     return {
       distance: [walkM, Math.round(bikeM), walkM],
-      time: [Math.round(walkM / WALK_M_PER_SEC), Math.round(bikeM / BIKE_M_PER_SEC), Math.round(walkM / WALK_M_PER_SEC)],
+      time: [
+        Math.round(walkM / WALK_M_PER_SEC),
+        Math.round(bikeM / BIKE_M_PER_SEC),
+        Math.round(walkM / WALK_M_PER_SEC),
+      ],
       behave: ['WALK', 'BIKE', 'WALK'],
       location,
       altitude,
@@ -346,7 +620,11 @@ export const handlers = [
         { id: 5, title: '임시 폐쇄 대여소 안내 (2026. 9. 10.)', date: '2026/09/10' },
         { id: 4, title: '♣2026년 공공 데이터 활용 설문조사 실시', date: '2026/08/25' },
         { id: 3, title: '공영자전거 타슈 이용약관 개정 알림', date: '2026/04/10' },
-        { id: 2, title: '"타슈" 대여 전 안전수칙 확인 후 대여하도록 절차 개선', date: '2025/10/28' },
+        {
+          id: 2,
+          title: '"타슈" 대여 전 안전수칙 확인 후 대여하도록 절차 개선',
+          date: '2025/10/28',
+        },
         { id: 1, title: '타슈 대여소에 반드시 반납해주세요!!!', date: '2023/08/02' },
       ]),
     );
@@ -571,7 +849,11 @@ export const handlers = [
     if (authFail) return authFail;
     // 갱신 배지가 "N초 전"부터 올라가는 것을 확인할 수 있게 10초 전으로 고정
     const updatedAt = new Date(Date.now() - 10_000).toISOString();
-    const stations: BikeStation[] = STATIONS.map((s) => ({ ...s, updatedAt }));
+    const stations: BikeStation[] = STATIONS.map((s) => ({
+      ...s,
+      updatedAt,
+      futureData: forecastFor(s),
+    }));
     return HttpResponse.json(ok(stations));
   }),
 
@@ -653,6 +935,10 @@ export const handlers = [
       yPos: Number(body.yPos),
     });
     localStorage.setItem(RECENT_PLACES_KEY, JSON.stringify(recent));
-    return HttpResponse.json({ code: 200, message: '최근 검색한 장소가 등록되었습니다.', data: null });
+    return HttpResponse.json({
+      code: 200,
+      message: '최근 검색한 장소가 등록되었습니다.',
+      data: null,
+    });
   }),
 ];
