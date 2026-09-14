@@ -41,6 +41,9 @@ pipeline {
                     test -f infra/jenkins/pipeline/frontend.Dockerfile
                     test -f infra/jenkins/pipeline/collector.Dockerfile
                     test -f infra/jenkins/pipeline/backend.Dockerfile
+                    test -f infra/runtime/frontend/compose.staging.yml
+                    test -f infra/runtime/frontend/scripts/deploy-staging.sh
+                    test -f infra/runtime/frontend/scripts/jenkins-deploy-staging.sh
                 '''
             }
         }
@@ -186,6 +189,37 @@ pipeline {
 
                         printf 'ECR push verified: frontend/backend tag=%s\n' "${GIT_SHORT_SHA}"
                     '''
+                }
+            }
+        }
+
+        stage('Deploy frontend staging') {
+            when {
+                branch 'develop'
+            }
+            options {
+                lock(resource: 'server-a-staging-deploy')
+            }
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'server-a-deploy-host',
+                        variable: 'SERVER_A_DEPLOY_HOST'
+                    )
+                ]) {
+                    sshagent(credentials: ['server-a-staging-deploy']) {
+                        sh '''
+                            set -eu
+                            set +x
+                            ssh \
+                              -o BatchMode=yes \
+                              -o ConnectTimeout=10 \
+                              -o StrictHostKeyChecking=yes \
+                              -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts \
+                              "tashu-deploy@${SERVER_A_DEPLOY_HOST}" \
+                              "deploy-frontend ${GIT_SHORT_SHA}"
+                        '''
+                    }
                 }
             }
         }
