@@ -37,14 +37,31 @@ describe('resolveSnapAfterDrag', () => {
 describe('clampDragDelta', () => {
   it('tall보다 위로는 못 올린다', () => {
     // half(479.08)에서 위로 최대 = tall(624)까지 = -144.92
-    expect(clampDragDelta('half', -500, VH)).toBeCloseTo(-144.92);
+    expect(clampDragDelta('half', -500, VH, true)).toBeCloseTo(-144.92);
   });
 
   it('시트 높이보다 아래로는 못 내린다', () => {
-    expect(clampDragDelta('mini', 999, VH)).toBe(200);
+    expect(clampDragDelta('mini', 999, VH, true)).toBe(200);
   });
 
   it('범위 안이면 그대로 통과한다', () => {
-    expect(clampDragDelta('half', 80, VH)).toBe(80);
+    expect(clampDragDelta('half', 80, VH, true)).toBe(80);
+  });
+
+  it('고정 높이 시트(canExpand=false)는 위로 끌 수 없다', () => {
+    expect(clampDragDelta('mini', -100, VH, false)).toBe(0);
+    expect(clampDragDelta('mini', 80, VH, false)).toBe(80); // 아래(닫기)는 가능
+  });
+});
+
+describe('dismissible=false (10-1 경로 비교 시트)', () => {
+  it('아무리 내려도 닫히지 않고 peek에 멈춘다', () => {
+    expect(resolveSnapAfterDrag('peek', 300, VH, false)).toBe('peek');
+    expect(resolveSnapAfterDrag('half', 600, VH, false)).toBe('peek');
+  });
+
+  it('드래그 이동량은 peek 높이까지만 허용된다', () => {
+    expect(clampDragDelta('peek', 300, VH, true, false)).toBe(0);
+    expect(clampDragDelta('half', 600, VH, true, false)).toBeCloseTo(479.08 - 110);
   });
 });

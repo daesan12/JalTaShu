@@ -33,8 +33,13 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
 
+	// redis 사용
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	// 소셜 로그인
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+	// jwt 구현
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 	
 	implementation 'com.google.firebase:firebase-admin:9.2.0'
 

@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from '@/shared/api/client';
+import { apiGet, apiPost, apiPut } from '@/shared/api/client';
 import { ENV } from '@/shared/config/env';
 import { TERMS, type TermCode } from '@/shared/config/constants';
 
@@ -23,6 +23,21 @@ export async function startKakaoLogin(): Promise<void> {
   }
   // OAuth 경로는 API(/api)와 별개라 전용 env(VITE_AUTH_BASE_URL)를 사용 (staging에서 경로가 다름)
   window.location.href = `${ENV.AUTH_BASE_URL}/oauth/kakao`;
+}
+
+/** PUT /api/users/me — 닉네임 변경 (백엔드 API 미정, msw 목업 기준 임시 스키마) */
+export function updateNickname(nickname: string): Promise<null> {
+  return apiPut<null>('/users/me', { nickname });
+}
+
+/** POST /api/auth/logout — 백엔드에 아직 없음(요청 필요), msw 목업으로 동작 */
+export function logout(): Promise<null> {
+  return apiPost<null>('/auth/logout');
+}
+
+/** POST /api/users/withdraw — 회원 탈퇴 (백엔드 API 미정, msw 목업 기준 임시 스키마) */
+export function withdraw(reason: string): Promise<null> {
+  return apiPost<null>('/users/withdraw', { reason });
 }
 
 /**

@@ -7,13 +7,15 @@ import type { ReportTag } from '@/features/report/api/reports';
 interface BikeDiagramProps {
   /** 강조할 부위 태그 목록 */
   highlighted: ReportTag[];
+  /** 순수 장식용(정보 페이지 일러스트 등) — 보조기기에 캡션을 읽어주지 않음 */
+  decorative?: boolean;
   className?: string;
 }
 
 const BASE = '#374151'; // gray-700
 const WARN = 'var(--color-status-low)';
 
-export function BikeDiagram({ highlighted, className = '' }: BikeDiagramProps) {
+export function BikeDiagram({ highlighted, decorative = false, className = '' }: BikeDiagramProps) {
   const on = (tag: ReportTag) => highlighted.includes(tag);
   const color = (tag: ReportTag) => (on(tag) ? WARN : BASE);
   const width = (tag: ReportTag, base: number) => (on(tag) ? base + 1.5 : base);
@@ -21,7 +23,7 @@ export function BikeDiagram({ highlighted, className = '' }: BikeDiagramProps) {
   const parts = highlighted.filter((t) => t !== '기타' && t !== '반납 오류');
 
   return (
-    <figure className={className}>
+    <figure className={className} aria-hidden={decorative}>
       <svg viewBox="0 0 240 150" role="img" aria-label="자전거 부위 다이어그램" className="w-full">
         {/* 타이어 (앞·뒤 바퀴) */}
         <g stroke={color('타이어')} strokeWidth={width('타이어', 5)} fill="none">
@@ -67,9 +69,11 @@ export function BikeDiagram({ highlighted, className = '' }: BikeDiagramProps) {
           <path d="M176 78 Q185 72 194 78" strokeWidth={width('브레이크', 3.5)} /> {/* 캘리퍼 */}
         </g>
       </svg>
-      <figcaption className="sr-only">
-        {parts.length > 0 ? `제보된 부위: ${parts.join(', ')}` : '제보된 부위 없음'}
-      </figcaption>
+      {!decorative && (
+        <figcaption className="sr-only">
+          {parts.length > 0 ? `제보된 부위: ${parts.join(', ')}` : '제보된 부위 없음'}
+        </figcaption>
+      )}
     </figure>
   );
 }
