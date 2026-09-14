@@ -96,5 +96,31 @@ export function useCurrentLocation() {
     return request();
   }, [state.position, request]);
 
-  return { ...state, request, ensure };
+  /**
+   * 위치가 바뀔 때마다 계속 받는다(경로 안내 중에만 쓴다). 정리 함수를 돌려준다.
+   * 평소에는 쓰지 않는다 — 계속 켜 두면 배터리를 먹고, 다른 화면은 버튼을 누른 순간의 위치만 필요하다.
+   */
+  const watch = useCallback((): (() => void) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setState({ position: null, loading: false, error: 'unsupported' });
+      return () => {};
+    }
+    const id = navigator.geolocation.watchPosition(
+      ({ coords }) => {
+        setState({
+          position: { xPos: coords.longitude, yPos: coords.latitude },
+          loading: false,
+          error: null,
+        });
+      },
+      (geoError) => {
+        // 추적 중 한 번 실패했다고 이미 받아둔 위치를 버리지 않는다 — 안내가 끊기지 않게
+        setState((prev) => ({ ...prev, loading: false, error: toErrorKind(geoError) }));
+      },
+      GEOLOCATION_OPTIONS,
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, []);
+
+  return { ...state, request, ensure, watch };
 }

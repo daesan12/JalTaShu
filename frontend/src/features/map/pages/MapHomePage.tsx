@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ApiError } from '@/shared/api/client';
@@ -17,6 +17,8 @@ import { PlaceSearchOverlay } from '@/features/map/components/PlaceSearchOverlay
 import { RouteCompareControls } from '@/features/map/components/RouteCompareControls';
 import { RouteDetailControls } from '@/features/map/components/RouteDetailControls';
 import { RouteDetailSheet } from '@/features/map/components/RouteDetailSheet';
+import { RouteGuideCard } from '@/features/map/components/RouteGuideCard';
+import { RouteGuideSheet } from '@/features/map/components/RouteGuideSheet';
 import {
   RouteCompareSheet,
   type RouteCompareSnap,
@@ -34,6 +36,8 @@ import {
   isNoticePopupHidden,
   markNoticePopupClosed,
 } from '@/features/map/lib/noticePopupHide';
+import { getRouteProgress } from '@/features/map/lib/routeProgress';
+import { toLegs } from '@/features/map/lib/routeSegments';
 import {
   assignBadges,
   sortSummaries,
@@ -73,6 +77,12 @@ const ROUTES_PARAM = 'routes';
 const DETAIL_PARAM = 'detail';
 
 /**
+ * 12 경로 안내도 같은 방식으로 11 위에 한 단계 더(`?routes=1&detail=1&guide=1`).
+ * 안내 종료·뒤로가기는 상세(11)로 돌아간다.
+ */
+const GUIDE_PARAM = 'guide';
+
+/**
  * 시트가 열리면 하단 버튼을 시트 높이만큼 올린다.
  * 시트는 화면 맨 아래(탭바 64px 포함)에 붙으므로 실제 겹침은 시트 높이 − 64, 여기에 여백 12px.
  * - 대여소 시트(peek 110px): 110 − 64 + 12 = 58
@@ -96,6 +106,7 @@ export function MapHomePage() {
   const searchOpen = searchParams.get(SEARCH_PARAM) === '1';
   const compareInUrl = searchParams.get(ROUTES_PARAM) === '1';
   const detailInUrl = searchParams.get(DETAIL_PARAM) === '1';
+  const guideInUrl = searchParams.get(GUIDE_PARAM) === '1';
   const [compareSnap, setCompareSnap] = useState<RouteCompareSnap>('half');
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [destination, setDestination] = useState<PlaceSearchResult | null>(null);
@@ -250,6 +261,18 @@ export function MapHomePage() {
     navigate(-1);
   }
 
+  // 11의 "안내 시작" → 12 안내 진행
+  function startGuide() {
+    // 경로 전체를 보던 축척 그대로면 길이 안 보인다 — 안내를 시작할 때 현재 위치로 확대한다
+    setLocationFocusToken((token) => token + 1);
+    setSearchParams({ [ROUTES_PARAM]: '1', [DETAIL_PARAM]: '1', [GUIDE_PARAM]: '1' });
+  }
+
+  // "안내 종료"·뒤로가기 → 경로 상세(11)로
+  function endGuide() {
+    navigate(-1);
+  }
+
   // 공지 상세 화면이 아직 없어 연결된 공지 번호와 상관없이 목록으로 보낸다
   function openNotice() {
     closePopup();
@@ -266,10 +289,33 @@ export function MapHomePage() {
     detailActive && selectedRouteIndex !== null
       ? (routeResult?.routes[selectedRouteIndex] ?? null)
       : null;
+  // 12 안내는 상세 위에 한 단계 더 쌓인 상태다
+  const guideActive = detailActive && guideInUrl && detailRoute !== null;
   const compareSheetOpen = compareActive && !stationSheetOpen && !detailActive;
-  const detailSheetOpen = detailActive && !stationSheetOpen;
+  const detailSheetOpen = detailActive && !stationSheetOpen && !guideActive;
   const destinationSheetOpen =
     destination !== null && !stationSheetOpen && !searchOpen && !compareActive;
+
+  // 안내 중에는 위치를 계속 받는다. 평소에는 배터리 때문에 켜지 않는다
+  const watchLocation = location.watch;
+  useEffect(() => {
+    if (!guideActive) return;
+    return watchLocation();
+  }, [guideActive, watchLocation]);
+
+  const guideProgress = useMemo(
+    () => (detailRoute === null ? null : getRouteProgress(detailRoute, location.position)),
+    [detailRoute, location.position],
+  );
+  const guideLegCount = useMemo(
+    () => (detailRoute === null ? 0 : toLegs(detailRoute).length),
+    [detailRoute],
+  );
+  // 남은 시간은 남은 거리 비율로 총 소요 시간을 줄여 잡는다(구간별 속도 차이는 무시)
+  const guideRemainingSec =
+    guideProgress === null || selectedRouteIndex === null
+      ? 0
+      : Math.round((routeSummaries[selectedRouteIndex]?.totalSec ?? 0) * (1 - guideProgress.ratio));
   const liftClass = stationSheetOpen
     ? LIFT_FOR_STATION_CLASS
     : destinationSheetOpen
@@ -289,10 +335,18 @@ export function MapHomePage() {
         detailRoute={detailRoute}
         currentLocation={location.position}
         locationFocusToken={locationFocusToken}
+        followLocation={guideActive}
         onMapReady={handleMapReady}
       />
 
-      {detailActive ? (
+      {guideActive && guideProgress !== null ? (
+        <RouteGuideCard
+          progress={guideProgress}
+          isLastLeg={guideProgress.legIndex === guideLegCount - 1}
+          legCount={guideLegCount}
+          locationUnknown={location.position === null}
+        />
+      ) : detailActive ? (
         <RouteDetailControls onBack={exitRouteDetail} destinationTitle={destination?.title ?? ''} />
       ) : compareActive ? (
         <RouteCompareControls
@@ -359,10 +413,19 @@ export function MapHomePage() {
           }
           badge={selectedRouteIndex === null ? null : (routeBadges[selectedRouteIndex] ?? null)}
           fetchedAt={routeResult.fetchedAt}
-          onStart={() => showToast(COMING_SOON)}
+          onStart={startGuide}
           onBack={exitRouteDetail}
         />
       )}
+
+      {guideActive && guideProgress !== null ? (
+        <RouteGuideSheet
+          open
+          progress={guideProgress}
+          remainingSec={guideRemainingSec}
+          onEnd={endGuide}
+        />
+      ) : null}
 
       {/* 검색 오버레이는 탭바(z-20)를 덮고, 뒤에 오는 토스트(z-30)보다는 아래에 둔다 */}
       {searchOpen ? (
