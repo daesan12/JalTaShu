@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if (( EUID != 0 )); then
-  echo "root 沅뚰븳?쇰줈 ?ㅽ뻾?섏꽭?? sudo $0" >&2
+  echo "root 권한으로 실행하세요: sudo $0" >&2
   exit 1
 fi
 

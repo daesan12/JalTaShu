@@ -1,46 +1,47 @@
-# Spark ?⑥씪 ?몃뱶 湲곕컲
+# Spark 단일 노드 기반
 
-Server B?먯꽌 Spark Standalone Master, Worker, History Server瑜??ㅽ뻾?섎뒗 援ъ꽦?대떎.
-?꾩옱??Server B ????먯꽌 ?⑥씪 Worker 湲곗? ?깅뒫怨??댁쁺 諛⑸쾿??癒쇱? 寃利앺븳??
-??援ъ꽦? 怨좉??⑹꽦 ?대윭?ㅽ꽣媛 ?꾨땲?? ?댄썑 Server A??Worker瑜??쒗뿕?????숈씪 ?묒뾽??1 Worker? 2 Worker濡??ㅽ뻾???곗씠???ш린蹂??깅뒫怨??μ븷 寃⑸━ ?④낵瑜?鍮꾧탳?쒕떎.
+Server B에서 Spark Standalone Master, Worker, History Server를 실행하는 구성이다.
+현재는 Server B 한 대에서 Worker 1개를 사용해 실행 방법과 기준 성능을 먼저 검증한다.
+이 구성은 고가용성 클러스터가 아니다. 이후 성능시험 때만 Server A Worker를 추가해
+같은 작업을 Worker 1개와 2개로 실행하고 데이터 크기별 성능과 장애 격리 효과를 비교한다.
 
-## ?뚯씪 ??븷
+## 파일 역할
 
-| 寃쎈줈 | ??븷 | Secret ?ы븿 ?щ? |
+| 경로 | 역할 | Secret 포함 여부 |
 | --- | --- | --- |
-| compose.yml | Master, Worker, History Server??而⑦뀒?대꼫쨌?먯썝쨌?ㅽ듃?뚰겕 ?뺤쓽 | ?놁쓬 |
-| conf/spark-defaults.conf | ?대깽??濡쒓렇, ?쒓컙?, 湲곕낯 ?뚰떚????怨듯넻 ?ㅼ젙 | ?놁쓬 |
-| scripts/bootstrap-dirs.sh | ?몄뒪???곗씠???붾젆?곕━? Spark UID/GID 沅뚰븳 ?앹꽦 | ?놁쓬 |
-| scripts/smoke-test.sh | SparkPi ?묒뾽???쒖텧??Master? Worker ?곌껐 寃利?| ?놁쓬 |
+| `compose.yml` | Master, Worker, History Server의 컨테이너·자원·네트워크 정의 | 없음 |
+| `conf/spark-defaults.conf` | 이벤트 로그, 시간대, 기본 파티션 등 공통 설정 | 없음 |
+| `scripts/bootstrap-dirs.sh` | 호스트 데이터 디렉터리와 Spark UID/GID 권한 생성 | 없음 |
+| `scripts/smoke-test.sh` | SparkPi 작업을 제출해 Master와 Worker 연결 검증 | 없음 |
 
-紐⑤뱺 ?뚯씪? Git?쇰줈 愿由ы븳?? 鍮꾨?踰덊샇, AWS ?? Kafka ?몄쬆?뺣낫?????대뜑???ｌ? ?딅뒗??
+모든 파일은 Git으로 관리한다. 비밀번호, AWS 키, Kafka 인증정보는 이 폴더에 넣지 않는다.
 
-## Server B 寃쎈줈
+## Server B 경로
 
-| ?쒕쾭 寃쎈줈 | ??븷 |
+| 서버 경로 | 역할 |
 | --- | --- |
-| /opt/tashu/spark | Git?쇰줈 愿由щ릺???ㅽ뻾 ?ㅼ젙怨??ㅽ겕由쏀듃 |
-| /srv/tashu/data/spark/events | ?꾨즺??Spark ?좏뵆由ъ??댁뀡???대깽??濡쒓렇 |
-| /srv/tashu/data/spark/checkpoints | ?ν썑 Structured Streaming ?ъ떆??吏??|
-| /srv/tashu/data/spark/output | 寃利씲룸깽移섎쭏??寃곌낵 |
-| /srv/tashu/data/spark/work | Worker媛 ?ㅽ뻾 以??ъ슜?섎뒗 ?꾩떆 ?묒뾽 ?뚯씪 |
+| `/opt/tashu/spark` | Git으로 관리되는 실행 설정과 스크립트 |
+| `/srv/tashu/data/spark/events` | 완료된 Spark 애플리케이션의 이벤트 로그 |
+| `/srv/tashu/data/spark/checkpoints` | 향후 Structured Streaming 재시작 지점 |
+| `/srv/tashu/data/spark/output` | 검증·벤치마크 결과 |
+| `/srv/tashu/data/spark/work` | Worker가 실행 중 사용하는 임시 작업 파일 |
 
-## ?쒕퉬????븷
+## 서비스 역할
 
-- Master???ㅽ뻾 媛?ν븳 Worker? ?먯썝??愿由ы븳??
-- Worker??CPU? 硫붾え由щ? ?쒓났???ㅼ젣 怨꾩궛???섑뻾?쒕떎.
-- History Server???대깽??濡쒓렇瑜??쎌뼱 醫낅즺???묒뾽???④퀎? ?뚯슂 ?쒓컙??蹂댁뿬以??
-- spark-submit? ?묒뾽 ?쒖텧 ?쒖뿉留?留뚮뱾?댁?怨??묒뾽???앸굹硫??쒓굅?쒕떎.
+- Master는 실행 가능한 Worker와 자원을 관리한다.
+- Worker는 CPU와 메모리를 제공해 실제 계산을 수행한다.
+- History Server는 이벤트 로그를 읽어 종료된 작업의 단계와 소요 시간을 보여준다.
+- `spark-submit`은 작업 제출 시에만 만들어지고 작업이 끝나면 제거된다.
 
-??UI??Server B??猷⑦봽諛?二쇱냼?먮쭔 ?곕떎. ?명꽣?룹뿉 怨듦컻?섏? ?딄퀬 SSH ?곕꼸濡??뺤씤?쒕떎.
+웹 UI는 Server B의 루프백 주소에만 연다. 인터넷에 공개하지 않고 SSH 터널로 확인한다.
 
-| UI | Server B 諛붿씤??| 濡쒖뺄 ?묒냽 二쇱냼 |
+| UI | Server B 바인딩 | SSH 터널 연결 후 로컬 주소 |
 | --- | --- | --- |
-| Master | 127.0.0.1:18081 | http://127.0.0.1:18081 |
-| Worker | 127.0.0.1:18082 | http://127.0.0.1:18082 |
-| History | 127.0.0.1:18080 | http://127.0.0.1:18080 |
+| Master | `127.0.0.1:18081` | `http://127.0.0.1:18081` |
+| Worker | `127.0.0.1:18082` | `http://127.0.0.1:18082` |
+| History | `127.0.0.1:18080` | `http://127.0.0.1:18080` |
 
-## 理쒖큹 ?ㅽ뻾
+## 최초 실행
 
 ```bash
 sudo /opt/tashu/spark/scripts/bootstrap-dirs.sh
@@ -50,32 +51,33 @@ sudo docker compose -f /opt/tashu/spark/compose.yml ps
 sudo /opt/tashu/spark/scripts/smoke-test.sh
 ```
 
-?뺤긽?대씪硫???而⑦뀒?대꼫媛 healthy?닿퀬, SparkPi 異쒕젰??Pi 媛믪씠 ??3.14?대떎.
-?묒뾽 醫낅즺 ??History Server?먯꽌 SparkPi ?ㅽ뻾 湲곕줉???뺤씤?????덈떎.
+정상이라면 세 컨테이너가 `healthy`이고 SparkPi 출력의 Pi 값이 약 3.14이다.
+작업 종료 뒤 History Server에서 SparkPi 실행 기록을 확인할 수 있다.
 
-## 以묒?? ?ъ떆??
+## 중지와 재시작
+
 ```bash
 sudo docker compose -f /opt/tashu/spark/compose.yml stop
 sudo docker compose -f /opt/tashu/spark/compose.yml start
 ```
 
-而⑦뀒?대꼫 援ъ꽦???쒓굅?섎릺 ?몄뒪?몄쓽 ?대깽??濡쒓렇? 泥댄겕?ъ씤?몃? 蹂댁〈?섎젮硫??ㅼ쓬???ㅽ뻾?쒕떎.
+컨테이너와 Docker 네트워크만 제거하고 호스트의 이벤트 로그와 체크포인트를 보존하려면 다음을 실행한다.
 
 ```bash
 sudo docker compose -f /opt/tashu/spark/compose.yml down
 ```
 
-?곗씠???붾젆?곕━??bind mount?대?濡?down 紐낅졊?쇰줈 ??젣?섏? ?딅뒗??
+데이터 디렉터리는 bind mount이므로 `down` 명령으로 삭제되지 않는다.
 
-## ?ㅼ쓬 ?④퀎
+## 다음 단계
 
-1. Spark Kafka connector瑜?怨좎젙 踰꾩쟾?쇰줈 以鍮꾪븳??
-2. tashu.station-availability.v1???쎈뒗 schema smoke consumer瑜?留뚮뱺??
-3. snapshot_id 湲곕컲 以묐났 諛⑹?? checkpoint 蹂듦뎄瑜?寃利앺븳??
-4. Server A Worker瑜??쒗뿕???뚮쭔 ?ㅽ뻾??1 Worker? 2 Worker ?깅뒫??鍮꾧탳?쒕떎.
-5. 媛숈? ?낅젰쨌異쒕젰쨌?뚰떚?섏쑝濡?濡쒖뺄, ?⑥씪 Worker, 2 Worker 寃곌낵???뺥솗?깃낵 ?쒓컙??湲곕줉?쒕떎.
+1. Spark Kafka connector를 Spark·Scala 버전에 맞게 고정한다.
+2. `tashu.station-availability.v1`을 읽는 schema smoke consumer를 만든다.
+3. `snapshot_id` 기반 중복 방지와 checkpoint 복구를 검증한다.
+4. 성능시험 때만 Server A Worker를 실행해 Worker 1개와 2개를 비교한다.
+5. 같은 입력·출력·파티션으로 local, Worker 1개, Worker 2개 결과의 정확성과 시간을 기록한다.
 
-## 怨듭떇 臾몄꽌
+## 공식 문서
 
 - https://spark.apache.org/docs/4.1.3/spark-standalone.html
 - https://spark.apache.org/docs/4.1.3/configuration.html
