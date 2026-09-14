@@ -10,6 +10,7 @@ import { NOTICE_POPUPS_QUERY_KEY, getNoticePopups } from '@/features/map/api/not
 import { getRoutePaths } from '@/features/map/api/routes';
 import { CurrentLocationButton } from '@/features/map/components/CurrentLocationButton';
 import { DestinationSheet } from '@/features/map/components/DestinationSheet';
+import { MapPickLayer } from '@/features/map/components/MapPickLayer';
 import { MapView } from '@/features/map/components/MapView';
 import { NoticeBanner } from '@/features/map/components/NoticeBanner';
 import { NoticePopup } from '@/features/map/components/NoticePopup';
@@ -83,6 +84,15 @@ const DETAIL_PARAM = 'detail';
 const GUIDE_PARAM = 'guide';
 
 /**
+ * 08 "지도에서 선택"은 검색 위에 한 단계 더(`?search=1&pick=1`).
+ * 취소·뒤로가기는 검색으로 돌아가고, 확정하면 검색까지 한 번에 닫는다.
+ */
+const PICK_PARAM = 'pick';
+
+/** 지도에서 고른 지점의 이름 — 역지오코딩을 하지 않으므로 주소 대신 이 문구를 쓴다 */
+const PICKED_PLACE_TITLE = '지도에서 선택한 위치';
+
+/**
  * 시트가 열리면 하단 버튼을 시트 높이만큼 올린다.
  * 시트는 화면 맨 아래(탭바 64px 포함)에 붙으므로 실제 겹침은 시트 높이 − 64, 여기에 여백 12px.
  * - 대여소 시트(peek 110px): 110 − 64 + 12 = 58
@@ -103,10 +113,13 @@ export function MapHomePage() {
   const { message, showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const searchOpen = searchParams.get(SEARCH_PARAM) === '1';
+  const searchInUrl = searchParams.get(SEARCH_PARAM) === '1';
   const compareInUrl = searchParams.get(ROUTES_PARAM) === '1';
+  // 지도 선택 모드에서는 검색 화면을 덮는다(둘 다 전체 화면이라 하나만 보여야 한다)
+  const searchOpen = searchInUrl && searchParams.get(PICK_PARAM) !== '1';
   const detailInUrl = searchParams.get(DETAIL_PARAM) === '1';
   const guideInUrl = searchParams.get(GUIDE_PARAM) === '1';
+  const pickInUrl = searchParams.get(PICK_PARAM) === '1';
   const [compareSnap, setCompareSnap] = useState<RouteCompareSnap>('half');
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [stationSnap, setStationSnap] = useState<StationSnap>('peek');
@@ -211,6 +224,33 @@ export function MapHomePage() {
     navigate(-1);
   }
 
+  /** 08 "지도에서 선택" — 검색 위에 한 단계 쌓는다. 뒤로가기가 곧 취소다 */
+  function openMapPick() {
+    setSearchParams({ [SEARCH_PARAM]: '1', [PICK_PARAM]: '1' });
+  }
+
+  /** 취소 — 검색 화면으로 돌아간다 */
+  function cancelMapPick() {
+    navigate(-1);
+  }
+
+  /**
+   * 확정 — 지금 지도 중심을 목적지로 삼는다. 열면서 쌓은 두 단계(검색·선택)를 함께 닫아
+   * 다른 흐름과 같이 "고르면 07로 돌아온다"가 되게 한다.
+   */
+  function confirmMapPick() {
+    const center = mapRef.current?.getCenter();
+    if (!(center instanceof naver.maps.LatLng)) {
+      showToast('지도를 아직 불러오지 못했습니다.');
+      return;
+    }
+    const { xPos, yPos } = latLngToPos({ lat: center.lat(), lng: center.lng() });
+    // 역지오코딩을 하지 않으므로 주소는 비운다 — 목적지 시트는 이름만 보여준다
+    setDestination({ title: PICKED_PLACE_TITLE, address: '', roadAddress: '', xPos, yPos });
+    setRouteResult(null);
+    navigate(-2);
+  }
+
   // 고른 장소로 지도가 이동하고 핀·확인 시트가 뜬다(네이버 지도의 장소 확인 단계).
   // 이전 목적지의 경로 후보는 더 맞지 않으니 버린다
   function selectDestination(place: PlaceSearchResult) {
@@ -288,8 +328,10 @@ export function MapHomePage() {
 
   // 시트는 한 번에 하나만: 대여소를 탭하면 대여소 시트가 우선하고, 검색 중에는 전부 숨긴다.
   // 경로 후보가 있고 URL이 비교 중이면 목적지 확인 시트 대신 비교 시트·경로선·범례가 뜬다
-  const stationSheetOpen = selectedStation !== null;
-  const compareActive = routeResult !== null && compareInUrl && !searchOpen;
+  // 선택 모드에서는 지도만 보여준다 — 시트·검색바·버튼이 모두 비켜야 지도를 움직일 수 있다
+  const pickActive = pickInUrl && searchInUrl;
+  const stationSheetOpen = selectedStation !== null && !pickActive;
+  const compareActive = routeResult !== null && compareInUrl && !searchOpen && !pickActive;
   // 11 상세는 비교 위에 한 단계 더 쌓인 상태다
   const detailActive = compareActive && detailInUrl;
   const detailRoute =
@@ -301,7 +343,7 @@ export function MapHomePage() {
   const compareSheetOpen = compareActive && !stationSheetOpen && !detailActive;
   const detailSheetOpen = detailActive && !stationSheetOpen && !guideActive;
   const destinationSheetOpen =
-    destination !== null && !stationSheetOpen && !searchOpen && !compareActive;
+    destination !== null && !stationSheetOpen && !searchOpen && !compareActive && !pickActive;
 
   // 안내 중에는 위치를 계속 받는다. 평소에는 배터리 때문에 켜지 않는다
   const watchLocation = location.watch;
@@ -346,7 +388,9 @@ export function MapHomePage() {
         onMapReady={handleMapReady}
       />
 
-      {guideActive && guideProgress !== null ? (
+      {pickActive ? (
+        <MapPickLayer onCancel={cancelMapPick} onConfirm={confirmMapPick} />
+      ) : guideActive && guideProgress !== null ? (
         <RouteGuideCard
           progress={guideProgress}
           isLastLeg={guideProgress.legIndex === guideLegCount - 1}
@@ -375,7 +419,7 @@ export function MapHomePage() {
       )}
 
       {/* 하단 — 현재위치 버튼과 대여하기 버튼 (홈 인디케이터 여백은 탭바가 처리). 경로 비교 중에는 시트가 그 자리를 쓴다 */}
-      {compareActive ? null : (
+      {compareActive || pickActive ? null : (
         <div
           className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${liftClass}`}
         >
@@ -430,7 +474,9 @@ export function MapHomePage() {
         />
       )}
 
-      {guideActive && guideProgress !== null ? (
+      {pickActive ? (
+        <MapPickLayer onCancel={cancelMapPick} onConfirm={confirmMapPick} />
+      ) : guideActive && guideProgress !== null ? (
         <RouteGuideSheet
           open
           progress={guideProgress}
@@ -447,6 +493,7 @@ export function MapHomePage() {
           currentLocation={location.position}
           onRefreshLocation={refreshLocation}
           locationLoading={location.loading}
+          onPickOnMap={openMapPick}
           showToast={showToast}
         />
       ) : null}

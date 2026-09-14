@@ -14,7 +14,7 @@ import {
 } from '@/features/map/api/places';
 import { PlaceRow } from '@/features/map/components/PlaceRow';
 
-/** "지도에서 선택"·출발지 바꾸기는 별도 이슈라 지금은 안내만 띄운다 */
+/** 출발지 바꾸기는 별도 이슈라 지금은 안내만 띄운다 */
 const COMING_SOON = '준비 중입니다.';
 
 const stroke = {
@@ -39,6 +39,8 @@ interface PlaceSearchOverlayProps {
   onRefreshLocation: () => void;
   /** 위치 조회 중 — 출발지 줄 문구를 바꾼다 */
   locationLoading: boolean;
+  /** "지도에서 선택" — 오버레이를 닫고 지도 선택 모드로 넘어간다 */
+  onPickOnMap: () => void;
   showToast: (text: string) => void;
 }
 
@@ -52,6 +54,7 @@ export function PlaceSearchOverlay({
   currentLocation,
   onRefreshLocation,
   locationLoading,
+  onPickOnMap,
   showToast,
 }: PlaceSearchOverlayProps) {
   const [input, setInput] = useState('');
@@ -187,7 +190,7 @@ export function PlaceSearchOverlay({
 
       <div className="flex gap-2 px-4 pt-3 pb-3">
         <Chip onClick={onRefreshLocation}>내 위치</Chip>
-        <Chip onClick={() => showToast(COMING_SOON)}>지도에서 선택</Chip>
+        <Chip onClick={onPickOnMap}>지도에서 선택</Chip>
       </div>
 
       <div className="h-px bg-gray-100" />
