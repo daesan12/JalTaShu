@@ -21,6 +21,17 @@ export interface Station {
 }
 
 /**
+ * 대여소 예상 대수 한 점 — 대여소 상세의 대수 추이 그래프에서 쓴다.
+ * ⚠ 백엔드 스펙 미확정 프론트 가정(2026-09-14). 실제 응답이 오면 이 타입과 `api/stations.ts`만 고친다.
+ */
+export interface StationForecastPoint {
+  /** 예측 시각 (ISO 8601) */
+  dateTime: string;
+  /** 그 시각의 예상 잔여 대수 */
+  bikeCnt: number;
+}
+
+/**
  * 07 메인 지도용 대여소 — 백엔드 `GET /map/bike-station` 대응. 응답 필드명은 미확정이라 임시 스키마.
  * - 백엔드 원본은 `xPos`=경도, `yPos`=위도(확정). 실제 응답이 오면 이 파일과 api/stations.ts에서만 lat/lng로 맞춘다
  * - 도보 시간·거리는 화면에 표시하지 않으므로 받지도, 계산하지도 않는다
@@ -28,6 +39,11 @@ export interface Station {
 export interface BikeStation extends Station {
   /** 데이터 갱신 시각 (ISO 8601, KST) — 명세의 `time`. 07 갱신 배지에서 사용 */
   updatedAt: string;
+  /**
+   * 앞으로의 예상 대수. 목록 응답에 함께 온다고 **가정**한다(별도 상세 API로 갈라지면 `api/stations.ts`만 고친다).
+   * 예측 모델이 아직이라 값이 없을 수 있어 optional — 없으면 그래프 자리에 안내만 띄운다
+   */
+  futureData?: StationForecastPoint[];
 }
 
 /**
