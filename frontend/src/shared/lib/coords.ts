@@ -28,3 +28,20 @@ export function latLngToOsrmParam({ lat, lng }: LatLng): string {
 export function posToLatLng({ xPos, yPos }: { xPos: number; yPos: number }): LatLng {
   return { lat: yPos, lng: xPos };
 }
+
+const EARTH_RADIUS_M = 6_371_000;
+
+/**
+ * 두 좌표 사이 지표면 거리(m) — 하버사인.
+ * 11 고도 그래프가 경사(높이 변화 ÷ 수평 거리)를 구할 때 쓴다.
+ * 백엔드 `altitude[]`에는 거리 필드가 없어 좌표에서 직접 계산한다.
+ */
+export function haversineMeters(a: LatLng, b: LatLng): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
+}

@@ -1,5 +1,10 @@
-import { GRADE_META, WALK_COLOR, type GradeClass } from '@/features/history/lib/grade';
-import type { PathSegment } from '@/features/history/api/rides';
+import { GRADE_META, WALK_COLOR, type GradeClass } from '@/shared/ui/grade';
+
+/** 추상 경로 그림용 좌표 (0~100 공간) — 23 기록 상세 전용. 11은 실제 지도 폴리라인을 쓴다 */
+export interface PathSegment {
+  kind: 'walk' | GradeClass;
+  points: [number, number][];
+}
 
 /**
  * 추상 경로 그림 (23 상단) — 회색 그리드 위에 경사별 색 구간으로 경로를 표현.

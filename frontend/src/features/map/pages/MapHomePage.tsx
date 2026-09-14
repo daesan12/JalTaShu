@@ -14,6 +14,8 @@ import { NoticeBanner } from '@/features/map/components/NoticeBanner';
 import { NoticePopup } from '@/features/map/components/NoticePopup';
 import { PlaceSearchOverlay } from '@/features/map/components/PlaceSearchOverlay';
 import { RouteCompareControls } from '@/features/map/components/RouteCompareControls';
+import { RouteDetailControls } from '@/features/map/components/RouteDetailControls';
+import { RouteDetailSheet } from '@/features/map/components/RouteDetailSheet';
 import {
   RouteCompareSheet,
   type RouteCompareSnap,
@@ -37,7 +39,7 @@ import {
   type RouteSort,
 } from '@/features/map/lib/routeMetrics';
 
-/** 현재위치·대여하기·경로 안내(11)는 각각 별도 이슈라 지금은 안내만 띄운다 */
+/** 현재위치·대여하기·턴바이턴 안내는 각각 별도 이슈라 지금은 안내만 띄운다 */
 const COMING_SOON = '준비 중입니다.';
 
 /**
@@ -53,6 +55,12 @@ const SEARCH_PARAM = 'search';
  * 후보 목록은 state에만 있어 새로고침하면 사라진다 — 목적지(#26)와 같은 결정.
  */
 const ROUTES_PARAM = 'routes';
+
+/**
+ * 11 경로 상세도 같은 방식으로 10 위에 한 단계 더 쌓는다(`/?routes=1&detail=1`).
+ * 뒤로가기·← 는 비교(10)로 돌아가고, 거기서 한 번 더 뒤로 가면 목적지 확인 시트다.
+ */
+const DETAIL_PARAM = 'detail';
 
 /**
  * 시트가 열리면 하단 버튼을 시트 높이만큼 올린다.
@@ -77,6 +85,7 @@ export function MapHomePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchOpen = searchParams.get(SEARCH_PARAM) === '1';
   const compareInUrl = searchParams.get(ROUTES_PARAM) === '1';
+  const detailInUrl = searchParams.get(DETAIL_PARAM) === '1';
   const [compareSnap, setCompareSnap] = useState<RouteCompareSnap>('half');
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [destination, setDestination] = useState<PlaceSearchResult | null>(null);
@@ -176,6 +185,17 @@ export function MapHomePage() {
     navigate(-1);
   }
 
+  // 10의 "바로 안내 시작" → 11 경로 상세. 카드 버튼은 선택과 무관하게 눌릴 수 있어 선택도 함께 맞춘다
+  function openRouteDetail(index: number) {
+    setSelectedRouteIndex(index);
+    setSearchParams({ [ROUTES_PARAM]: '1', [DETAIL_PARAM]: '1' });
+  }
+
+  // 11 ← 버튼: 상세를 닫고 비교(10)로. 열 때 히스토리를 하나 쌓았으니 뒤로가기와 같다
+  function exitRouteDetail() {
+    navigate(-1);
+  }
+
   // 공지 상세 화면이 아직 없어 연결된 공지 번호와 상관없이 목록으로 보낸다
   function openNotice() {
     closePopup();
@@ -186,7 +206,14 @@ export function MapHomePage() {
   // 경로 후보가 있고 URL이 비교 중이면 목적지 확인 시트 대신 비교 시트·경로선·범례가 뜬다
   const stationSheetOpen = selectedStation !== null;
   const compareActive = routeResult !== null && compareInUrl && !searchOpen;
-  const compareSheetOpen = compareActive && !stationSheetOpen;
+  // 11 상세는 비교 위에 한 단계 더 쌓인 상태다
+  const detailActive = compareActive && detailInUrl;
+  const detailRoute =
+    detailActive && selectedRouteIndex !== null
+      ? (routeResult?.routes[selectedRouteIndex] ?? null)
+      : null;
+  const compareSheetOpen = compareActive && !stationSheetOpen && !detailActive;
+  const detailSheetOpen = detailActive && !stationSheetOpen;
   const destinationSheetOpen =
     destination !== null && !stationSheetOpen && !searchOpen && !compareActive;
   const liftClass = stationSheetOpen
@@ -205,9 +232,12 @@ export function MapHomePage() {
         routes={compareActive ? routeResult.routes : null}
         routeBadges={routeBadges}
         selectedRouteIndex={selectedRouteIndex}
+        detailRoute={detailRoute}
       />
 
-      {compareActive ? (
+      {detailActive ? (
+        <RouteDetailControls onBack={exitRouteDetail} destinationTitle={destination?.title ?? ''} />
+      ) : compareActive ? (
         <RouteCompareControls
           onBack={exitCompare}
           onRefresh={searchRoutes}
@@ -259,7 +289,21 @@ export function MapHomePage() {
           onSortChange={setRouteSort}
           selectedIndex={selectedRouteIndex}
           onSelect={setSelectedRouteIndex}
+          onStart={openRouteDetail}
+        />
+      )}
+
+      {routeResult === null ? null : (
+        <RouteDetailSheet
+          open={detailSheetOpen}
+          route={detailRoute}
+          summary={
+            selectedRouteIndex === null ? null : (routeSummaries[selectedRouteIndex] ?? null)
+          }
+          badge={selectedRouteIndex === null ? null : (routeBadges[selectedRouteIndex] ?? null)}
+          fetchedAt={routeResult.fetchedAt}
           onStart={() => showToast(COMING_SOON)}
+          onBack={exitRouteDetail}
         />
       )}
 

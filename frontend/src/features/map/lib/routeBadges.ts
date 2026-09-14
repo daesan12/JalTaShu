@@ -1,3 +1,4 @@
+import { readCssToken } from '@/shared/lib/cssToken';
 import type { RouteBadgeKind } from '@/features/map/lib/routeMetrics';
 
 /**
@@ -43,19 +44,15 @@ export const ROUTE_BADGE_ORDER: RouteBadgeKind[] = ['fast', 'bikes', 'flat', 'wa
  */
 const MUTED_ROUTE_CSS_VAR = '--color-gray-500';
 
-function readToken(cssVar: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
-}
-
 /**
  * 네이버 Polyline은 CSS 클래스가 아니라 색 문자열을 받으므로 토큰 값을 읽어 넘긴다.
  * 토큰은 위 클래스들이 소스에 있어 항상 CSS로 나온다(Tailwind 4는 쓰이는 변수만 출력).
  * `text-gray-500`도 여러 화면에서 쓰여 같은 이유로 나온다
  */
 export function routeStrokeColor(kind: RouteBadgeKind | null): string {
-  return readToken(kind === null ? MUTED_ROUTE_CSS_VAR : ROUTE_BADGE[kind].cssVar);
+  return readCssToken(kind === null ? MUTED_ROUTE_CSS_VAR : ROUTE_BADGE[kind].cssVar);
 }
 
 export function mutedRouteStrokeColor(): string {
-  return readToken(MUTED_ROUTE_CSS_VAR);
+  return readCssToken(MUTED_ROUTE_CSS_VAR);
 }

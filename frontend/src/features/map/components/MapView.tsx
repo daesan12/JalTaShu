@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { BikeStation, PlaceSearchResult, RoutePath } from '@/shared/api/types';
 import { DestinationMarker } from '@/features/map/components/DestinationMarker';
 import { RoutePolylines } from '@/features/map/components/RoutePolylines';
+import { SelectedRoutePolyline } from '@/features/map/components/SelectedRoutePolyline';
 import { StationMarkers } from '@/features/map/components/StationMarkers';
 import type { RouteBadgeKind } from '@/features/map/lib/routeMetrics';
 import { DAEJEON_CENTER, DEFAULT_ZOOM } from '@/features/map/lib/mapDefaults';
@@ -44,6 +45,11 @@ interface MapViewProps {
   routes: RoutePath[] | null;
   routeBadges: (RouteBadgeKind | null)[];
   selectedRouteIndex: number | null;
+  /**
+   * 11 경로 상세에서 보고 있는 경로. null이 아니면 후보 4개 대신
+   * 이 경로 하나만 도보/자전거 2색으로 그린다
+   */
+  detailRoute: RoutePath | null;
 }
 
 /** 07 메인 화면의 네이버 지도 + 대여소 마커 + 목적지 핀 + 경로선 */
@@ -55,6 +61,7 @@ export function MapView({
   routes,
   routeBadges,
   selectedRouteIndex,
+  detailRoute,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [failure, setFailure] = useState<MapLoadFailure | null>(null);
@@ -110,14 +117,16 @@ export function MapView({
 
       {map !== null ? <DestinationMarker map={map} destination={destination} /> : null}
 
-      {map !== null ? (
+      {map === null ? null : detailRoute !== null ? (
+        <SelectedRoutePolyline map={map} route={detailRoute} />
+      ) : (
         <RoutePolylines
           map={map}
           routes={routes}
           badges={routeBadges}
           selectedIndex={selectedRouteIndex}
         />
-      ) : null}
+      )}
 
       {failure === null ? null : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-background px-8 text-center">
