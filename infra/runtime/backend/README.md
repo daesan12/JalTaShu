@@ -82,3 +82,25 @@ sudo docker start tashu-backend-staging
 - `127.0.0.1:18081`만 listen하며 외부 UFW 규칙을 추가하지 않음
 
 이 검증은 staging runtime의 수동 배포 기준선이다. Jenkins 자동 staging 배포와 OAuth 전체 흐름은 후속 단계에서 검증한다.
+
+## Jenkins 자동 staging 배포
+
+Jenkins는 SSAFY 제공 PEM을 사용하지 않는다. Server B에서 별도의 Ed25519 key pair를 만들고, Server A의 `tashu-deploy` 계정에는 공개키만 등록한다.
+
+`tashu-deploy`의 `authorized_keys`에는 SSH forwarding과 PTY를 막는 `restrict`와 강제 명령을 적용한다. 원격에서 허용되는 요청은 다음 한 가지뿐이다.
+
+```text
+deploy-backend <12자리 Git SHA>
+```
+
+`ssh-deploy-command.sh`가 명령 형식을 검사한 뒤 `jenkins-deploy-staging.sh`만 제한적으로 sudo 실행한다. 배포 사용자는 Docker group과 일반 sudo 권한을 갖지 않는다.
+
+`jenkins-deploy-staging.sh`는 다음 순서로 동작한다.
+
+1. Commit SHA와 동시 배포 lock 검사
+2. Server A Pull 전용 IAM으로 ECR image pull
+3. Backend staging 컨테이너 교체
+4. Docker health와 `/api/actuator/health` 확인
+5. 실패하면 배포 직전 image로 복구
+
+Jenkins Agent는 `/etc/ssh/ssh_known_hosts`에 고정된 Server A Ed25519 host key만 신뢰한다. 키가 바뀌면 자동 배포를 중단하며 새 host key를 확인하기 전까지 우회하지 않는다.

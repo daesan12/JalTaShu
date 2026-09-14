@@ -4,7 +4,7 @@ services:
   controller:
     build:
       context: ./controller
-    image: tashu/jenkins-controller:2.568.3-5
+    image: tashu/jenkins-controller:2.568.3-6
     container_name: tashu-jenkins-controller
     restart: unless-stopped
     group_add:
@@ -29,6 +29,8 @@ services:
       - gitlab_token
       - aws_ecr_access_key_id
       - aws_ecr_secret_access_key
+      - server_a_deploy_private_key
+      - server_a_deploy_host
     healthcheck:
       test:
         - CMD-SHELL
@@ -59,6 +61,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /srv/tashu/data/jenkins-agent-ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key:ro
       - /srv/tashu/data/jenkins-agent-ssh/ssh_host_ed25519_key.pub:/etc/ssh/ssh_host_ed25519_key.pub:ro
+      - ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-a-deploy-known-hosts:/etc/ssh/ssh_known_hosts:ro
     healthcheck:
       test:
         - CMD-SHELL
@@ -90,6 +93,10 @@ secrets:
     file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/aws-ecr-access-key-id
   aws_ecr_secret_access_key:
     file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/aws-ecr-secret-access-key
+  server_a_deploy_private_key:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-a-deploy-ed25519
+  server_a_deploy_host:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-a-deploy-host
 
 volumes:
   jenkins-home:

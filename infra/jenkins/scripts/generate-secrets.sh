@@ -11,6 +11,8 @@ readonly agent_host_key_dir="/srv/tashu/data/jenkins-agent-ssh"
 readonly agent_host_private_key="${agent_host_key_dir}/ssh_host_ed25519_key"
 readonly agent_host_public_key="${agent_host_private_key}.pub"
 readonly controller_host_key_file="${secret_dir}/agent-host-key"
+readonly server_a_deploy_private_key="${secret_dir}/server-a-deploy-ed25519"
+readonly server_a_deploy_public_key="${server_a_deploy_private_key}.pub"
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "root 권한으로 실행해야 합니다." >&2
@@ -63,6 +65,18 @@ chmod 0644 "${agent_host_public_key}"
 awk '{print $1 " " $2}' "${agent_host_public_key}" > "${controller_host_key_file}"
 chown root:"${group_name}" "${controller_host_key_file}"
 chmod 0640 "${controller_host_key_file}"
+
+if [[ ! -e "${server_a_deploy_private_key}" ]]; then
+  ssh-keygen -q -t ed25519 -N '' -C 'tashu-jenkins-server-a-staging-deploy' -f "${server_a_deploy_private_key}"
+  echo "생성: Server A staging 배포 전용 SSH key pair"
+else
+  echo "유지: Server A staging 배포 전용 SSH key pair"
+fi
+
+chown root:"${group_name}" "${server_a_deploy_private_key}"
+chmod 0640 "${server_a_deploy_private_key}"
+chown root:root "${server_a_deploy_public_key}"
+chmod 0644 "${server_a_deploy_public_key}"
 
 if [[ ! -S /var/run/docker.sock ]]; then
   echo "/var/run/docker.sock을 찾을 수 없습니다." >&2

@@ -189,6 +189,37 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy backend staging') {
+            when {
+                branch 'develop'
+            }
+            options {
+                lock(resource: 'server-a-staging-deploy')
+            }
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'server-a-deploy-host',
+                        variable: 'SERVER_A_DEPLOY_HOST'
+                    )
+                ]) {
+                    sshagent(credentials: ['server-a-staging-deploy']) {
+                        sh '''
+                            set -eu
+                            set +x
+                            ssh \
+                              -o BatchMode=yes \
+                              -o ConnectTimeout=10 \
+                              -o StrictHostKeyChecking=yes \
+                              -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts \
+                              "tashu-deploy@${SERVER_A_DEPLOY_HOST}" \
+                              "deploy-backend ${GIT_SHORT_SHA}"
+                        '''
+                    }
+                }
+            }
+        }
     }
 
     post {

@@ -66,6 +66,19 @@ credentials:
               username: "${aws_ecr_access_key_id}"
               password: "${aws_ecr_secret_access_key}"
               description: "AWS credentials restricted to pushing Tashu ECR images"
+          - basicSSHUserPrivateKey:
+              scope: GLOBAL
+              id: "server-a-staging-deploy"
+              username: "tashu-deploy"
+              description: "SSH key restricted to the Server A staging deploy command"
+              privateKeySource:
+                directEntry:
+                  privateKey: "${server_a_deploy_private_key}"
+          - string:
+              scope: GLOBAL
+              id: "server-a-deploy-host"
+              secret: "${server_a_deploy_host}"
+              description: "Server A private deployment host"
 
 unclassified:
   location:
