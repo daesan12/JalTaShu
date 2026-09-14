@@ -29,6 +29,11 @@ export function posToLatLng({ xPos, yPos }: { xPos: number; yPos: number }): Lat
   return { lat: yPos, lng: xPos };
 }
 
+/** {lat, lng} → 백엔드 좌표 필드 {xPos: 경도, yPos: 위도} (지도에서 읽은 좌표를 API로 보낼 때) */
+export function latLngToPos({ lat, lng }: LatLng): { xPos: number; yPos: number } {
+  return { xPos: lng, yPos: lat };
+}
+
 const EARTH_RADIUS_M = 6_371_000;
 
 /**
