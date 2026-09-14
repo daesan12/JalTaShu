@@ -1,8 +1,18 @@
-import { GRADE_META, GRADE_ORDER } from '@/features/history/lib/grade';
-import type { ElevationBar } from '@/features/history/api/rides';
+import { GRADE_META, GRADE_ORDER, type GradeClass } from '@/shared/ui/grade';
 
 /**
- * 고도 그래프 (23) — 자전거 구간을 경사도별 색 막대로 표현.
+ * 고도 그래프 막대 하나 — 구간의 경사 등급과 상대 높이.
+ * 23 기록 상세는 백엔드가 등급까지 계산해 주고, 11 경로 상세는
+ * `features/map/lib/routeElevation.ts`가 고도 배열에서 만들어 넘긴다.
+ */
+export interface ElevationBar {
+  grade: GradeClass;
+  /** 상대 높이 0~1 */
+  value: number;
+}
+
+/**
+ * 고도 그래프 (23·11) — 경로를 경사도별 색 막대로 표현.
  * 색만으로 구분하지 않도록 범례(라벨)와 막대별 title을 함께 제공.
  */
 export function ElevationChart({ bars }: { bars: ElevationBar[] }) {
