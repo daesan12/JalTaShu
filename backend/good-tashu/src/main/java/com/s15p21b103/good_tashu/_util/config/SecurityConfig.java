@@ -97,6 +97,9 @@ public class SecurityConfig {
                         // Refresh Token API는 자체적으로 Refresh Token을 검증
                         .requestMatchers("/api/auth/token/**")
                         .permitAll()
+                        // 헬스체크 API
+                        .requestMatchers("/api/actuator/health/**")
+                        .permitAll()
                         // GUEST가 사용하는 API
                         .requestMatchers("/api/auth/sign-up")
                         .hasRole("GUEST")
