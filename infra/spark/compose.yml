@@ -1,0 +1,114 @@
+name: tashu-spark
+
+x-spark-common: &spark-common
+  image: spark:4.1.3-scala2.13-java21-python3-ubuntu@sha256:a7b323f4557eab1dce6e2242346560cd52a0bd0f9c32cdac60eea6d709eb05ba
+  user: "185:185"
+  restart: unless-stopped
+  environment:
+    TZ: Asia/Seoul
+  security_opt:
+    - no-new-privileges:true
+  networks:
+    - tashu-spark
+  volumes:
+    - ./conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+    - /srv/tashu/data/spark/events:/srv/tashu/spark/events
+    - /srv/tashu/data/spark/checkpoints:/srv/tashu/spark/checkpoints
+    - /srv/tashu/data/spark/output:/srv/tashu/spark/output
+    - /srv/tashu/data/spark/work:/opt/spark/work
+
+services:
+  spark-master:
+    <<: *spark-common
+    container_name: tashu-spark-master
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.master.Master
+      - --host
+      - spark-master
+      - --port
+      - "7077"
+      - --webui-port
+      - "8080"
+    ports:
+      - "127.0.0.1:18081:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/spark-master/7077'"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    mem_limit: 768m
+    cpus: 0.5
+
+  spark-worker:
+    <<: *spark-common
+    container_name: tashu-spark-worker-b
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.worker.Worker
+      - --cores
+      - "2"
+      - --memory
+      - 3g
+      - --webui-port
+      - "8081"
+      - spark://spark-master:7077
+    ports:
+      - "127.0.0.1:18082:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/8081'"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    mem_limit: 4g
+    cpus: 2.0
+
+  spark-history:
+    <<: *spark-common
+    container_name: tashu-spark-history
+    environment:
+      TZ: Asia/Seoul
+      SPARK_HISTORY_OPTS: >-
+        -Dspark.history.fs.logDirectory=file:/srv/tashu/spark/events
+        -Dspark.history.ui.port=18080
+        -Dspark.history.fs.cleaner.enabled=true
+        -Dspark.history.fs.cleaner.interval=1h
+        -Dspark.history.fs.cleaner.maxAge=7d
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.history.HistoryServer
+    ports:
+      - "127.0.0.1:18080:18080"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/18080'"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    mem_limit: 768m
+    cpus: 0.5
+
+  spark-submit:
+    <<: *spark-common
+    profiles:
+      - tools
+    restart: "no"
+    depends_on:
+      spark-master:
+        condition: service_healthy
+      spark-worker:
+        condition: service_healthy
+    command:
+      - /opt/spark/bin/spark-submit
+      - --version
+    mem_limit: 1g
+    cpus: 1.0
+
+networks:
+  tashu-spark:
+    name: tashu-spark
