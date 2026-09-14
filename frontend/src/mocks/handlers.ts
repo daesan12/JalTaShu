@@ -534,6 +534,13 @@ function buildMockRoutes(start: Pos, end: Pos): RoutePath[] {
 }
 
 /** 최근 검색 목업 저장소 — 서버 `recent_places`처럼 고를 때마다 한 줄씩 쌓인다(중복 제거 없음) */
+/**
+ * 이미 대여 중인 것으로 취급할 자전거 번호 — 대여 실패 경로를 검증할 때 이 값을 넣는다.
+ * QrScanPage의 수동 입력 예시(22B01262)와 일부러 맞췄다 — 그 화면을 참고해 코드를 입력해도
+ * 실패 케이스를 재현할 수 있게
+ */
+const RENTED_CYCLE_IDS = ['22B01262'];
+
 const RECENT_PLACES_KEY = 'msw_recent_places';
 
 function getMockRecentPlaces(): PlaceSearchResult[] {
@@ -940,5 +947,18 @@ export const handlers = [
       message: '최근 검색한 장소가 등록되었습니다.',
       data: null,
     });
+  }),
+
+  http.post('/api/cycle/rental', async ({ request }) => {
+    await delay(500);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const body = (await request.json()) as { cycleId?: string };
+    const cycleId = body.cycleId?.trim().toUpperCase();
+    if (!cycleId) return fail(400, '자전거 번호를 입력해 주세요.');
+    if (RENTED_CYCLE_IDS.includes(cycleId)) {
+      return fail(409, '이미 대여 중인 자전거입니다.');
+    }
+    return HttpResponse.json(ok(new Date().toISOString()));
   }),
 ];

@@ -9,6 +9,7 @@ import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/sta
 import { NOTICE_POPUPS_QUERY_KEY, getNoticePopups } from '@/features/map/api/noticePopups';
 import { getRoutePaths } from '@/features/map/api/routes';
 import { CurrentLocationButton } from '@/features/map/components/CurrentLocationButton';
+import { CycleRentSheet } from '@/features/map/components/CycleRentSheet';
 import { DestinationSheet } from '@/features/map/components/DestinationSheet';
 import { MapPickLayer } from '@/features/map/components/MapPickLayer';
 import { MapView } from '@/features/map/components/MapView';
@@ -45,9 +46,6 @@ import {
   summarizeRoutes,
   type RouteSort,
 } from '@/features/map/lib/routeMetrics';
-
-/** 대여하기·턴바이턴 안내는 각각 별도 이슈라 지금은 안내만 띄운다 */
-const COMING_SOON = '준비 중입니다.';
 
 /**
  * 위치를 못 얻었을 때는 **검색을 열던 시점에 보고 있던 지도 중심**에서 출발하는 경로를 찾는다.
@@ -99,7 +97,8 @@ const PICKED_PLACE_TITLE = '지도에서 선택한 위치';
  * - 목적지 시트(mini 200px): 200 − 64 + 12 = 148
  */
 const LIFT_FOR_STATION_CLASS = '-translate-y-[58px]';
-const LIFT_FOR_DESTINATION_CLASS = '-translate-y-[148px]';
+// mini(200px) 시트 공용 — 목적지 확인 시트·대여 시트가 같은 높이라 값을 같이 쓴다
+const LIFT_FOR_MINI_SHEET_CLASS = '-translate-y-[148px]';
 
 interface RouteResult {
   /** 서버가 정렬·필터 없이 준 후보 전체 */
@@ -129,6 +128,7 @@ export function MapHomePage() {
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null);
   // 현재위치 버튼을 누른 횟수 — 같은 자리에서 다시 눌러도 지도가 그 위치로 돌아오게 하는 신호
   const [locationFocusToken, setLocationFocusToken] = useState(0);
+  const [rentSheetOpen, setRentSheetOpen] = useState(false);
   const location = useCurrentLocation();
   // 읽기만 하므로 state가 아니라 ref에 둔다(지도를 옮길 때마다 화면을 다시 그릴 이유가 없다)
   const mapRef = useRef<naver.maps.Map | null>(null);
@@ -205,10 +205,18 @@ export function MapHomePage() {
     closePopup();
   }
 
-  // 대여소를 고르면 항상 요약부터 보여준다 — 확장 상태가 다음 대여소로 따라오면 안 된다
+  // 대여소를 고르면 항상 요약부터 보여준다 — 확장 상태가 다음 대여소로 따라오면 안 된다.
+  // 시트는 한 번에 하나라 대여 시트가 열려 있었으면 같이 닫는다
   function selectStation(stationId: string | null) {
     setStationSnap('peek');
     setSelectedStationId(stationId);
+    if (stationId !== null) setRentSheetOpen(false);
+  }
+
+  // 대여소 시트가 열려 있으면 먼저 닫는다(시트는 한 번에 하나)
+  function openRentSheet() {
+    setSelectedStationId(null);
+    setRentSheetOpen(true);
   }
 
   function openSearch() {
@@ -365,10 +373,11 @@ export function MapHomePage() {
     guideProgress === null || selectedRouteIndex === null
       ? 0
       : Math.round((routeSummaries[selectedRouteIndex]?.totalSec ?? 0) * (1 - guideProgress.ratio));
+  // 대여 시트도 목적지 시트와 같은 mini(200px) 높이라 같은 값만큼 띄운다
   const liftClass = stationSheetOpen
     ? LIFT_FOR_STATION_CLASS
-    : destinationSheetOpen
-      ? LIFT_FOR_DESTINATION_CLASS
+    : destinationSheetOpen || rentSheetOpen
+      ? LIFT_FOR_MINI_SHEET_CLASS
       : '';
 
   return (
@@ -424,7 +433,7 @@ export function MapHomePage() {
           className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${liftClass}`}
         >
           <CurrentLocationButton onClick={focusCurrentLocation} loading={location.loading} />
-          <Button full onClick={() => showToast(COMING_SOON)}>
+          <Button full onClick={openRentSheet}>
             대여하기
           </Button>
         </div>
@@ -435,6 +444,12 @@ export function MapHomePage() {
         snap={stationSnap}
         onSnapChange={setStationSnap}
         onClose={() => selectStation(null)}
+      />
+
+      <CycleRentSheet
+        open={rentSheetOpen}
+        onClose={() => setRentSheetOpen(false)}
+        onRented={() => showToast('대여가 완료됐습니다. 안전하게 이용해 주세요.')}
       />
 
       <DestinationSheet
