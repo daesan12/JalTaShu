@@ -26,10 +26,20 @@ interface CurrentLocationMarkerProps {
    * 좌표가 같아도(같은 자리에서 버튼을 다시 눌러도) 다시 이동해야 해서 좌표와 따로 둔다.
    */
   focusToken: number;
+  /**
+   * true면 위치가 바뀔 때마다 지도가 따라간다(경로 안내 중에만).
+   * 평소에는 false — 위치가 갱신됐다고 보고 있던 지도가 멋대로 움직이면 안 된다.
+   */
+  follow?: boolean;
 }
 
 /** 현재 위치를 지도에 점으로 찍고, 버튼을 누를 때마다 그 위치로 이동한다 */
-export function CurrentLocationMarker({ map, position, focusToken }: CurrentLocationMarkerProps) {
+export function CurrentLocationMarker({
+  map,
+  position,
+  focusToken,
+  follow = false,
+}: CurrentLocationMarkerProps) {
   const markerRef = useRef<naver.maps.Marker | null>(null);
 
   useEffect(() => {
@@ -58,7 +68,10 @@ export function CurrentLocationMarker({ map, position, focusToken }: CurrentLoca
     } else {
       markerRef.current.setPosition(point);
     }
-  }, [map, position]);
+
+    // 안내 중에는 지도가 따라간다. 애니메이션 없이 옮겨 위치가 자주 올 때 이동이 밀리지 않게 한다
+    if (follow) map.setCenter(point);
+  }, [map, position, follow]);
 
   // 버튼을 누른 순간에만 이동한다. 위치 갱신만으로 지도가 멋대로 움직이지 않게 분리했다
   useEffect(() => {

@@ -55,6 +55,8 @@ interface MapViewProps {
   currentLocation: Pos | null;
   /** 값이 바뀔 때마다 현재 위치로 지도를 옮긴다(현재위치 버튼) */
   locationFocusToken: number;
+  /** 경로 안내 중 — 지도가 현재 위치를 계속 따라간다 */
+  followLocation: boolean;
   /**
    * 지도 인스턴스를 페이지로 올린다(사라지면 null).
    * 위치 권한을 거절했을 때 **검색을 열던 시점의 지도 중심**을 경로 출발지로 쓰기 위해서다.
@@ -74,6 +76,7 @@ export function MapView({
   detailRoute,
   currentLocation,
   locationFocusToken,
+  followLocation,
   onMapReady,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -137,6 +140,7 @@ export function MapView({
           map={map}
           position={currentLocation}
           focusToken={locationFocusToken}
+          follow={followLocation}
         />
       ) : null}
 
