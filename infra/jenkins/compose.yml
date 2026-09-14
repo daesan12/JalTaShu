@@ -4,7 +4,7 @@ services:
   controller:
     build:
       context: ./controller
-    image: tashu/jenkins-controller:2.568.3-3
+    image: tashu/jenkins-controller:2.568.3-6
     container_name: tashu-jenkins-controller
     restart: unless-stopped
     group_add:
@@ -15,6 +15,7 @@ services:
         -Xmx1536m
         -Djenkins.install.runSetupWizard=false
       CASC_JENKINS_CONFIG: /usr/share/jenkins/ref/jenkins.yaml
+      CASC_STRICT_SECRET_RESOLUTION: 'true'
       TZ: UTC
     ports:
       - 127.0.0.1:8080:8080
@@ -24,6 +25,12 @@ services:
       - jenkins_admin_password
       - jenkins_agent_private_key
       - jenkins_agent_host_key
+      - gitlab_username
+      - gitlab_token
+      - aws_ecr_access_key_id
+      - aws_ecr_secret_access_key
+      - server_a_deploy_private_key
+      - server_a_deploy_host
     healthcheck:
       test:
         - CMD-SHELL
@@ -40,7 +47,7 @@ services:
   agent:
     build:
       context: ./agent
-    image: tashu/jenkins-build-agent:2
+    image: tashu/jenkins-build-agent:3
     container_name: tashu-jenkins-build-agent
     restart: unless-stopped
     environment:
@@ -54,6 +61,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /srv/tashu/data/jenkins-agent-ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key:ro
       - /srv/tashu/data/jenkins-agent-ssh/ssh_host_ed25519_key.pub:/etc/ssh/ssh_host_ed25519_key.pub:ro
+      - ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-a-deploy-known-hosts:/etc/ssh/ssh_known_hosts:ro
     healthcheck:
       test:
         - CMD-SHELL
@@ -77,6 +85,18 @@ secrets:
     file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/agent-ed25519
   jenkins_agent_host_key:
     file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/agent-host-key
+  gitlab_username:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/gitlab-username
+  gitlab_token:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/gitlab-token
+  aws_ecr_access_key_id:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/aws-ecr-access-key-id
+  aws_ecr_secret_access_key:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/aws-ecr-secret-access-key
+  server_a_deploy_private_key:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-a-deploy-ed25519
+  server_a_deploy_host:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-a-deploy-host
 
 volumes:
   jenkins-home:

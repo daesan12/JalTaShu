@@ -1,0 +1,35 @@
+name: tashu-backend-staging
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE:?set BACKEND_IMAGE to an immutable ECR image}
+    pull_policy: never
+    container_name: tashu-backend-staging
+    restart: unless-stopped
+    env_file:
+      - ${BACKEND_ENV_FILE:-/etc/tashu/backend-staging/runtime.env}
+    ports:
+      - "127.0.0.1:18081:8080"
+    networks:
+      - tashu-app
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -ec 'exec 3<>/dev/tcp/127.0.0.1/8080;
+          printf "GET /api/actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3;
+          grep -q '"'"'"status":"UP"'"'"' <&3'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    mem_limit: 1536m
+    cpus: 1.00
+
+networks:
+  tashu-app:
+    external: true
+    name: tashu-app

@@ -28,6 +28,8 @@ PC --SSH tunnel--> 127.0.0.1:8080 on Server B
 | `agent/Dockerfile` | 공식 Jenkins SSH Agent JDK 21 image에 Git과 Docker CLI·Buildx·Compose 추가 |
 | `agent/README.md` | Agent 권한, 내부 연결, workspace와 포함 도구 설명 |
 | `scripts/generate-secrets.sh` | 관리자 비밀번호, Agent 전용 SSH key pair와 Compose runtime 환경파일 생성 |
+| `scripts/configure-gitlab-credential.sh` | GitLab Deploy Token을 화면에 출력하지 않고 JCasC용 Secret 파일 두 개로 저장 |
+| `scripts/configure-ecr-credential.sh` | ECR Push 전용 AWS Access Key를 화면에 출력하지 않고 JCasC용 Secret 파일 두 개로 저장 |
 
 ## 왜 built-in executor를 0으로 두는가
 
@@ -71,11 +73,59 @@ Agent와 관측성, 이후 Kafka·Spark가 같은 Server B를 사용하므로 �
 6. Agent가 `online`이고 Java·Git·Docker 명령을 실행하는지 확인한다.
 7. Controller와 Agent 재시작 뒤 node 연결과 두 volume의 유지 여부를 확인한다.
 
+## Pipeline 코드 상태
+
+- 저장소 루트 Jenkinsfile과 pipeline/의 서비스별 Docker build 환경을 추가했다.
+- Collector test와 Node 22 Frontend test·lint·build는 실행 가능한 기준선을 구성했다.
+- Backend Gradle 9.7.1 Wrapper를 복구했고 Build #4~#6에서 Backend test가 실제 실행됐다.
+- ECR 연동 세대는 Controller image `2.568.3-5`, AWS CLI `2.36.42`가 추가된 Agent image `3`을 사용한다. 이전 운영 image `2.568.3-4`와 `2`는 rollback 기준으로 남긴다.
+
+## Multibranch Pipeline 설정
+
+Jenkins UI의 `tashu-ci` Job은 다음 값으로 구성했다.
+
+| 항목 | 값과 의미 |
+| --- | --- |
+| Item type | `Multibranch Pipeline`: 브랜치별로 루트 Jenkinsfile을 찾아 별도 Build를 만든다. |
+| Branch source | GitLab 프로젝트 HTTPS URL |
+| Credential | `gitlab-readonly`: `read_repository`만 가진 Deploy Token을 Jenkins가 암호화해 보관한다. |
+| Behaviour | `Discover branches`: 원격 브랜치를 탐색한다. |
+| Script Path | `Jenkinsfile`: 저장소 루트의 Pipeline 정의를 사용한다. |
+| Scan trigger | `2m` Periodic Folder Trigger. Webhook 연결 전까지 새 Commit을 자동 탐색하는 fallback이다. |
+
+첫 scan은 원격 브랜치 6개를 확인하고 루트 Jenkinsfile이 있는 `chore/#73-jenkins-multibranch-ci`만 Build 대상으로 등록했다. Build #1은 Build Agent에서 Git checkout, Collector 테스트 12개와 Frontend lint·build를 실행해 `SUCCESS`가 됐다. 당시 Backend는 저장소에 `gradle-wrapper.properties`가 없어 명시적으로 보류됐다.
+
+이후 Gradle Wrapper 설정을 복구하고 Frontend CI를 Node 22 LTS로 맞췄다. Build #4부터 Backend Gradle 단계가 실제 실행됐고, 인프라가 추가했던 Backend Health 구현을 제거한 Build #5도 성공했다. 최신 `develop`의 프론트 변경을 병합한 Build #6은 Checkout, Repository contract, Collector tests, Frontend lint·build, Backend test와 Post Actions가 모두 `SUCCESS`였으며 총 49초가 걸렸다. Health endpoint 자체는 백엔드 담당이 구현하고 인프라는 배포 검증에서 사용한다.
+
+프론트 환경별 배포 설정 MR !16이 `develop`에 병합된 뒤 현재 브랜치에도 동기화했다. `VITE_BASE_PATH`와 `VITE_AUTH_BASE_URL` 변경이 포함된 Build #8에서 Frontend lint·build와 Collector·Backend 검증이 모두 `SUCCESS`였다. 따라서 Nginx는 후속 CD 단계에서 `/staging/`, `/staging-api/`, `/staging-auth/` 경로를 연결할 수 있다.
+
+Controller 재시작 시험에서는 Job과 Build 결과는 유지됐지만 UI에서 수동 등록한 `gitlab-readonly` Credential이 JCasC의 선언 목록에 없어 제거됐다. 그 결과 첫 timer scan이 HTTP Basic 인증 실패로 끝났고, 반복 실패를 막기 위해 2분 Polling을 일시 중지했다. 이를 해결하기 위해 Compose가 `/etc/tashu/jenkins/gitlab-username`과 `gitlab-token`을 Docker Secret으로 mount하고, JCasC가 시작할 때마다 동일 ID의 Username/Password Credential을 생성하도록 구성했다. `CASC_STRICT_SECRET_RESOLUTION=true`는 파일이 없을 때 빈 Credential로 덮어쓰지 않고 시작을 실패시킨다.
+
+`configure-gitlab-credential.sh`는 사용자가 서버 터미널에서 값을 직접 입력받아 두 파일을 `0640 root:tashu-jenkins`로 atomic 교체한다. 값은 터미널, Git, 문서와 프로세스 인자에 출력하지 않는다. 운영 적용에서도 값 대신 파일 소유자·권한·크기만 확인했다.
+
+배포 전 검증에서는 실제 Deploy Token 대신 임시 값을 사용했다. Compose 최종 설정과 셸 문법이 통과했고, 새 Controller image `tashu/jenkins-controller:2.568.3-4`가 독립 컨테이너에서 기동해 `gitlab-readonly`를 생성했다. `gitlab-token` 파일을 의도적으로 빼면 strict resolution이 Jenkins 시작을 차단하는 것도 확인했다.
+
+## Credential 영속화 운영 검증
+
+- 설정과 Jenkins home volume을 각각 gzip archive로 백업하고 무결성을 검사했다.
+- 운영 Controller를 `2.568.3-4`로 교체한 뒤 `healthy`와 Jenkins 완전 기동 로그를 확인했다.
+- Controller를 한 번 더 재시작해 `gitlab-readonly`, `tashu-ci`, Build #1과 Build Agent 연결이 모두 유지되는 것을 확인했다.
+- Jenkins·Grafana·Prometheus 관리 UI는 계속 `127.0.0.1`에만 bind하며 UFW를 변경하지 않았다.
+- `tashu-ci`에 2분 Periodic Folder Trigger를 다시 등록했다.
+
+## ECR Credential 운영 검증
+
+- Jenkins ECR Push 전용 IAM 사용자를 기존 Server A S3 사용자와 분리했다.
+- 실제 키 값 대신 Secret 파일의 `0640 root:tashu-jenkins` 권한과 크기만 확인했다.
+- STS 인증 주체가 Jenkins 전용 사용자이며 `tashu/frontend`, `tashu/backend` 조회는 허용되고 S3 전체 조회는 거부됨을 확인했다.
+- Controller `2.568.3-5`와 AWS CLI `2.36.42`가 포함된 Agent `3`으로 교체한 뒤 모두 healthy 상태를 확인했다.
+- Controller 재시작 뒤 `aws-ecr-push`, `tashu-ci` Job과 Agent 연결이 유지됐다.
+- Jenkins 관리 포트는 `127.0.0.1:8080`, UFW는 active 상태를 유지했다.
+
 ## 아직 하지 않는 것
 
-- GitLab credential·Webhook·Poll SCM
-- Multibranch Pipeline 생성
-- ECR credential과 배포용 SSH key
+- GitLab Webhook 연결과 Polling fallback 제거
+- 실제 `develop` image push와 ECR scan 결과 검증
+- 배포용 SSH key
+- develop의 staging 자동 배포
 - Jenkins home 정기 backup
-
-Agent 기준선이 검증된 다음 최소 Pipeline과 GitLab 연결을 추가한다.

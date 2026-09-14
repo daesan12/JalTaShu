@@ -1,0 +1,42 @@
+name: tashu-redis
+
+services:
+  redis:
+    image: redis:8.8.1@sha256:3eafabb4c93fcb8b36b666e07a43f096cb157bc6b07dce4b2492b895c63cf37f
+    container_name: tashu-redis
+    restart: unless-stopped
+    env_file:
+      - ${REDIS_ENV_FILE:-/etc/tashu/redis/runtime.env}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        exec redis-server \
+          --appendonly yes \
+          --appendfsync everysec \
+          --requirepass "$${REDIS_PASSWORD}"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - REDISCLI_AUTH="$${REDIS_PASSWORD}" redis-cli ping | grep -qx PONG
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - redis-data:/data
+    networks:
+      - tashu-app
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 0.50
+
+networks:
+  tashu-app:
+    external: true
+    name: tashu-app
+
+volumes:
+  redis-data:
+    name: tashu-redis-data
