@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface RecentPlaceRepository extends JpaRepository<RecentPlaceEntity, Long> {
     List<RecentPlaceEntity> findByUser_UserIdOrderByCreatedAtDescRecentPlaceIdDesc(Long userId, Pageable pageable);
+    long deleteByRecentPlaceIdAndUser_UserId(Long recentPlaceId, Long userId);
 }

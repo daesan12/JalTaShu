@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router';
 import { formatDate } from '@/shared/lib/format';
+import { ElevationChart } from '@/shared/ui/ElevationChart';
+import { GRADE_META, WALK_COLOR } from '@/shared/ui/grade';
+import { RouteSketch } from '@/shared/ui/RouteSketch';
 import { getRideDetail } from '@/features/history/api/rides';
-import { ElevationChart } from '@/features/history/components/ElevationChart';
-import { RouteSketch } from '@/features/history/components/RouteSketch';
-import { GRADE_META, WALK_COLOR } from '@/features/history/lib/grade';
 
 /** 23 기록 상세 */
 export function RideDetailPage() {

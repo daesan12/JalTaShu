@@ -10,7 +10,8 @@ export const DAEJEON_CENTER = { lat: 36.3504, lng: 127.3845 } as const;
 export const DEFAULT_ZOOM = 14;
 
 /**
- * 경로 출발지 임시값 — 현재위치 기능(별도 이슈)이 없어 지도 초기 중심을 대신 보낸다.
- * 현재위치 이슈에서 실제 좌표로 교체한다. 화면에는 "현재 위치"로만 표시하고 이 좌표의 주소는 보여주지 않는다.
+ * 경로 출발지의 마지막 수단 — 지도가 아직 만들어지지 않아 중심조차 읽을 수 없을 때만 쓴다.
+ * 평소에는 현재 위치를, 위치를 못 얻으면 **지금 보고 있는 지도 중심**을 출발지로 보낸다.
+ * 고정 좌표로 경로를 찾으면 사용자가 있지도 않은 곳에서 출발하는 경로가 나온다.
  */
 export const START_POS_FALLBACK: Pos = { xPos: DAEJEON_CENTER.lng, yPos: DAEJEON_CENTER.lat };

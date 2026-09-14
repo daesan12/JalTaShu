@@ -99,9 +99,20 @@ public class MapService {
         // 해당 사용자 기록만 최신순으로 limit개 조회 (동일 시각이면 ID 내림차순)
         return recentPlaceRepository.findByUser_UserIdOrderByCreatedAtDescRecentPlaceIdDesc(
                         userId, PageRequest.of(0, limit)).stream()
-                .map(place -> new PlaceSearchRecentListResponse(
+                .map(place -> new PlaceSearchRecentListResponse(place.getRecentPlaceId(),
                         place.getPlace(), place.getAddress(), place.getRoadAddress(),
                         place.getLongitude(), place.getLatitude()))
                 .toList();
+    }
+
+    //최근검색어 삭제
+    @Transactional
+    public void deleteRecentSearchPlace(Long userId, Long placeId) {
+        long deleted = recentPlaceRepository
+                .deleteByRecentPlaceIdAndUser_UserId(placeId, userId);
+
+        if (deleted == 0) {
+            throw new MapException(NOT_EXISTS_RECENT_PLACE);
+        }
     }
 }

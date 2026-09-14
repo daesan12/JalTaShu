@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { RoutePath } from '@/shared/api/types';
 import { posToLatLng } from '@/shared/lib/coords';
-import { getSnapHeights } from '@/shared/ui/bottomSheetSnap';
+import { fitPathAboveSheet } from '@/features/map/lib/mapFit';
 import { mutedRouteStrokeColor, routeStrokeColor } from '@/features/map/lib/routeBadges';
 import type { RouteBadgeKind } from '@/features/map/lib/routeMetrics';
 
@@ -23,14 +23,6 @@ function applyStyle(line: naver.maps.Polyline, style: StrokeStyle, color: string
   line.setOptions('strokeOpacity', style.strokeOpacity);
   line.setOptions('zIndex', style.zIndex);
   line.setOptions('strokeColor', color);
-}
-
-/**
- * 후보가 전부 보이게 지도를 맞출 때 가려지는 영역(px).
- * 위는 상태바·뒤로가기·다시 조회 버튼, 아래는 기본으로 열리는 확장(half) 시트 + 여백. 좌우는 선이 화면 끝에 붙지 않게
- */
-function fitMargin() {
-  return { top: 100, right: 40, bottom: getSnapHeights(window.innerHeight).half + 24, left: 40 };
 }
 
 interface RoutePolylinesProps {
@@ -77,7 +69,9 @@ export function RoutePolylines({ map, routes, badges, selectedIndex }: RoutePoly
         }),
       );
     }
-    if (allPoints.length > 0) map.fitBounds(allPoints, fitMargin());
+    if (allPoints.length === 0) return;
+    // 지도가 멈춘 뒤 보정하므로, 후보가 바뀌거나 화면을 떠나면 예약을 취소한다
+    return fitPathAboveSheet(map, allPoints);
   }, [map, routes]);
 
   useEffect(() => {

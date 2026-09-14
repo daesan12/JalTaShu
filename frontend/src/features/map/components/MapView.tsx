@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BikeStation, PlaceSearchResult, RoutePath } from '@/shared/api/types';
+import type { BikeStation, PlaceSearchResult, Pos, RoutePath } from '@/shared/api/types';
+import { CurrentLocationMarker } from '@/features/map/components/CurrentLocationMarker';
 import { DestinationMarker } from '@/features/map/components/DestinationMarker';
 import { RoutePolylines } from '@/features/map/components/RoutePolylines';
+import { SelectedRoutePolyline } from '@/features/map/components/SelectedRoutePolyline';
 import { StationMarkers } from '@/features/map/components/StationMarkers';
 import type { RouteBadgeKind } from '@/features/map/lib/routeMetrics';
 import { DAEJEON_CENTER, DEFAULT_ZOOM } from '@/features/map/lib/mapDefaults';
@@ -44,6 +46,20 @@ interface MapViewProps {
   routes: RoutePath[] | null;
   routeBadges: (RouteBadgeKind | null)[];
   selectedRouteIndex: number | null;
+  /**
+   * 11 경로 상세에서 보고 있는 경로. null이 아니면 후보 4개 대신
+   * 이 경로 하나만 도보/자전거 2색으로 그린다
+   */
+  detailRoute: RoutePath | null;
+  /** 현재 위치. null이면 점을 그리지 않는다 */
+  currentLocation: Pos | null;
+  /** 값이 바뀔 때마다 현재 위치로 지도를 옮긴다(현재위치 버튼) */
+  locationFocusToken: number;
+  /**
+   * 지도 인스턴스를 페이지로 올린다(사라지면 null).
+   * 위치 권한을 거절했을 때 **검색을 열던 시점의 지도 중심**을 경로 출발지로 쓰기 위해서다.
+   */
+  onMapReady: (map: naver.maps.Map | null) => void;
 }
 
 /** 07 메인 화면의 네이버 지도 + 대여소 마커 + 목적지 핀 + 경로선 */
@@ -55,6 +71,10 @@ export function MapView({
   routes,
   routeBadges,
   selectedRouteIndex,
+  detailRoute,
+  currentLocation,
+  locationFocusToken,
+  onMapReady,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [failure, setFailure] = useState<MapLoadFailure | null>(null);
@@ -81,13 +101,17 @@ export function MapView({
         zoom: DEFAULT_ZOOM,
       });
       setMap(map);
+      onMapReady(map);
     });
 
     return () => {
       cancelled = true;
       map?.destroy();
       setMap(null);
+      onMapReady(null);
     };
+    // onMapReady는 페이지의 ref에 담기만 하는 함수(useCallback)라 지도를 다시 만들 이유가 없다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 인증 실패는 스크립트 로드 성공 이후에 따로 통보되므로 구독이 필요하다
@@ -108,16 +132,26 @@ export function MapView({
         />
       ) : null}
 
+      {map !== null ? (
+        <CurrentLocationMarker
+          map={map}
+          position={currentLocation}
+          focusToken={locationFocusToken}
+        />
+      ) : null}
+
       {map !== null ? <DestinationMarker map={map} destination={destination} /> : null}
 
-      {map !== null ? (
+      {map === null ? null : detailRoute !== null ? (
+        <SelectedRoutePolyline map={map} route={detailRoute} />
+      ) : (
         <RoutePolylines
           map={map}
           routes={routes}
           badges={routeBadges}
           selectedIndex={selectedRouteIndex}
         />
-      ) : null}
+      )}
 
       {failure === null ? null : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-background px-8 text-center">

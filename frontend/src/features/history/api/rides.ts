@@ -1,5 +1,6 @@
 import { apiGet } from '@/shared/api/client';
-import type { GradeClass } from '@/features/history/lib/grade';
+import type { ElevationBar } from '@/shared/ui/ElevationChart';
+import type { PathSegment } from '@/shared/ui/RouteSketch';
 
 /**
  * 이동 기록 — 잘타슈 내비게이션 기록 (타슈 공식 대여이력 아님).
@@ -39,17 +40,8 @@ export interface RideSegment {
   maxGradePct?: number;
 }
 
-export interface ElevationBar {
-  grade: GradeClass;
-  /** 상대 높이 0~1 */
-  value: number;
-}
-
-/** 추상 경로 그림용 좌표 (0~100 공간) — 지도 연동 시 실제 폴리라인으로 교체 */
-export interface PathSegment {
-  kind: 'walk' | GradeClass;
-  points: [number, number][];
-}
+/** 고도 그래프·경로 그림 타입은 `shared/ui/`로 올라갔다(#32). 기존 사용처를 위해 여기서 다시 내보낸다 */
+export type { ElevationBar, PathSegment };
 
 export interface RideDetail extends RideSummary {
   distanceKm: number;
