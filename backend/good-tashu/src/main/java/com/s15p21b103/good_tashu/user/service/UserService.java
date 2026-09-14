@@ -1,7 +1,10 @@
 package com.s15p21b103.good_tashu.user.service;
 
+import com.s15p21b103.good_tashu._util.jwt.refresh_token.dto.res.RefreshTokenResponseDto;
+import com.s15p21b103.good_tashu._util.jwt.refresh_token.service.RefreshTokenService;
 import com.s15p21b103.good_tashu.user.domain.SocialLoginProvider;
 import com.s15p21b103.good_tashu.user.domain.UserEntity;
+import com.s15p21b103.good_tashu.user.domain.UserRole;
 import com.s15p21b103.good_tashu.user.domain.UserTermEntity;
 import com.s15p21b103.good_tashu.user.dto.req.InitUserRequestDto;
 import com.s15p21b103.good_tashu.user.exception.UserErrorCode;
@@ -22,6 +25,7 @@ import java.util.Set;
 public class UserService {
     private final UserRepository userRepository;
     private final UserTermRepository userTermRepository;
+    private final RefreshTokenService refreshTokenService;
 
     static private final Set<String> REQUIRED_TERMS = Set.of("SERVICE", "PRIVACY", "LOCATION");
 
@@ -34,6 +38,7 @@ public class UserService {
                         // oauth2User.getName()은 provider에서 제공하는 식별자이다.
                         .providerUserId(oauth2User.getName())
                         .nickname(null)
+                        .role(UserRole.GUEST)
                         .build()));
     }
 
@@ -47,6 +52,9 @@ public class UserService {
             throw new UserException(UserErrorCode.NOT_AGREE_REQUIRED_TERMS);
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserException(UserErrorCode.NOT_EXISTS_USER));
+        if (user.getRole() != UserRole.GUEST) {
+            throw new UserException(UserErrorCode.FORBIDDEN);
+        }
         // 이전에 해당 사용자가 해당 약관에 동의한 적이 있는지 확인하고, 있으면 버전 업데이트
         // 없으면 해당 약관을 삽입
         request.agrees().stream().forEach(term -> {
@@ -63,5 +71,8 @@ public class UserService {
 
         // 닉네임 설정
         user.setNickname(request.nickname());
+
+        // 닉네임과 권한을 설정했으므로 USER권한으로 올림
+        user.setRole(UserRole.USER);
     }
 }
