@@ -72,7 +72,7 @@ export function OnboardingPage() {
           disabled={requesting || (step === LAST_STEP && !noticeConfirmed)}
         >
           {step === 0 && '다음'}
-          {step === 1 && (requesting ? '권한 요청 중…' : '허용하고 계속')}
+          {step === 1 && (requesting ? '권한 요청 중…' : '확인')}
           {step === 2 && '시작하기'}
         </Button>
       </div>

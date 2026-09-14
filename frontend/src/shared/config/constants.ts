@@ -12,6 +12,8 @@ export const RECENT_SEARCH_MAX = 10;
 export const STORAGE_KEYS = {
   onboardingDone: 'onboarding_done',
   settings: 'app_settings',
+  /** 07-1 공지 팝업 "7일간 보지 않기" — 다시 띄워도 되는 시각(ms) */
+  noticePopupHiddenUntil: 'notice_popup_hidden_until',
 } as const;
 
 /**

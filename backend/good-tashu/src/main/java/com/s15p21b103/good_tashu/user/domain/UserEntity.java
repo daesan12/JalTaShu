@@ -34,6 +34,11 @@ public class UserEntity {
     @Setter
     private String nickname;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name="role", nullable = false, length = 10)
+    @Setter
+    private UserRole role;
+
     @Column(name="created_at")
     @CreationTimestamp
     private LocalDateTime createdAt;
@@ -42,11 +47,13 @@ public class UserEntity {
     public UserEntity(
             SocialLoginProvider provider,
             String providerUserId,
-            String nickname
+            String nickname,
+            UserRole role
     ) {
         this.provider = provider;
         this.providerUserId = providerUserId;
         this.nickname = nickname;
+        this.role = role;
     }
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.REMOVE, orphanRemoval = true)

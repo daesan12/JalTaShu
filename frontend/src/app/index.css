@@ -20,6 +20,12 @@
   --color-status-mid: #f59e0b;
   --color-status-low: #ef4444;
 
+  /* 10 경로 비교 — 후보 강점 뱃지·지도 경로선 공용: 가장 빠름 / 자전거 많음 / 오르막 적음 / 도보 짧음 */
+  --color-route-fast: #a0522d;
+  --color-route-bikes: #6b8e23;
+  --color-route-flat: #3b82f6;
+  --color-route-walk: #8b5cf6;
+
   /* surface */
   --color-background: #f5f6f8;
   --color-surface: #ffffff;

@@ -1,9 +1,5 @@
 import { useRef, type ReactNode } from 'react';
-import {
-  clampDragDelta,
-  resolveSnapAfterDrag,
-  type SnapPoint,
-} from '@/shared/ui/bottomSheetSnap';
+import { clampDragDelta, resolveSnapAfterDrag, type SnapPoint } from '@/shared/ui/bottomSheetSnap';
 
 export type { SnapPoint };
 
@@ -32,6 +28,11 @@ interface BottomSheetProps {
   onClose: () => void;
   /** 배경 어둡게 (기본: half·tall에서만) */
   backdrop?: boolean;
+  /**
+   * false면 아래로 끌어도 peek에서 멈추고 onClose가 불리지 않는다(닫기는 버튼·뒤로가기로만).
+   * Figma 10-1 "Peek 이하 dismiss 불가". 기본 true
+   */
+  dismissible?: boolean;
   children: ReactNode;
 }
 
@@ -41,6 +42,7 @@ export function BottomSheet({
   onSnapChange,
   onClose,
   backdrop,
+  dismissible = true,
   children,
 }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -73,6 +75,7 @@ export function BottomSheet({
       e.clientY - dragStartY.current,
       window.innerHeight,
       canExpand,
+      dismissible,
     );
     // Tailwind v4의 -translate-x-1/2(가로 중앙)를 유지하면서 세로만 이동
     sheetRef.current.style.translate = `-50% ${delta}px`;
@@ -83,7 +86,7 @@ export function BottomSheet({
     const deltaY = e.clientY - dragStartY.current;
     endDrag();
 
-    const result = resolveSnapAfterDrag(snapPoint, deltaY, window.innerHeight);
+    const result = resolveSnapAfterDrag(snapPoint, deltaY, window.innerHeight, dismissible);
     if (result === 'close') onClose();
     else if (result !== snapPoint) onSnapChange?.(result);
   };

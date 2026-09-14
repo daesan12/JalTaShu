@@ -35,6 +35,11 @@ export function logout(): Promise<null> {
   return apiPost<null>('/auth/logout');
 }
 
+/** POST /api/users/withdraw — 회원 탈퇴 (백엔드 API 미정, msw 목업 기준 임시 스키마) */
+export function withdraw(reason: string): Promise<null> {
+  return apiPost<null>('/users/withdraw', { reason });
+}
+
 /**
  * POST /api/auth/sign-up — 약관 동의 + 닉네임 설정.
  * agrees 각 원소는 반드시 [code, version] 2개짜리 배열 (백엔드가 길이 검증을 안 해 500 방지 목적)
