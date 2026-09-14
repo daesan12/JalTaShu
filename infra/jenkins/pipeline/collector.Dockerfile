@@ -8,5 +8,6 @@ COPY requirements.txt ./
 RUN python -m pip install --no-cache-dir --requirement requirements.txt
 
 COPY collect.py ./
+COPY kafka_publisher.py ./
 COPY tests ./tests
 RUN python -m unittest discover -s tests -v
