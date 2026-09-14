@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 public enum MapErrorCode {
     INVALID_RECENT_PLACE_LIMIT(HttpStatus.BAD_REQUEST, "조회 개수는 1 이상이어야 합니다."),
     SEARCH_QUERY_REQUIRED(HttpStatus.BAD_REQUEST, "검색어를 입력해주세요."),
+    NOT_EXISTS_RECENT_PLACE(HttpStatus.NOT_FOUND, "최근 검색어의 장소를 찾을 수 없습니다."),
     NAVER_API_ERROR(HttpStatus.BAD_GATEWAY, "네이버 장소 검색 요청에 실패했습니다."),
     NAVER_API_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "네이버 장소 검색 응답 시간이 초과되었습니다."),
     NAVER_RESPONSE_INVALID(HttpStatus.BAD_GATEWAY, "네이버 장소 검색 응답 형식이 올바르지 않습니다.");
