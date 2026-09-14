@@ -40,12 +40,16 @@ dependencies {
 
 	// jwt 구현
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-	
+
+	//알림 구현
 	implementation 'com.google.firebase:firebase-admin:9.2.0'
 
+	// s3
 	implementation platform('software.amazon.awssdk:bom:2.49.6')
 	implementation 'software.amazon.awssdk:s3'
 
+	//헬스체크
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 }
 
 tasks.named('test') {
