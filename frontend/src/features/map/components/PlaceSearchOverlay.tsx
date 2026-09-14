@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/shared/api/client';
-import type { PlaceSearchResult } from '@/shared/api/types';
+import type { PlaceSearchResult, Pos } from '@/shared/api/types';
+import { haversineMeters, posToLatLng } from '@/shared/lib/coords';
 import { Chip } from '@/shared/ui/Chip';
 import {
   RECENT_PLACES_QUERY_KEY,
@@ -13,7 +14,7 @@ import {
 } from '@/features/map/api/places';
 import { PlaceRow } from '@/features/map/components/PlaceRow';
 
-/** 출발지·내 위치·지도에서 선택은 각각 별도 이슈(현재위치·지도에서 선택)라 지금은 안내만 띄운다 */
+/** "지도에서 선택"·출발지 바꾸기는 별도 이슈라 지금은 안내만 띄운다 */
 const COMING_SOON = '준비 중입니다.';
 
 const stroke = {
@@ -32,6 +33,12 @@ interface PlaceSearchOverlayProps {
   onClose: () => void;
   /** 결과·최근 검색에서 장소를 고르면 호출. 최근 검색 저장은 이 컴포넌트가 처리한다 */
   onSelect: (place: PlaceSearchResult) => void;
+  /** 현재 위치 — 결과까지의 직선거리를 보여주는 데 쓴다. 모르면 null */
+  currentLocation: Pos | null;
+  /** 위치를 다시 조회한다("현재 위치" 줄·"내 위치" 칩). 실패 안내는 페이지가 띄운다 */
+  onRefreshLocation: () => void;
+  /** 위치 조회 중 — 출발지 줄 문구를 바꾼다 */
+  locationLoading: boolean;
   showToast: (text: string) => void;
 }
 
@@ -39,7 +46,14 @@ interface PlaceSearchOverlayProps {
  * 08 장소 검색 — 07 위에 얹는 전체 화면 오버레이(새 라우트 없음: 지도 재생성 방지).
  * 검색은 엔터/검색 버튼으로 한 번만 실행한다(글자마다 자동 검색하면 네이버 API 호출이 늘어난다).
  */
-export function PlaceSearchOverlay({ onClose, onSelect, showToast }: PlaceSearchOverlayProps) {
+export function PlaceSearchOverlay({
+  onClose,
+  onSelect,
+  currentLocation,
+  onRefreshLocation,
+  locationLoading,
+  showToast,
+}: PlaceSearchOverlayProps) {
   const [input, setInput] = useState('');
   // 실제로 검색을 실행한 검색어. 입력 중인 글자와 분리해 결과가 흔들리지 않게 한다
   const [submitted, setSubmitted] = useState('');
@@ -80,6 +94,12 @@ export function PlaceSearchOverlay({ onClose, onSelect, showToast }: PlaceSearch
     onSelect(place);
   }
 
+  /** 현재 위치에서 장소까지의 직선거리(m). 위치를 모르면 null이라 행에서 표시하지 않는다 */
+  function distanceFromMe(place: PlaceSearchResult): number | null {
+    if (currentLocation === null) return null;
+    return haversineMeters(posToLatLng(currentLocation), posToLatLng(place));
+  }
+
   const showResults = submitted.length > 0;
   const recentPlaces = recent.data ?? [];
 
@@ -116,16 +136,19 @@ export function PlaceSearchOverlay({ onClose, onSelect, showToast }: PlaceSearch
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-2 pr-2">
-          {/* 출발지 — 현재위치 기능이 붙기 전까지 고정 문구 */}
+          {/* 출발지는 항상 현재 위치다. 누르면 위치를 다시 잡는다(권한을 나중에 허용한 경우용) */}
           <button
             type="button"
-            onClick={() => showToast(COMING_SOON)}
-            className="flex min-h-11 items-center gap-2.5 rounded-xl bg-background px-3.5 text-left transition-[background-color] duration-75 active:bg-gray-100"
+            onClick={onRefreshLocation}
+            disabled={locationLoading}
+            className="flex min-h-11 items-center gap-2.5 rounded-xl bg-background px-3.5 text-left transition-[background-color] duration-75 active:bg-gray-100 disabled:opacity-60"
           >
             <span aria-hidden="true" className="flex h-4 w-4 items-center justify-center">
               <span className="h-3.5 w-3.5 rounded-full border-[2.5px] border-primary" />
             </span>
-            <span className="truncate text-[15px] text-gray-900">현재 위치</span>
+            <span className="truncate text-[15px] text-gray-900">
+              {locationLoading ? '현재 위치 확인 중…' : '현재 위치'}
+            </span>
           </button>
 
           <form onSubmit={handleSubmit} className="relative">
@@ -163,7 +186,7 @@ export function PlaceSearchOverlay({ onClose, onSelect, showToast }: PlaceSearch
       </div>
 
       <div className="flex gap-2 px-4 pt-3 pb-3">
-        <Chip onClick={() => showToast(COMING_SOON)}>내 위치</Chip>
+        <Chip onClick={onRefreshLocation}>내 위치</Chip>
         <Chip onClick={() => showToast(COMING_SOON)}>지도에서 선택</Chip>
       </div>
 
@@ -187,7 +210,12 @@ export function PlaceSearchOverlay({ onClose, onSelect, showToast }: PlaceSearch
               <ul>
                 {results.data.map((place) => (
                   <li key={placeKey(place)}>
-                    <PlaceRow place={place} kind="result" onClick={() => selectPlace(place)} />
+                    <PlaceRow
+                      place={place}
+                      kind="result"
+                      distanceM={distanceFromMe(place)}
+                      onClick={() => selectPlace(place)}
+                    />
                   </li>
                 ))}
               </ul>
@@ -203,7 +231,12 @@ export function PlaceSearchOverlay({ onClose, onSelect, showToast }: PlaceSearch
             <ul>
               {recentPlaces.map((place) => (
                 <li key={placeKey(place)}>
-                  <PlaceRow place={place} kind="recent" onClick={() => selectPlace(place)} />
+                  <PlaceRow
+                    place={place}
+                    kind="recent"
+                    distanceM={distanceFromMe(place)}
+                    onClick={() => selectPlace(place)}
+                  />
                 </li>
               ))}
             </ul>

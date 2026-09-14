@@ -1,5 +1,6 @@
 import type { JSX } from 'react';
 import type { PlaceSearchResult } from '@/shared/api/types';
+import { formatDistance } from '@/shared/lib/format';
 
 type PlaceRowKind = 'result' | 'recent';
 
@@ -30,11 +31,16 @@ const ICON: Record<PlaceRowKind, JSX.Element> = {
 interface PlaceRowProps {
   place: PlaceSearchResult;
   kind: PlaceRowKind;
+  /** 현재 위치에서의 직선거리. 위치를 모르면 null이라 표시하지 않는다 */
+  distanceM: number | null;
   onClick: () => void;
 }
 
-/** 장소 한 줄 — 이름 + 주소(도로명 우선). 거리 표시는 현재위치 이슈 이후 */
-export function PlaceRow({ place, kind, onClick }: PlaceRowProps) {
+/**
+ * 장소 한 줄 — 이름 + 주소(도로명 우선) + 현재 위치에서의 거리.
+ * 거리는 **직선거리**다. 실제 이동 거리는 경로를 조회해야 나오므로 고를 때 참고용으로만 쓴다.
+ */
+export function PlaceRow({ place, kind, distanceM, onClick }: PlaceRowProps) {
   const address = place.roadAddress || place.address;
   return (
     <button
@@ -47,6 +53,11 @@ export function PlaceRow({ place, kind, onClick }: PlaceRowProps) {
         <span className="block truncate text-[15px] font-medium text-gray-900">{place.title}</span>
         {address ? <span className="block truncate text-sm text-gray-500">{address}</span> : null}
       </span>
+      {distanceM === null ? null : (
+        <span className="shrink-0 text-sm tabular-nums text-gray-400">
+          {formatDistance(distanceM)}
+        </span>
+      )}
     </button>
   );
 }

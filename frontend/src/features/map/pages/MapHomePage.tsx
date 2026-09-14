@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ApiError } from '@/shared/api/client';
-import type { PlaceSearchResult, RoutePath } from '@/shared/api/types';
+import type { PlaceSearchResult, Pos, RoutePath } from '@/shared/api/types';
+import { latLngToPos } from '@/shared/lib/coords';
 import { Button } from '@/shared/ui/Button';
 import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/stations';
 import { NOTICE_POPUPS_QUERY_KEY, getNoticePopups } from '@/features/map/api/noticePopups';
@@ -24,6 +25,7 @@ import { SearchBar } from '@/features/map/components/SearchBar';
 import { StationPeekSheet } from '@/features/map/components/StationPeekSheet';
 import { Toast } from '@/features/map/components/Toast';
 import { UpdatedBadge } from '@/features/map/components/UpdatedBadge';
+import { LOCATION_ERROR_TEXT, useCurrentLocation } from '@/features/map/hooks/useCurrentLocation';
 import { useToast } from '@/features/map/hooks/useToast';
 import { START_POS_FALLBACK } from '@/features/map/lib/mapDefaults';
 import { NOTICES_PATH } from '@/features/map/lib/noticeLink';
@@ -39,8 +41,16 @@ import {
   type RouteSort,
 } from '@/features/map/lib/routeMetrics';
 
-/** 현재위치·대여하기·턴바이턴 안내는 각각 별도 이슈라 지금은 안내만 띄운다 */
+/** 대여하기·턴바이턴 안내는 각각 별도 이슈라 지금은 안내만 띄운다 */
 const COMING_SOON = '준비 중입니다.';
+
+/**
+ * 위치를 못 얻었을 때는 **검색을 열던 시점에 보고 있던 지도 중심**에서 출발하는 경로를 찾는다.
+ * - 고정 좌표로 찾으면 사용자가 있지도 않은 곳에서 출발하는 경로가 나온다
+ * - 조회 시점의 중심을 쓰면 안 된다. 목적지를 고르면 지도가 그 위로 옮겨져 출발지와 목적지가 같아진다
+ * 출발지가 내 위치가 아니라는 것은 반드시 알린다.
+ */
+const START_FALLBACK_NOTICE = '현재 위치를 몰라 지도에서 보던 곳에서 출발하는 경로를 찾습니다.';
 
 /**
  * 08 검색 오버레이 열림 상태를 URL 쿼리에 둔다(`/?search=1`).
@@ -92,6 +102,28 @@ export function MapHomePage() {
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
   const [routeSort, setRouteSort] = useState<RouteSort>('bikes');
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null);
+  // 현재위치 버튼을 누른 횟수 — 같은 자리에서 다시 눌러도 지도가 그 위치로 돌아오게 하는 신호
+  const [locationFocusToken, setLocationFocusToken] = useState(0);
+  const location = useCurrentLocation();
+  // 읽기만 하므로 state가 아니라 ref에 둔다(지도를 옮길 때마다 화면을 다시 그릴 이유가 없다)
+  const mapRef = useRef<naver.maps.Map | null>(null);
+  const handleMapReady = useCallback((map: naver.maps.Map | null) => {
+    mapRef.current = map;
+  }, []);
+  /** 검색을 열던 시점의 지도 중심 — 위치를 모를 때 출발지로 쓴다 */
+  const viewedCenterRef = useRef<Pos | null>(null);
+
+  function rememberViewedCenter() {
+    const center = mapRef.current?.getCenter();
+    if (center instanceof naver.maps.LatLng) {
+      viewedCenterRef.current = latLngToPos({ lat: center.lat(), lng: center.lng() });
+    }
+  }
+
+  /** 위치를 모를 때 쓸 출발지. 지도를 아직 못 읽었으면 초기 중심값 */
+  function viewedCenterAsStart(): Pos {
+    return viewedCenterRef.current ?? START_POS_FALLBACK;
+  }
 
   // 한 번 닫으면 앱을 다시 켜기 전까지 뜨지 않는다. "7일간 보지 않기"는 저장소로 더 오래 막는다.
   // 닫힘 기억은 모듈(noticePopupHide)에 있고, 이 state는 화면을 다시 그리는 용도다
@@ -149,6 +181,8 @@ export function MapHomePage() {
   }
 
   function openSearch() {
+    // 목적지를 고르면 지도가 그 위로 옮겨진다 — 사용자가 "지금 보고 있던 곳"은 지금 기록해 둬야 한다
+    rememberViewedCenter();
     // 검색 화면이 시트를 덮지 못하므로(시트 z-index가 더 높음) 먼저 닫는다
     setSelectedStationId(null);
     setSearchParams({ [SEARCH_PARAM]: '1' });
@@ -172,10 +206,30 @@ export function MapHomePage() {
     setRouteResult(null);
   }
 
-  function searchRoutes() {
+  /** 08 검색 화면의 "현재 위치" 줄·"내 위치" 칩 — 위치만 새로 잡는다(지도는 오버레이에 가려 안 보인다) */
+  async function refreshLocation() {
+    const result = await location.request();
+    if (!result.ok) showToast(LOCATION_ERROR_TEXT[result.error]);
+  }
+
+  /** 07 현재위치 버튼 — 위치를 새로 잡고 성공하면 지도를 그 자리로 옮긴다 */
+  async function focusCurrentLocation() {
+    const result = await location.request();
+    if (!result.ok) {
+      showToast(LOCATION_ERROR_TEXT[result.error]);
+      return;
+    }
+    setLocationFocusToken((token) => token + 1);
+  }
+
+  // 출발지는 현재 위치다. 위치를 못 얻으면 지도 중심에서 찾되 그 사실을 알린다 —
+  // 조회 자체를 막으면 권한을 거절한 사용자는 경로를 아예 못 본다
+  async function searchRoutes() {
     if (destination === null) return;
+    const start = await location.ensure();
+    if (!start.ok) showToast(START_FALLBACK_NOTICE);
     routeSearch.mutate({
-      start: START_POS_FALLBACK,
+      start: start.ok ? start.position : viewedCenterAsStart(),
       end: { xPos: destination.xPos, yPos: destination.yPos },
     });
   }
@@ -233,6 +287,9 @@ export function MapHomePage() {
         routeBadges={routeBadges}
         selectedRouteIndex={selectedRouteIndex}
         detailRoute={detailRoute}
+        currentLocation={location.position}
+        locationFocusToken={locationFocusToken}
+        onMapReady={handleMapReady}
       />
 
       {detailActive ? (
@@ -261,7 +318,7 @@ export function MapHomePage() {
         <div
           className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${liftClass}`}
         >
-          <CurrentLocationButton onClick={() => showToast(COMING_SOON)} />
+          <CurrentLocationButton onClick={focusCurrentLocation} loading={location.loading} />
           <Button full onClick={() => showToast(COMING_SOON)}>
             대여하기
           </Button>
@@ -312,6 +369,9 @@ export function MapHomePage() {
         <PlaceSearchOverlay
           onClose={closeSearch}
           onSelect={selectDestination}
+          currentLocation={location.position}
+          onRefreshLocation={refreshLocation}
+          locationLoading={location.loading}
           showToast={showToast}
         />
       ) : null}
