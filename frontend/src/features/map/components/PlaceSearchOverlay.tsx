@@ -7,10 +7,12 @@ import { Chip } from '@/shared/ui/Chip';
 import {
   RECENT_PLACES_QUERY_KEY,
   dedupePlaces,
+  deleteRecentPlace,
   getRecentPlaces,
   placeSearchQueryKey,
   saveRecentPlace,
   searchPlaces,
+  type DedupedRecentPlace,
 } from '@/features/map/api/places';
 import { PlaceRow } from '@/features/map/components/PlaceRow';
 
@@ -38,6 +40,8 @@ interface PlaceSearchOverlayProps {
   locationLoading: boolean;
   /** "지도에서 선택" — 오버레이를 닫고 지도 선택 모드로 넘어간다(현재 field 기준) */
   onPickOnMap: () => void;
+  /** 최근 검색 삭제 실패 안내 */
+  showToast: (text: string) => void;
   /**
    * 'destination'(기본) — 목적지를 고르는 원래 화면. 위에 출발지 줄 + 바꾸기 버튼이 있다.
    * 'start' — 출발지를 고르는 중첩 화면(출발지 줄을 눌러 들어옴). 헤더·칩 문구가 달라진다.
@@ -64,6 +68,7 @@ export function PlaceSearchOverlay({
   onRefreshLocation,
   locationLoading,
   onPickOnMap,
+  showToast,
   field = 'destination',
   startLabel,
   onEditStart,
@@ -94,6 +99,21 @@ export function PlaceSearchOverlay({
     onSettled: () => queryClient.invalidateQueries({ queryKey: RECENT_PLACES_QUERY_KEY }),
   });
 
+  // 화면은 같은 장소를 하나로 합쳐 보여주므로, 한 줄을 지우면 그 장소의 서버 행을 전부 지운다.
+  // 하나만 지우면 다른 행이 남아 있어 방금 지운 항목이 그대로 다시 나타난다
+  const remove = useMutation({
+    mutationFn: (place: DedupedRecentPlace) =>
+      Promise.all(place.placeIds.map((placeId) => deleteRecentPlace(placeId))),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: RECENT_PLACES_QUERY_KEY }),
+    onError: (error) => {
+      showToast(
+        error instanceof ApiError ? error.message : '삭제에 실패했습니다. 다시 시도해 주세요.',
+      );
+    },
+  });
+  // 지우는 중인 행 식별 — placeIds 조합이 같으면 같은 그룹으로 본다
+  const removingKey = remove.isPending ? remove.variables?.placeIds.join(',') : null;
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const query = input.trim();
@@ -118,7 +138,7 @@ export function PlaceSearchOverlay({
   }
 
   const showResults = submitted.length > 0;
-  const recentPlaces = recent.data ?? [];
+  const recentPlaces: DedupedRecentPlace[] = recent.data ?? [];
 
   return (
     <div
@@ -252,7 +272,7 @@ export function PlaceSearchOverlay({
           </section>
         ) : null}
 
-        {/* 최근 검색 — 아직 못 받았거나 비어 있으면 섹션 자체를 숨긴다 (삭제 기능은 API 확정 후) */}
+        {/* 최근 검색 — 아직 못 받았거나 비어 있으면 섹션 자체를 숨긴다 */}
         {recentPlaces.length > 0 ? (
           <section>
             <SectionTitle>최근 검색</SectionTitle>
@@ -264,6 +284,8 @@ export function PlaceSearchOverlay({
                     kind="recent"
                     distanceM={distanceFromMe(place)}
                     onClick={() => selectPlace(place)}
+                    onDelete={() => remove.mutate(place)}
+                    deleting={removingKey === place.placeIds.join(',')}
                   />
                 </li>
               ))}

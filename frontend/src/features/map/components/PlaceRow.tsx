@@ -34,30 +34,73 @@ interface PlaceRowProps {
   /** 현재 위치에서의 직선거리. 위치를 모르면 null이라 표시하지 않는다 */
   distanceM: number | null;
   onClick: () => void;
+  /** kind='recent'에서만 쓴다. 없으면 삭제 버튼을 그리지 않는다 */
+  onDelete?: () => void;
+  /** 삭제 요청 중 — 이 행만 잠그고 흐리게 한다 */
+  deleting?: boolean;
 }
 
 /**
- * 장소 한 줄 — 이름 + 주소(도로명 우선) + 현재 위치에서의 거리.
+ * 장소 한 줄 — 이름 + 주소(도로명 우선) + 현재 위치에서의 거리(+ 최근 검색이면 삭제 버튼).
  * 거리는 **직선거리**다. 실제 이동 거리는 경로를 조회해야 나오므로 고를 때 참고용으로만 쓴다.
  */
-export function PlaceRow({ place, kind, distanceM, onClick }: PlaceRowProps) {
+export function PlaceRow({
+  place,
+  kind,
+  distanceM,
+  onClick,
+  onDelete,
+  deleting = false,
+}: PlaceRowProps) {
   const address = place.roadAddress || place.address;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex min-h-14 w-full items-center gap-3 px-4 py-2.5 text-left transition-[background-color] duration-75 active:bg-gray-50"
+    <div
+      className={`flex min-h-14 w-full items-center transition-opacity duration-150 ${deleting ? 'opacity-50' : ''}`}
     >
-      <span className="shrink-0 text-gray-400">{ICON[kind]}</span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-medium text-gray-900">{place.title}</span>
-        {address ? <span className="block truncate text-sm text-gray-500">{address}</span> : null}
-      </span>
-      {distanceM === null ? null : (
-        <span className="shrink-0 text-sm tabular-nums text-gray-400">
-          {formatDistance(distanceM)}
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={deleting}
+        className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2.5 pl-4 text-left transition-[background-color] duration-75 active:bg-gray-50 disabled:pointer-events-none"
+      >
+        <span className="shrink-0 text-gray-400">{ICON[kind]}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-medium text-gray-900">
+            {place.title}
+          </span>
+          {address ? <span className="block truncate text-sm text-gray-500">{address}</span> : null}
         </span>
+        {distanceM === null ? null : (
+          <span className="shrink-0 text-sm tabular-nums text-gray-400">
+            {formatDistance(distanceM)}
+          </span>
+        )}
+      </button>
+      {onDelete ? (
+        <button
+          type="button"
+          aria-label={`${place.title} 최근 검색에서 삭제`}
+          onClick={(e) => {
+            // 행 버튼(장소 선택)까지 같이 눌리지 않게 막는다
+            e.stopPropagation();
+            onDelete();
+          }}
+          disabled={deleting}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-400 transition-[background-color] duration-75 active:bg-gray-100 disabled:pointer-events-none"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+            <path
+              d="m7 7 10 10M17 7 7 17"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              fill="none"
+            />
+          </svg>
+        </button>
+      ) : (
+        <div className="w-2 shrink-0" />
       )}
-    </button>
+    </div>
   );
 }
