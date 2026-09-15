@@ -18,7 +18,14 @@ import com.s15p21b103.good_tashu.cycle.repository.StationRepository;
 import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import com.s15p21b103.good_tashu.user.exception.UserException;
 import com.s15p21b103.good_tashu.user.repository.UserRepository;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
+import com.s15p21b103.good_tashu.path.domain.PathEntity;
+import com.s15p21b103.good_tashu.path.domain.PathInfo;
+import com.s15p21b103.good_tashu.path.repository.PathRepository;
+import com.s15p21b103.good_tashu.cycle.dto.res.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -41,6 +48,67 @@ public class CycleService {
     private final CycleClaimRepository cycleClaimRepository;
     private final CycleClaimReportRepository cycleClaimReportRepository;
     private final S3Service s3Service;
+    private final PathRepository pathRepository;
+
+    @Transactional(readOnly = true)
+    public CycleStatisticsResponse getStatistics(Long userId) {
+        // 전체 GPS JSON을 읽지 않고 DB에서 완료된 이용내역 집계
+        var statistics = cycleUsageRepository.getUsageStatistics(userId);
+        return new CycleStatisticsResponse(statistics.getTotalUseCnt(),
+                statistics.getTotalDistance(), statistics.getTotalCycleRidingTime());
+    }
+
+    @Transactional(readOnly = true)
+    public List<CycleUsageListResponse> getUsageList(Long userId) {
+        // 최근 대여일 순으로 이용내역을 목록 응답으로 변환
+        return cycleUsageRepository.findByUserEntity_UserIdAndReturnAtIsNotNullOrderByRentalAtDesc(userId)
+                .stream().map(usage -> {
+            return new CycleUsageListResponse(usage.getCycleUsageId(), point(usage.getRentalStationEntity()), point(usage.getReturnStationEntity()),
+                    usage.getRentalAt(), durationSeconds(usage), usage.getCycleEntity().getCycleId());
+        }).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public CycleUsageDetailResponse getUsageDetail(Long userId, Long usageId) {
+        // 요청한 이용내역이 로그인 사용자 소유인지 확인
+        CycleUsageEntity usage = cycleUsageRepository.findByCycleUsageIdAndUserEntity_UserId(usageId, userId)
+                .orElseThrow(() -> new CycleException(NOT_EXIST_USAGE));
+        // 이용내역에 연결된 GPS 경로 조회
+        PathEntity path = pathRepository.findByCycleUsage_CycleUsageId(usage.getCycleUsageId()).orElse(null);
+        int seconds = durationSeconds(usage);
+        Integer distance = null;
+        Integer bikeDistance = null;
+        PathInfo pathInfo = null;
+        if (path != null) {
+            distance = path.getTotalDistance();
+            bikeDistance = path.getBikeDistance();
+            pathInfo = path.getPathInfo();
+        }
+        // 도보 거리를 제외한 자전거 거리(m)와 대여~반납 시간(s)으로 km/h 계산
+        BigDecimal speed = null;
+        if (bikeDistance != null && seconds > 0) {
+            speed = BigDecimal.valueOf(bikeDistance).multiply(new BigDecimal("3.6"))
+                    .divide(BigDecimal.valueOf(seconds), 2, RoundingMode.HALF_UP);
+        }
+        return new CycleUsageDetailResponse(seconds, distance, point(usage.getRentalStationEntity()),
+                point(usage.getReturnStationEntity()), usage.getRentalAt(), usage.getCycleEntity().getCycleId(), speed,
+                pathInfo, usage.getRentalAt(), usage.getReturnAt());
+    }
+
+    // 대여 시각부터 반납 시각까지의 초 단위 이용시간
+    private int durationSeconds(CycleUsageEntity usage) {
+        if (usage.getRentalAt() == null || usage.getReturnAt() == null)
+            return 0;
+        return (int) Duration.between(usage.getRentalAt(), usage.getReturnAt()).getSeconds();
+    }
+
+    //대여소의 위도,경도 얻기
+    private CyclePointResponse point(StationEntity station) {
+        if (station == null) {
+            return null;
+        }
+        return new CyclePointResponse(station.getLatitude(), station.getLongitude());
+    }
 
     //TODO: 동시성 처리
     @Transactional

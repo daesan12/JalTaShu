@@ -17,12 +17,16 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import com.s15p21b103.good_tashu.cycle.dto.res.CycleStatisticsResponse;
+import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageListResponse;
+import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageDetailResponse;
 
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/cycle")
 public class CycleController {
     private final CycleService cycleService;
+
     //대여 요청
     @PostMapping("/rental")
     public ApiResponse<LocalDateTime> rentalCycle(@currentUserId Long userId,
@@ -62,8 +66,22 @@ public class CycleController {
         return ResponseEntity.ok(ApiResponse.success("신고가 접수되었습니다."));
     }
 
-    //TODO: 경로쪽 구현되면 구현하기
     //개인이용내역 전체 통계 조회
+    @GetMapping("/statics")
+    public ApiResponse<CycleStatisticsResponse> getStatistics(@currentUserId Long userId) {
+        return ApiResponse.success(cycleService.getStatistics(userId));
+    }
+
     //개인이용내역 리스트 조회
+    @GetMapping("/usage/list")
+    public ApiResponse<List<CycleUsageListResponse>> getUsageList(@currentUserId Long userId) {
+        return ApiResponse.success(cycleService.getUsageList(userId));
+    }
+
     //개인이용내역 상세 조회
+    @GetMapping("/usage/{usageId}")
+    public ApiResponse<CycleUsageDetailResponse> getUsageDetail(@currentUserId Long userId,
+                                                                 @PathVariable Long usageId) {
+        return ApiResponse.success(cycleService.getUsageDetail(userId, usageId));
+    }
 }

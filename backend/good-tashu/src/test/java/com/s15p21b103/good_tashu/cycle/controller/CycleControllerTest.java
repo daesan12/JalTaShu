@@ -6,8 +6,13 @@ import com.s15p21b103.good_tashu.cycle.domain.ClaimReportCategory;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleClaimRequest;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimListResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimResponse;
+import com.s15p21b103.good_tashu.cycle.dto.res.CyclePointResponse;
+import com.s15p21b103.good_tashu.cycle.dto.res.CycleStatisticsResponse;
+import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageDetailResponse;
+import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageListResponse;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
 import com.s15p21b103.good_tashu.cycle.service.CycleService;
+import com.s15p21b103.good_tashu.path.domain.PathInfo;
 import com.s15p21b103.good_tashu.user.annotation.currentUserId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +31,7 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 
 import static com.s15p21b103.good_tashu.cycle.exception.CycleErrorCode.*;
@@ -144,5 +150,66 @@ class CycleControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"claimCategory\":\"ABUSE\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    void statisticsEndpointPassesAuthenticatedUserAndReturnsStatistics() throws Exception {
+        // 로그인 사용자의 전체 이용 통계를 서비스 응답으로 전달하는지 확인한다.
+        when(cycleService.getStatistics(1L))
+                .thenReturn(new CycleStatisticsResponse(3L, 12000L, 3600L));
+
+        mvc.perform(get("/api/cycle/statics"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalUseCnt").value(3))
+                .andExpect(jsonPath("$.data.totalDistance").value(12000))
+                .andExpect(jsonPath("$.data.totalCycleRidingTime").value(3600));
+
+        verify(cycleService).getStatistics(1L);
+    }
+
+    @Test
+    void usageListEndpointReturnsUsageList() throws Exception {
+        // 이용내역 목록 조회 시 서비스 결과와 사용자 ID 전달을 확인한다.
+        LocalDateTime startingDate = LocalDateTime.of(2026, 9, 15, 10, 0);
+        var startingPoint = new CyclePointResponse(new BigDecimal("36.350400"), new BigDecimal("127.384500"));
+        var endPoint = new CyclePointResponse(new BigDecimal("36.351000"), new BigDecimal("127.385200"));
+        when(cycleService.getUsageList(1L)).thenReturn(List.of(
+                new CycleUsageListResponse(12L, startingPoint, endPoint, startingDate, 600, "C1")));
+
+        mvc.perform(get("/api/cycle/usage/list"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].usageId").value(12))
+                .andExpect(jsonPath("$.data[0].cycleId").value("C1"))
+                .andExpect(jsonPath("$.data[0].totalDuration").value(600))
+                .andExpect(jsonPath("$.data[0].startingPoint.latitude").value(36.3504))
+                .andExpect(jsonPath("$.data[0].endPoint.longitude").value(127.3852));
+
+        verify(cycleService).getUsageList(1L);
+    }
+
+    @Test
+    void usageDetailEndpointReturnsDetailedUsage() throws Exception {
+        // 이용내역 상세 조회 결과의 경로·거리·평균속도 필드가 JSON으로 반환되는지 확인한다.
+        LocalDateTime startingDate = LocalDateTime.of(2026, 9, 15, 10, 0);
+        var pathInfo = new PathInfo(List.of(new PathInfo.PathPoint(
+                new BigDecimal("36.350400"), new BigDecimal("127.384500"),
+                new BigDecimal("52.3"), PathInfo.Mode.cycle, 1)));
+        var response = new CycleUsageDetailResponse(
+                600, 3000,
+                new CyclePointResponse(new BigDecimal("36.350400"), new BigDecimal("127.384500")),
+                new CyclePointResponse(new BigDecimal("36.351000"), new BigDecimal("127.385200")),
+                startingDate, "C1", new BigDecimal("18.00"), pathInfo,
+                startingDate, startingDate.plusSeconds(600));
+        when(cycleService.getUsageDetail(1L, 12L)).thenReturn(response);
+
+        mvc.perform(get("/api/cycle/usage/12"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalDuration").value(600))
+                .andExpect(jsonPath("$.data.totalDistance").value(3000))
+                .andExpect(jsonPath("$.data.averageCycleRidingSpeed").value(18.0))
+                .andExpect(jsonPath("$.data.pathInfo.road[0].mode").value("cycle"))
+                .andExpect(jsonPath("$.data.pathInfo.road[0].seq").value(1));
+
+        verify(cycleService).getUsageDetail(1L, 12L);
     }
 }
