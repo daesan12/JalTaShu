@@ -44,6 +44,8 @@ sudo /opt/tashu/infra/runtime/backend/scripts/render-staging-env.sh
 
 `jwt.env`에는 `JWT_SECURE=true|false`가 반드시 있어야 한다. 공개 HTTPS staging에서는 `true`를 사용해 브라우저가 JWT cookie를 암호화되지 않은 HTTP 요청에 보내지 않게 한다. 로컬 HTTP 개발처럼 TLS가 없는 환경에서만 `false`를 사용한다.
 
+최종 `runtime.env`에는 `SERVER_FORWARD_HEADERS_STRATEGY=framework`도 고정한다. Backend가 Nginx의 `X-Forwarded-Proto: https`를 사용해 Kakao callback URL을 HTTPS로 생성하기 위한 설정이다. 값은 일반 설정이며 Secret이 아니다.
+
 ## image pull과 배포
 
 ```bash
