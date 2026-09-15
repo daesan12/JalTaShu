@@ -18,7 +18,8 @@ production은 Blue·Green 중 활성 slot 하나만 바라본다.
 | `/staging/` | `127.0.0.1:18080/` | React 정적 파일과 SPA fallback |
 | `/staging-api/` | `127.0.0.1:18081/api/` | 일반 Backend API |
 | `/staging-auth/` | `127.0.0.1:18081/api/auth/` | Frontend가 시작하는 OAuth 로그인 |
-| `/staging-oauth-callback/` | `127.0.0.1:18081/api/auth/oauth/callback/` | staging OAuth callback 전용 경로 |
+| `/api/auth/oauth/callback/` | `127.0.0.1:18081/api/auth/oauth/callback/` | 기존 staging OAuth callback |
+| `/production-oauth-callback/` | 활성 production Backend의 `/api/auth/oauth/callback/` | 운영 OAuth callback 전용 경로 |
 | `/` | 활성 production Frontend (`28080` 또는 `28082`) | 운영 React 앱과 SPA fallback |
 | `/api/` | 활성 production Backend (`28081` 또는 `28083`) | 운영 일반 API와 OAuth callback |
 | `/auth/` | 활성 production Backend의 `/api/auth/` | 운영 Frontend가 시작하는 OAuth 로그인 |
@@ -31,12 +32,12 @@ Backend refresh cookie의 Path는 현재 `/api/auth`다. 브라우저가 `/stagi
 ## OAuth callback 분리
 
 같은 도메인에서 staging과 production Backend를 함께 실행하므로 callback 경로를 분리한다.
-staging 환경파일은 Spring redirect URI를 별도로 덮어쓰고 Nginx가 내부 원래 callback으로 전달한다.
+기존 staging callback은 그대로 유지하고 production 환경파일만 별도 URI를 사용한다.
 Kakao 개발자 콘솔에는 다음 두 URI를 모두 등록해야 한다.
 
 ```text
-https://j15b103.p.ssafy.io/staging-oauth-callback/kakao
 https://j15b103.p.ssafy.io/api/auth/oauth/callback/kakao
+https://j15b103.p.ssafy.io/production-oauth-callback/kakao
 ```
 
 staging 성공·실패 화면은 `/staging/`, `/staging/login`이고 production은 `/`, `/login`이다.

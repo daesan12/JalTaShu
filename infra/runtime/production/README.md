@@ -56,8 +56,8 @@ sudo /opt/tashu/infra/runtime/production/scripts/render-backend-env.sh
 이 스크립트는 기존 Kakao·JWT Secret, MySQL production 비밀번호, Redis 비밀번호를 읽어
 `/etc/tashu/backend-production/runtime.env`를 `0600 root:root`로 만든다. 값은 출력하지 않는다.
 production OAuth 성공·실패 주소는 각각 공개 origin의 `/`, `/login`이다.
-Kakao 개발자 콘솔에는 production callback과 별도로 staging callback
-`https://j15b103.p.ssafy.io/staging-oauth-callback/kakao`도 등록해야 한다.
+Kakao 개발자 콘솔에는 기존 staging callback과 별도로 production callback
+`https://j15b103.p.ssafy.io/production-oauth-callback/kakao`를 등록해야 한다.
 
 ## 수동 검증
 

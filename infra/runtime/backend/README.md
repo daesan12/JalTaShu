@@ -46,14 +46,6 @@ sudo /opt/tashu/infra/runtime/backend/scripts/render-staging-env.sh
 
 최종 `runtime.env`에는 `SERVER_FORWARD_HEADERS_STRATEGY=framework`도 고정한다. Backend가 Nginx의 `X-Forwarded-Proto: https`를 사용해 Kakao callback URL을 HTTPS로 생성하기 위한 설정이다. 값은 일반 설정이며 Secret이 아니다.
 
-같은 도메인의 production callback과 충돌하지 않도록 staging은 다음 redirect URI를 명시한다.
-
-```text
-https://j15b103.p.ssafy.io/staging-oauth-callback/kakao
-```
-
-Nginx는 이 외부 경로를 staging Backend의 `/api/auth/oauth/callback/kakao`로 전달한다. Kakao 개발자 콘솔에도 이 URI가 등록되어야 한다.
-
 ## image pull과 배포
 
 ```bash

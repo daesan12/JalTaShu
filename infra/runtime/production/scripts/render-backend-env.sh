@@ -62,7 +62,7 @@ trap 'rm -f "${temporary_file:-}"; unset kakao_rest_api_key kakao_client_secret 
   printf 'SPRING_DATA_REDIS_DATABASE=%s\n' '0'
   printf 'KAKAO_REST_API_KEY=%s\n' "${kakao_rest_api_key}"
   printf 'KAKAO_CLIENT_SECRET=%s\n' "${kakao_client_secret}"
-  printf 'SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_REDIRECT_URI=%s/api/auth/oauth/callback/kakao\n' "${public_origin}"
+  printf 'SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_REDIRECT_URI=%s/production-oauth-callback/kakao\n' "${public_origin}"
   printf 'FRONTEND_OAUTH_SUCCESS_URL=%s/\n' "${public_origin}"
   printf 'FRONTEND_OAUTH_FAILURE_URL=%s/login\n' "${public_origin}"
   printf 'JWT_SECRET_BASE64=%s\n' "${jwt_secret}"
