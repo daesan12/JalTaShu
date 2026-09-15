@@ -38,12 +38,16 @@ Backend도 같은 tag를 사용해 한 배포의 두 image를 명확히 묶는�
 4. Docker health와 Frontend `/health`, Backend Actuator health를 검사한다.
 5. Jenkins가 `Proceed` 또는 `Abort` 입력을 기다린다.
 6. `Proceed`이면 Nginx upstream 두 개를 같은 slot으로 바꾸고 한 번만 reload한다.
-7. 공개 Frontend·Backend 검증이 실패하면 이전 slot으로 자동 롤백한다.
+7. 인증서의 공개 도메인으로 최대 30초 동안 Frontend·Backend 응답을 반복 확인한다.
+8. 공개 Frontend·Backend 검증이 실패하면 이전 slot으로 자동 롤백한다.
 
 승인 대기 제한은 15분이다. `Abort`하거나 시간이 지나면 기존 활성 slot은 바뀌지 않는다.
 새 candidate 컨테이너는 트래픽을 받지 않은 채 남아 다음 점검에 사용할 수 있다.
 `Proceed`는 Jenkins에서 Build 권한이 있는 로그인 사용자만 누를 수 있다. 승인 대기 중에는
 현재 단일 Docker Agent executor 하나를 최대 15분 사용하므로 다른 Pipeline은 대기할 수 있다.
+SSH 접속에는 Server A 사설 주소를 사용하고, HTTPS health 검사에는 인증서의 공개 도메인을
+사용한다. Nginx graceful reload 직후에는 이전 worker가 짧게 응답할 수 있어 한 번의 요청으로
+성공·실패를 판단하지 않는다.
 
 ## 운영 환경파일
 
@@ -72,6 +76,10 @@ curl --fail https://j15b103.p.ssafy.io/api/actuator/health
 
 정상 결과는 활성 Frontend·Backend가 모두 `healthy`, 공개 Frontend HTTP 200,
 Backend body의 `status=UP`이다.
+
+2026-09-15 실제 검증에서는 비활성 Blue의 내부 health를 확인한 뒤 공개 경로를 Blue로 전환했다.
+운영 `/`, `/health`, `/api/actuator/health`와 기존 staging 두 경로가 모두 HTTP 200이었다.
+그다음 legacy Nginx로 롤백해 운영 `/`가 다시 404이고 staging은 계속 HTTP 200임을 확인했다.
 
 ## 롤백
 

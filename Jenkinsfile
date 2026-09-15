@@ -13,6 +13,7 @@ pipeline {
         AWS_DEFAULT_REGION = 'ap-northeast-2'
         AWS_EC2_METADATA_DISABLED = 'true'
         AWS_PAGER = ''
+        PRODUCTION_PUBLIC_HOST = 'j15b103.p.ssafy.io'
     }
 
     stages {
@@ -444,14 +445,21 @@ pipeline {
 
                             remote_ssh "activate-production ${GIT_SHORT_SHA}"
 
-                            if curl --fail --silent --show-error \
-                                 --retry 5 --retry-delay 2 \
-                                 "https://${SERVER_A_DEPLOY_HOST}/health" \
-                                 | grep -qx ok && \
-                               curl --fail --silent --show-error \
-                                 --retry 5 --retry-delay 2 \
-                                 "https://${SERVER_A_DEPLOY_HOST}/api/actuator/health" \
-                                 | grep -q '"status":"UP"'; then
+                            production_verified=false
+                            for attempt in $(seq 1 15); do
+                                if curl --fail --silent \
+                                     "https://${PRODUCTION_PUBLIC_HOST}/health" \
+                                     | grep -qx ok && \
+                                   curl --fail --silent \
+                                     "https://${PRODUCTION_PUBLIC_HOST}/api/actuator/health" \
+                                     | grep -q '"status":"UP"'; then
+                                    production_verified=true
+                                    break
+                                fi
+                                sleep 2
+                            done
+
+                            if [ "${production_verified}" = true ]; then
                                 printf 'Production traffic verified: sha=%s\n' "${GIT_SHORT_SHA}"
                                 exit 0
                             fi
