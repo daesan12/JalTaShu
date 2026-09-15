@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { BikeStation } from '@/shared/api/types';
 import { BottomSheet, type SnapPoint } from '@/shared/ui/BottomSheet';
+import { Button } from '@/shared/ui/Button';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { toStationStatus } from '@/shared/ui/stationStatus';
 import { StationForecastChart } from '@/features/map/components/StationForecastChart';
@@ -15,6 +16,8 @@ interface StationSheetProps {
   snap: StationSnap;
   onSnapChange: (snap: StationSnap) => void;
   onClose: () => void;
+  /** "반납하기" — 지금 이 대여소를 반납 대여소로 삼아 번호 입력 시트를 연다 */
+  onReturn: () => void;
 }
 
 /**
@@ -22,7 +25,13 @@ interface StationSheetProps {
  * 요약만 보다가 위로 끌면 예상 대수 추이 그래프가 나온다(2-1).
  * 예측 값이 아직 없는 대여소도 있어(모델 미완성) 그래프 자리는 안내 문구로 대체한다.
  */
-export function StationSheet({ station, snap, onSnapChange, onClose }: StationSheetProps) {
+export function StationSheet({
+  station,
+  snap,
+  onSnapChange,
+  onClose,
+  onReturn,
+}: StationSheetProps) {
   // 닫히는 300ms 동안 내용이 먼저 사라지지 않도록 마지막 대여소를 들고 있는다
   const [shown, setShown] = useState(station);
   if (station !== null && station !== shown) setShown(station);
@@ -58,10 +67,17 @@ export function StationSheet({ station, snap, onSnapChange, onClose }: StationSh
             <StatusBadge status={toStationStatus(shown.currentBikes)} className="shrink-0" />
           </div>
 
-          {/* 확장했을 때만 그린다 — peek 높이에서는 어차피 잘려 보이지 않는다 */}
+          {/*
+            확장(half)했을 때만 그린다 — peek(110px)는 이름 줄만으로도 거의 차서
+            버튼까지 넣으면 잘린다. 반납은 마커 탭 → 살짝 끌어 올리는 한 동작 더로 충분하다고 봤다
+          */}
           {snap === 'half' ? (
             <section>
-              <div className="flex items-baseline justify-between gap-2">
+              <Button full variant="line" onClick={onReturn}>
+                반납하기
+              </Button>
+
+              <div className="mt-4 flex items-baseline justify-between gap-2">
                 <h2 className="text-[15px] font-semibold text-gray-900">예상 대수</h2>
                 <UpdatedBadge updatedAt={shown.updatedAt} />
               </div>

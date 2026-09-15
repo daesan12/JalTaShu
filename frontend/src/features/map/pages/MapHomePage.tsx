@@ -10,6 +10,7 @@ import { NOTICE_POPUPS_QUERY_KEY, getNoticePopups } from '@/features/map/api/not
 import { getRoutePaths } from '@/features/map/api/routes';
 import { CurrentLocationButton } from '@/features/map/components/CurrentLocationButton';
 import { CycleRentSheet } from '@/features/map/components/CycleRentSheet';
+import { CycleReturnSheet } from '@/features/map/components/CycleReturnSheet';
 import { DestinationSheet } from '@/features/map/components/DestinationSheet';
 import { MapPickLayer } from '@/features/map/components/MapPickLayer';
 import { MapView } from '@/features/map/components/MapView';
@@ -139,6 +140,9 @@ export function MapHomePage() {
   // 현재위치 버튼을 누른 횟수 — 같은 자리에서 다시 눌러도 지도가 그 위치로 돌아오게 하는 신호
   const [locationFocusToken, setLocationFocusToken] = useState(0);
   const [rentSheetOpen, setRentSheetOpen] = useState(false);
+  const [returnSheetOpen, setReturnSheetOpen] = useState(false);
+  // 대여소 시트를 닫은 뒤에도 반납 시트가 어느 대여소인지 알아야 해서 따로 기억해 둔다
+  const [returnStationId, setReturnStationId] = useState<string | null>(null);
   // 출발지를 직접 골랐을 때만 값이 있다. null이면 항상 현재 위치가 출발지다
   const [customStart, setCustomStart] = useState<PlaceSearchResult | null>(null);
   const location = useCurrentLocation();
@@ -218,17 +222,34 @@ export function MapHomePage() {
   }
 
   // 대여소를 고르면 항상 요약부터 보여준다 — 확장 상태가 다음 대여소로 따라오면 안 된다.
-  // 시트는 한 번에 하나라 대여 시트가 열려 있었으면 같이 닫는다
+  // 시트는 한 번에 하나라 대여·반납 시트가 열려 있었으면 같이 닫는다
   function selectStation(stationId: string | null) {
     setStationSnap('peek');
     setSelectedStationId(stationId);
-    if (stationId !== null) setRentSheetOpen(false);
+    if (stationId !== null) {
+      setRentSheetOpen(false);
+      setReturnSheetOpen(false);
+    }
   }
 
-  // 대여소 시트가 열려 있으면 먼저 닫는다(시트는 한 번에 하나)
+  // 대여소·반납 시트가 열려 있으면 먼저 닫는다(시트는 한 번에 하나)
   function openRentSheet() {
     setSelectedStationId(null);
+    setReturnSheetOpen(false);
     setRentSheetOpen(true);
+  }
+
+  /**
+   * 대여소 시트의 "반납하기" — 지금 열려 있는 대여소를 반납 대여소로 삼는다.
+   * 대여소 시트를 닫으면서 그 대여소 id는 따로 기억해 둔다 — 시트를 닫은 뒤에도
+   * 반납 번호 입력 시트가 "어느 대여소인지"를 알아야 하기 때문이다.
+   */
+  function openReturnSheet() {
+    if (selectedStation === null) return;
+    setReturnStationId(selectedStation.stationId);
+    setSelectedStationId(null);
+    setRentSheetOpen(false);
+    setReturnSheetOpen(true);
   }
 
   /**
@@ -506,10 +527,10 @@ export function MapHomePage() {
     guideProgress === null || selectedRouteIndex === null
       ? 0
       : Math.round((routeSummaries[selectedRouteIndex]?.totalSec ?? 0) * (1 - guideProgress.ratio));
-  // 대여 시트도 목적지 시트와 같은 mini(200px) 높이라 같은 값만큼 띄운다
+  // 대여·반납 시트도 목적지 시트와 같은 mini(200px) 높이라 같은 값만큼 띄운다
   const liftClass = stationSheetOpen
     ? LIFT_FOR_STATION_CLASS
-    : destinationSheetOpen || rentSheetOpen
+    : destinationSheetOpen || rentSheetOpen || returnSheetOpen
       ? LIFT_FOR_MINI_SHEET_CLASS
       : '';
   // 출발지 표시 문구 — 08 검색 화면과 10 비교 화면 상단 바가 같이 쓴다
@@ -584,12 +605,20 @@ export function MapHomePage() {
         snap={stationSnap}
         onSnapChange={setStationSnap}
         onClose={() => selectStation(null)}
+        onReturn={openReturnSheet}
       />
 
       <CycleRentSheet
         open={rentSheetOpen}
         onClose={() => setRentSheetOpen(false)}
         onRented={() => showToast('대여가 완료됐습니다. 안전하게 이용해 주세요.')}
+      />
+
+      <CycleReturnSheet
+        open={returnSheetOpen}
+        stationId={returnStationId}
+        onClose={() => setReturnSheetOpen(false)}
+        onReturned={() => showToast('반납이 완료됐습니다.')}
       />
 
       <DestinationSheet
