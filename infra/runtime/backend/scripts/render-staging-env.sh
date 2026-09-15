@@ -7,6 +7,7 @@ readonly jwt_env="${secret_dir}/jwt.env"
 readonly mysql_password_file="${TASHU_MYSQL_STAGING_PASSWORD_FILE:-/etc/tashu/mysql/staging-password}"
 readonly redis_env="${TASHU_REDIS_ENV_FILE:-/etc/tashu/redis/runtime.env}"
 readonly runtime_env="${secret_dir}/runtime.env"
+readonly oauth_redirect_uri="${TASHU_STAGING_OAUTH_REDIRECT_URI:-https://j15b103.p.ssafy.io/staging-oauth-callback/kakao}"
 
 read_env_value() {
   local file_path="$1"
@@ -51,6 +52,11 @@ if [[ ${jwt_secure} != true && ${jwt_secure} != false ]]; then
   exit 1
 fi
 
+if [[ ! ${oauth_redirect_uri} =~ ^https://[A-Za-z0-9.-]+/staging-oauth-callback/kakao$ ]]; then
+  echo 'TASHU_STAGING_OAUTH_REDIRECT_URI 형식이 올바르지 않습니다.' >&2
+  exit 1
+fi
+
 temporary_file="$(mktemp "${secret_dir}/.runtime.env.XXXXXX")"
 trap 'rm -f "${temporary_file:-}"; unset kakao_rest_api_key kakao_client_secret frontend_success_url frontend_failure_url jwt_secret jwt_access_expires jwt_refresh_expires jwt_secure mysql_password redis_password' EXIT
 
@@ -64,6 +70,7 @@ trap 'rm -f "${temporary_file:-}"; unset kakao_rest_api_key kakao_client_secret 
   printf 'SPRING_DATA_REDIS_DATABASE=%s\n' '1'
   printf 'KAKAO_REST_API_KEY=%s\n' "${kakao_rest_api_key}"
   printf 'KAKAO_CLIENT_SECRET=%s\n' "${kakao_client_secret}"
+  printf 'SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_REDIRECT_URI=%s\n' "${oauth_redirect_uri}"
   printf 'FRONTEND_OAUTH_SUCCESS_URL=%s\n' "${frontend_success_url}"
   printf 'FRONTEND_OAUTH_FAILURE_URL=%s\n' "${frontend_failure_url}"
   printf 'JWT_SECRET_BASE64=%s\n' "${jwt_secret}"
