@@ -4,7 +4,7 @@ services:
   controller:
     build:
       context: ./controller
-    image: tashu/jenkins-controller:2.568.3-6
+    image: tashu/jenkins-controller:2.568.3-7
     container_name: tashu-jenkins-controller
     restart: unless-stopped
     group_add:
@@ -31,6 +31,7 @@ services:
       - aws_ecr_secret_access_key
       - server_a_deploy_private_key
       - server_a_deploy_host
+      - naver_map_client_id
     healthcheck:
       test:
         - CMD-SHELL
@@ -97,6 +98,8 @@ secrets:
     file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-a-deploy-ed25519
   server_a_deploy_host:
     file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-a-deploy-host
+  naver_map_client_id:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/naver-map-client-id
 
 volumes:
   jenkins-home:
