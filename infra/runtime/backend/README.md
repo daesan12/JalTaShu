@@ -10,7 +10,7 @@ Server A에서 ECR의 Backend runtime image를 staging MySQL과 Redis에 연결�
 | `scripts/render-staging-env.sh` | 서버에 따로 저장된 MySQL·Redis·JWT·OAuth Secret을 하나의 Backend 환경파일로 조합 | Git 추적, Secret 없음 |
 | `scripts/deploy-staging.sh` | 미리 pull한 immutable ECR image로 staging 컨테이너 교체 | Git 추적, Secret 없음 |
 | `/etc/tashu/backend-staging/oauth.env` | Backend 팀의 Kakao·Frontend OAuth 설정 | Server A 전용, Git 금지 |
-| `/etc/tashu/backend-staging/jwt.env` | JWT 서명키와 access·refresh 만료시간 | Server A 전용, Git 금지 |
+| `/etc/tashu/backend-staging/jwt.env` | JWT 서명키, access·refresh 만료시간과 Secure cookie 여부 | Server A 전용, Git 금지 |
 | `/etc/tashu/backend-staging/runtime.env` | 컨테이너에 전달할 최종 환경변수 | Server A 전용, Git 금지 |
 
 ## 연결 구조
@@ -41,6 +41,8 @@ sudo /opt/tashu/infra/runtime/backend/scripts/render-staging-env.sh
 - `/etc/tashu/backend-staging/oauth.env`
 
 실제 값은 출력하지 않고 최종 파일의 변수 이름과 권한만 표시한다.
+
+`jwt.env`에는 `JWT_SECURE=true|false`가 반드시 있어야 한다. 공개 HTTPS staging에서는 `true`를 사용해 브라우저가 JWT cookie를 암호화되지 않은 HTTP 요청에 보내지 않게 한다. 로컬 HTTP 개발처럼 TLS가 없는 환경에서만 `false`를 사용한다.
 
 ## image pull과 배포
 

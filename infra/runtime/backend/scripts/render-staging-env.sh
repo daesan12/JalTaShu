@@ -37,6 +37,7 @@ frontend_failure_url="$(read_env_value "${oauth_env}" FRONTEND_OAUTH_FAILURE_URL
 jwt_secret="$(read_env_value "${jwt_env}" JWT_SECRET_BASE64)"
 jwt_access_expires="$(read_env_value "${jwt_env}" JWT_ACCESS_TOKEN_EXPIRES)"
 jwt_refresh_expires="$(read_env_value "${jwt_env}" JWT_REFRESH_TOKEN_EXPIRES)"
+jwt_secure="$(read_env_value "${jwt_env}" JWT_SECURE)"
 mysql_password="$(<"${mysql_password_file}")"
 redis_password="$(read_env_value "${redis_env}" REDIS_PASSWORD)"
 
@@ -45,8 +46,13 @@ if [[ -z "${mysql_password}" ]]; then
   exit 1
 fi
 
+if [[ ${jwt_secure} != true && ${jwt_secure} != false ]]; then
+  echo 'JWT_SECURE는 true 또는 false여야 합니다.' >&2
+  exit 1
+fi
+
 temporary_file="$(mktemp "${secret_dir}/.runtime.env.XXXXXX")"
-trap 'rm -f "${temporary_file:-}"; unset kakao_rest_api_key kakao_client_secret frontend_success_url frontend_failure_url jwt_secret jwt_access_expires jwt_refresh_expires mysql_password redis_password' EXIT
+trap 'rm -f "${temporary_file:-}"; unset kakao_rest_api_key kakao_client_secret frontend_success_url frontend_failure_url jwt_secret jwt_access_expires jwt_refresh_expires jwt_secure mysql_password redis_password' EXIT
 
 {
   printf 'SPRING_DATASOURCE_URL=%s\n' 'jdbc:mysql://tashu-mysql:3306/tashu_staging?useSSL=false&useUnicode=true&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true'
@@ -63,7 +69,7 @@ trap 'rm -f "${temporary_file:-}"; unset kakao_rest_api_key kakao_client_secret 
   printf 'JWT_SECRET_BASE64=%s\n' "${jwt_secret}"
   printf 'JWT_ACCESS_TOKEN_EXPIRES=%s\n' "${jwt_access_expires}"
   printf 'JWT_REFRESH_TOKEN_EXPIRES=%s\n' "${jwt_refresh_expires}"
-  printf 'JWT_SECURE=%s\n' 'false'
+  printf 'JWT_SECURE=%s\n' "${jwt_secure}"
   printf 'TZ=%s\n' 'Asia/Seoul'
 } > "${temporary_file}"
 
@@ -71,7 +77,7 @@ chown root:root "${temporary_file}"
 chmod 0600 "${temporary_file}"
 mv -f "${temporary_file}" "${runtime_env}"
 
-unset kakao_rest_api_key kakao_client_secret frontend_success_url frontend_failure_url jwt_secret jwt_access_expires jwt_refresh_expires mysql_password redis_password
+unset kakao_rest_api_key kakao_client_secret frontend_success_url frontend_failure_url jwt_secret jwt_access_expires jwt_refresh_expires jwt_secure mysql_password redis_password
 trap - EXIT
 
 echo "생성: ${runtime_env}"

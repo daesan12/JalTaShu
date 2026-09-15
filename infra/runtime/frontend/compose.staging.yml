@@ -1,0 +1,24 @@
+name: tashu-frontend-staging
+
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE:?set FRONTEND_IMAGE to an immutable ECR image}
+    pull_policy: never
+    container_name: tashu-frontend-staging
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18080:8080"
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -qO-
+        - http://127.0.0.1:8080/health
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.50
