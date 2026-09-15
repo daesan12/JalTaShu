@@ -1,5 +1,6 @@
 package com.s15p21b103.good_tashu._util.jwt.handler;
 
+import com.s15p21b103.good_tashu._util.config.OAuth2Properties;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -12,10 +13,11 @@ import java.io.IOException;
 
 @Component
 public class OAuth2LoginFailureHandler implements AuthenticationFailureHandler {
+    private final OAuth2Properties oAuth2Properties
 
     @Override
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
         // TODO: 이후에 properties로 리다이렉트 url 연결
-        response.sendRedirect("localhost:5173/login");
+        response.sendRedirect(oAuth2Properties.failureUrl());
     }
 }
