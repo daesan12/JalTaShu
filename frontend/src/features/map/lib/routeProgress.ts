@@ -102,9 +102,17 @@ export function getRouteProgress(route: RoutePath, position: Pos | null): RouteP
 /** 도착 판정 거리(m) — GPS 오차를 감안해 정확히 0m이 아니라 이 안쪽이면 도착으로 본다 */
 const ARRIVAL_THRESHOLD_M = 30;
 
-/** 목적지에 도착했다고 볼 수 있는지 — 12 안내 자동 종료 판단에 쓴다 */
-export function hasArrived(progress: RouteProgress): boolean {
-  return progress.legIndex !== -1 && progress.remainingM <= ARRIVAL_THRESHOLD_M;
+/**
+ * 목적지에 실제로 도착했는지 — 12 안내 자동 종료 판단에 쓴다.
+ * `RouteProgress.remainingM`은 쓰지 않는다 — 그건 "경로 위 가장 가까운 점"까지의 거리라, 사용자가
+ * 경로에서 멀리 떨어져 있어도(다른 지역 등) 그 점이 우연히 도착지 쪽 끝이면 0에 가깝게 나온다.
+ * 도착 판정은 **목적지 좌표까지의 직선 거리**로만 본다.
+ */
+export function hasArrived(route: RoutePath, position: Pos | null): boolean {
+  if (position === null) return false;
+  const destination = route.location[route.location.length - 1];
+  if (destination === undefined) return false;
+  return haversineMeters(posToLatLng(position), posToLatLng(destination)) <= ARRIVAL_THRESHOLD_M;
 }
 
 /** 구간 안내 문구 — 회전 정보가 없어 "무엇을 하는 구간인지"만 말한다 */

@@ -537,16 +537,21 @@ export function MapHomePage() {
       return;
     }
     guideStartAtRef.current ??= Date.now();
-    if (arrivalHandledRef.current || guideProgress === null || !hasArrived(guideProgress)) return;
+    if (
+      arrivalHandledRef.current ||
+      detailRoute === null ||
+      !hasArrived(detailRoute, location.position)
+    )
+      return;
     arrivalHandledRef.current = true;
     const elapsedSec = (Date.now() - guideStartAtRef.current) / 1000;
-    const totalDistanceM = detailRoute?.distance.reduce((sum, m) => sum + m, 0) ?? 0;
+    const totalDistanceM = detailRoute.distance.reduce((sum, m) => sum + m, 0);
     showToast(
       `도착했습니다! ${formatMinutes(elapsedSec)} · ${formatDistance(totalDistanceM)} 이동했어요.`,
     );
     // endGuide()와 같은 동작(11 상세로 복귀) — 함수로 빼면 의존성 배열에 매번 새로 걸려 직접 호출한다
     navigate(-1);
-  }, [guideActive, guideProgress, detailRoute, showToast, navigate]);
+  }, [guideActive, detailRoute, location.position, showToast, navigate]);
 
   // 남은 시간은 남은 거리 비율로 총 소요 시간을 줄여 잡는다(구간별 속도 차이는 무시)
   const guideRemainingSec =

@@ -81,18 +81,24 @@ describe('getRouteProgress', () => {
 
 describe('hasArrived', () => {
   it('목적지 근처(30m 이내)면 도착으로 본다', () => {
-    const progress = getRouteProgress(route(), { xPos: 127.01, yPos: 36.35 });
-    expect(hasArrived(progress)).toBe(true);
+    expect(hasArrived(route(), { xPos: 127.01, yPos: 36.35 })).toBe(true);
   });
 
-  it('아직 멀면 도착이 아니다', () => {
-    const progress = getRouteProgress(route(), { xPos: 127.005, yPos: 36.35 });
-    expect(hasArrived(progress)).toBe(false);
+  it('경로상 목적지 근처라도 실제 거리가 멀면 도착이 아니다', () => {
+    expect(hasArrived(route(), { xPos: 127.005, yPos: 36.35 })).toBe(false);
   });
 
-  it('좌표가 모자란 빈 결과는 도착이 아니다', () => {
-    const progress = getRouteProgress(route({ location: [POINTS[0]] }), null);
-    expect(hasArrived(progress)).toBe(false);
+  it('경로에서 아예 멀리 떨어진 위치는 도착지 쪽 끝점에 가장 가까워도 도착이 아니다 — 진행률(nearestPoint) 스냅과 무관하게 목적지까지 직선 거리로만 본다', () => {
+    // 경로에서 한참 떨어진 지점(동쪽으로 약 90km) — 그래도 굳이 따지면 출발점보다는 도착점에 더 가깝다
+    expect(hasArrived(route(), { xPos: 128, yPos: 36.35 })).toBe(false);
+  });
+
+  it('위치를 모르면 도착이 아니다', () => {
+    expect(hasArrived(route(), null)).toBe(false);
+  });
+
+  it('좌표가 없는 경로는 도착이 아니다', () => {
+    expect(hasArrived(route({ location: [] }), { xPos: 127.01, yPos: 36.35 })).toBe(false);
   });
 });
 
