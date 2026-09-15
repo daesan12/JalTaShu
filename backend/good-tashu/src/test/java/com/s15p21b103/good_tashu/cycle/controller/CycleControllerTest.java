@@ -193,7 +193,7 @@ class CycleControllerTest {
         LocalDateTime startingDate = LocalDateTime.of(2026, 9, 15, 10, 0);
         var pathInfo = new PathInfo(List.of(new PathInfo.PathPoint(
                 new BigDecimal("36.350400"), new BigDecimal("127.384500"),
-                new BigDecimal("52.3"), PathInfo.Mode.cycle, 1)));
+                new BigDecimal("52.3"), PathInfo.Mode.CYCLE, 1)));
         var response = new CycleUsageDetailResponse(
                 600, 3000,
                 new CyclePointResponse(new BigDecimal("36.350400"), new BigDecimal("127.384500")),
@@ -207,7 +207,7 @@ class CycleControllerTest {
                 .andExpect(jsonPath("$.data.totalDuration").value(600))
                 .andExpect(jsonPath("$.data.totalDistance").value(3000))
                 .andExpect(jsonPath("$.data.averageCycleRidingSpeed").value(18.0))
-                .andExpect(jsonPath("$.data.pathInfo.road[0].mode").value("cycle"))
+                .andExpect(jsonPath("$.data.pathInfo.road[0].mode").value("CYCLE"))
                 .andExpect(jsonPath("$.data.pathInfo.road[0].seq").value(1));
 
         verify(cycleService).getUsageDetail(1L, 12L);

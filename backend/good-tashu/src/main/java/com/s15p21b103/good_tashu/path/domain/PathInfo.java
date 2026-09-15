@@ -14,6 +14,6 @@ public record PathInfo(List<PathPoint> road) {
     }
 
     public enum Mode {
-        walk, cycle
+        WALK, CYCLE
     }
 }
