@@ -571,6 +571,10 @@ export function MapHomePage() {
     : destinationSheetOpen || rentSheetOpen || returnSheetOpen
       ? LIFT_FOR_MINI_SHEET_CLASS
       : '';
+  // "대여하기"는 아무것도 열려 있지 않은 맨 처음 지도에서만 필요하다 — 대여소를 보거나 목적지를
+  // 확정하려는 중이면 이미 다른 화면으로 넘어간 것이라 굳이 보여줄 이유가 없다
+  const showRentButton =
+    !stationSheetOpen && !destinationSheetOpen && !searchOpen && !rentSheetOpen && !returnSheetOpen;
   // 출발지 표시 문구 — 08 검색 화면과 10 비교 화면 상단 바가 같이 쓴다
   const startLabel = customStart?.title ?? (location.loading ? '현재 위치 확인 중…' : '현재 위치');
 
@@ -632,9 +636,11 @@ export function MapHomePage() {
           className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${liftClass}`}
         >
           <CurrentLocationButton onClick={focusCurrentLocation} loading={location.loading} />
-          <Button full onClick={openRentSheet}>
-            대여하기
-          </Button>
+          {showRentButton ? (
+            <Button full onClick={openRentSheet}>
+              대여하기
+            </Button>
+          ) : null}
         </div>
       )}
 
