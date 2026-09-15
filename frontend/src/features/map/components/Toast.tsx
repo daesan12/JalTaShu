@@ -8,7 +8,7 @@ export function Toast({ message }: ToastProps) {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none absolute inset-x-0 bottom-36 z-30 flex justify-center px-4"
+      className="pointer-events-none absolute inset-x-0 bottom-36 z-50 flex justify-center px-4"
     >
       <p className="rounded-full bg-gray-900/85 px-4 py-2 text-sm font-medium text-white shadow-lg">
         {message}

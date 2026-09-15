@@ -8,6 +8,7 @@ import { Button } from '@/shared/ui/Button';
 import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/stations';
 import { NOTICE_POPUPS_QUERY_KEY, getNoticePopups } from '@/features/map/api/noticePopups';
 import { getRoutePaths } from '@/features/map/api/routes';
+import { ArrivalSummaryScreen } from '@/features/map/components/ArrivalSummaryScreen';
 import { CurrentLocationButton } from '@/features/map/components/CurrentLocationButton';
 import { CycleRentSheet } from '@/features/map/components/CycleRentSheet';
 import { CycleReturnSheet } from '@/features/map/components/CycleReturnSheet';
@@ -39,7 +40,7 @@ import {
   isNoticePopupHidden,
   markNoticePopupClosed,
 } from '@/features/map/lib/noticePopupHide';
-import { getRouteProgress } from '@/features/map/lib/routeProgress';
+import { getRouteProgress, hasArrived } from '@/features/map/lib/routeProgress';
 import { toLegs } from '@/features/map/lib/routeSegments';
 import {
   assignBadges,
@@ -145,9 +146,20 @@ export function MapHomePage() {
   const [returnStationId, setReturnStationId] = useState<string | null>(null);
   // 출발지를 직접 골랐을 때만 값이 있다. null이면 항상 현재 위치가 출발지다
   const [customStart, setCustomStart] = useState<PlaceSearchResult | null>(null);
+  // 12 안내 중 실제 도착(30m 이내)하면 채워지는 전체 화면 요약 — null이면 안 보인다
+  const [arrivalSummary, setArrivalSummary] = useState<{
+    destinationTitle: string;
+    elapsedSec: number;
+    totalDistanceM: number;
+    bikeDistanceM: number;
+    route: RoutePath;
+  } | null>(null);
   const location = useCurrentLocation();
   // 읽기만 하므로 state가 아니라 ref에 둔다(지도를 옮길 때마다 화면을 다시 그릴 이유가 없다)
   const mapRef = useRef<naver.maps.Map | null>(null);
+  // 12 안내 시작 시각(도착 요약의 소요 시간 계산용)과 도착 처리 중복 방지 플래그 — 렌더에 쓰지 않아 ref로 둔다
+  const guideStartAtRef = useRef<number | null>(null);
+  const arrivalHandledRef = useRef(false);
   const handleMapReady = useCallback((map: naver.maps.Map | null) => {
     mapRef.current = map;
   }, []);
@@ -477,9 +489,24 @@ export function MapHomePage() {
     setSearchParams({ [ROUTES_PARAM]: '1', [DETAIL_PARAM]: '1', [GUIDE_PARAM]: '1' });
   }
 
-  // "안내 종료"·뒤로가기 → 경로 상세(11)로
+  /**
+   * "안내 종료"를 직접 눌러 끝낼 때 — 실제로 도착한 게 아니라 중간에 그만둔 것이므로 요약 없이
+   * 지도로 나간다. 목적지·경로도 처음부터 다시 찾도록 같이 초기화한다(`clearDestination`).
+   * 자동 도착 감지(아래 useEffect)는 이 함수를 쓰지 않고 전체 화면 요약(`arrivalSummary`)을 띄운다
+   * — 그건 실제 도착이라 다르게 취급한다. 요약 화면의 "닫기"가 이 함수와 똑같이 지도로 나간다
+   * (`closeArrivalSummary`).
+   * 브라우저·하드웨어 뒤로가기는 그대로 한 단계만 닫는다(11로) — 여기서 건드리지 않는다.
+   */
   function endGuide() {
-    navigate(-1);
+    clearDestination();
+    navigate('/');
+  }
+
+  // 도착 요약 화면의 "닫기" — 수동 종료와 같은 동작(지도로 나가고 목적지·경로 초기화)
+  function closeArrivalSummary() {
+    setArrivalSummary(null);
+    clearDestination();
+    navigate('/');
   }
 
   // 공지 상세 화면이 아직 없어 연결된 공지 번호와 상관없이 목록으로 보낸다
@@ -522,6 +549,37 @@ export function MapHomePage() {
     () => (detailRoute === null ? 0 : toLegs(detailRoute).length),
     [detailRoute],
   );
+
+  // 목적지 근처(30m 이내)에 오면 안내를 자동으로 끝내고 전체 화면 요약을 띄운다.
+  // "안내 종료" 버튼으로 직접 끝낼 때는 요약을 보여주지 않는다 — 도착이 아니라 중단이라서다
+  useEffect(() => {
+    if (!guideActive) {
+      guideStartAtRef.current = null;
+      arrivalHandledRef.current = false;
+      return;
+    }
+    guideStartAtRef.current ??= Date.now();
+    if (
+      arrivalHandledRef.current ||
+      detailRoute === null ||
+      !hasArrived(detailRoute, location.position)
+    )
+      return;
+    arrivalHandledRef.current = true;
+    const totalDistanceM = detailRoute.distance.reduce((sum, m) => sum + m, 0);
+    const bikeDistanceM = detailRoute.distance.reduce(
+      (sum, m, i) => sum + (detailRoute.behave[i] === 'BIKE' ? m : 0),
+      0,
+    );
+    setArrivalSummary({
+      destinationTitle: destination?.title ?? '목적지',
+      elapsedSec: (Date.now() - guideStartAtRef.current) / 1000,
+      totalDistanceM,
+      bikeDistanceM,
+      route: detailRoute,
+    });
+  }, [guideActive, detailRoute, location.position, destination]);
+
   // 남은 시간은 남은 거리 비율로 총 소요 시간을 줄여 잡는다(구간별 속도 차이는 무시)
   const guideRemainingSec =
     guideProgress === null || selectedRouteIndex === null
@@ -533,6 +591,10 @@ export function MapHomePage() {
     : destinationSheetOpen || rentSheetOpen || returnSheetOpen
       ? LIFT_FOR_MINI_SHEET_CLASS
       : '';
+  // "대여하기"는 아무것도 열려 있지 않은 맨 처음 지도에서만 필요하다 — 대여소를 보거나 목적지를
+  // 확정하려는 중이면 이미 다른 화면으로 넘어간 것이라 굳이 보여줄 이유가 없다
+  const showRentButton =
+    !stationSheetOpen && !destinationSheetOpen && !searchOpen && !rentSheetOpen && !returnSheetOpen;
   // 출발지 표시 문구 — 08 검색 화면과 10 비교 화면 상단 바가 같이 쓴다
   const startLabel = customStart?.title ?? (location.loading ? '현재 위치 확인 중…' : '현재 위치');
 
@@ -594,9 +656,11 @@ export function MapHomePage() {
           className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${liftClass}`}
         >
           <CurrentLocationButton onClick={focusCurrentLocation} loading={location.loading} />
-          <Button full onClick={openRentSheet}>
-            대여하기
-          </Button>
+          {showRentButton ? (
+            <Button full onClick={openRentSheet}>
+              대여하기
+            </Button>
+          ) : null}
         </div>
       )}
 
@@ -669,7 +733,7 @@ export function MapHomePage() {
         />
       ) : null}
 
-      {/* 검색 오버레이는 탭바(z-20)를 덮고, 뒤에 오는 토스트(z-30)보다는 아래에 둔다 */}
+      {/* 검색 오버레이는 탭바(z-20)를 덮고, 토스트(z-50)보다는 아래에 둔다 */}
       {searchOpen ? (
         <PlaceSearchOverlay
           // field가 바뀌면 입력 중이던 검색어·결과를 새로 시작해야 하므로 컴포넌트를 새로 만든다
@@ -699,6 +763,17 @@ export function MapHomePage() {
           onOpenNotice={openNotice}
         />
       )}
+
+      {arrivalSummary ? (
+        <ArrivalSummaryScreen
+          destinationTitle={arrivalSummary.destinationTitle}
+          elapsedSec={arrivalSummary.elapsedSec}
+          totalDistanceM={arrivalSummary.totalDistanceM}
+          bikeDistanceM={arrivalSummary.bikeDistanceM}
+          route={arrivalSummary.route}
+          onClose={closeArrivalSummary}
+        />
+      ) : null}
     </div>
   );
 }
