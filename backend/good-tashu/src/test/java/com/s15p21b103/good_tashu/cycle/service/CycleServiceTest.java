@@ -45,6 +45,7 @@ class CycleServiceTest {
     @Mock CycleClaimRepository cycleClaimRepository;
     @Mock CycleClaimReportRepository cycleClaimReportRepository;
     @Mock S3Service s3Service;
+    @Mock com.s15p21b103.good_tashu.path.repository.PathRepository pathRepository;
     @InjectMocks CycleService cycleService;
 
     private final UserEntity user = UserEntity.builder().nickname("타슈이용자").build();

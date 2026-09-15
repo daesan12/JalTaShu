@@ -983,4 +983,20 @@ export const handlers = [
     }
     return HttpResponse.json(ok(new Date().toISOString()));
   }),
+
+  http.post('/api/cycle/return', async ({ request }) => {
+    await delay(500);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const body = (await request.json()) as { cycleId?: string; stationId?: string };
+    const cycleId = body.cycleId?.trim().toUpperCase();
+    if (!cycleId) return fail(400, '자전거 번호를 입력해 주세요.');
+    if (!body.stationId || !STATIONS.some((station) => station.stationId === body.stationId)) {
+      return fail(404, '존재하지 않는 대여소입니다.');
+    }
+    if (!RENTED_CYCLE_IDS.includes(cycleId)) {
+      return fail(409, '대여 중인 자전거가 아닙니다.');
+    }
+    return HttpResponse.json(ok(new Date().toISOString()));
+  }),
 ];

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { ApiError } from '@/shared/api/client';
 import { BottomSheet } from '@/shared/ui/BottomSheet';
@@ -31,6 +31,13 @@ interface CycleRentSheetProps {
  */
 export function CycleRentSheet({ open, onClose, onRented }: CycleRentSheetProps) {
   const [code, setCode] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // autoFocus는 마운트 시점(시트가 닫혀 있어도 DOM에 존재)에 발동해 지도 진입만으로
+  // 키보드가 올라오므로, 시트가 "열릴 때" 포커스를 준다
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
 
   const rent = useMutation({
     mutationFn: rentCycle,
@@ -83,7 +90,7 @@ export function CycleRentSheet({ open, onClose, onRented }: CycleRentSheetProps)
           value={code}
           onChange={(e) => setCode(e.target.value)}
           autoCapitalize="characters"
-          autoFocus
+          ref={inputRef}
           disabled={rent.isPending}
           error={
             code.length > 0 && !formatValid
