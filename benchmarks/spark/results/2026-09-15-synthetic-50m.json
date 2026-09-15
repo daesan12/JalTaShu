@@ -1,0 +1,48 @@
+{
+  "benchmark": "spark-local-vs-workers-synthetic-aggregation",
+  "date": "2026-09-15",
+  "spark_version": "4.1.3",
+  "input": {
+    "rows": 50000000,
+    "partitions": 96
+  },
+  "resource_policy": {
+    "driver_cpu_limit": 2,
+    "local_threads": 2,
+    "one_worker_total_cores": 2,
+    "two_workers_total_cores": 4,
+    "executor_cores": 2,
+    "executor_memory": "2g"
+  },
+  "runs_seconds": {
+    "local": [24.355, 24.405, 24.539],
+    "one_worker": [25.938, 25.834, 26.140],
+    "two_workers": [18.589, 19.243, 20.034]
+  },
+  "summary_seconds": {
+    "local_median": 24.405,
+    "local_average": 24.433,
+    "one_worker_median": 25.938,
+    "one_worker_average": 25.971,
+    "two_workers_median": 19.243,
+    "two_workers_average": 19.289
+  },
+  "comparison": {
+    "one_worker_vs_local_percent_slower": 6.3,
+    "two_workers_vs_one_worker_percent_faster": 25.8,
+    "two_workers_vs_local_percent_faster": 21.1,
+    "two_workers_vs_one_worker_speedup": 1.35,
+    "two_workers_vs_local_speedup": 1.27
+  },
+  "checksum": {
+    "row_count": 50000000,
+    "group_count": 131904,
+    "metric_sum": 24979068663,
+    "metric_max_sum": 131486213,
+    "identical_across_all_runs": true
+  },
+  "excluded_preflight": {
+    "reason": "The submit container had a one-CPU limit, which made local[2] an unfair baseline.",
+    "used_in_summary": false
+  }
+}

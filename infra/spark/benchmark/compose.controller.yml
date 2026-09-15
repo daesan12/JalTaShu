@@ -1,0 +1,81 @@
+name: tashu-spark-benchmark-controller
+
+x-spark-common: &spark-common
+  image: spark:4.1.3-scala2.13-java21-python3-ubuntu@sha256:a7b323f4557eab1dce6e2242346560cd52a0bd0f9c32cdac60eea6d709eb05ba
+  user: "185:185"
+  network_mode: host
+  security_opt:
+    - no-new-privileges:true
+  environment:
+    TZ: Asia/Seoul
+
+services:
+  benchmark-master:
+    <<: *spark-common
+    container_name: tashu-spark-benchmark-master
+    restart: unless-stopped
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.master.Master
+      - --host
+      - ${SPARK_MASTER_HOST:?set SPARK_MASTER_HOST to Server B private IP}
+      - --port
+      - "17077"
+      - --webui-port
+      - "18181"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/${SPARK_MASTER_HOST}/17077'"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    mem_limit: 768m
+    cpus: 0.5
+
+  benchmark-worker-b:
+    <<: *spark-common
+    container_name: tashu-spark-benchmark-worker-b
+    restart: unless-stopped
+    depends_on:
+      benchmark-master:
+        condition: service_healthy
+    volumes:
+      - /srv/tashu/data/spark-benchmark/work:/opt/spark/work
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.worker.Worker
+      - --host
+      - ${SPARK_MASTER_HOST:?set SPARK_MASTER_HOST to Server B private IP}
+      - --port
+      - "17078"
+      - --cores
+      - "2"
+      - --memory
+      - 3g
+      - --webui-port
+      - "18182"
+      - spark://${SPARK_MASTER_HOST:?set SPARK_MASTER_HOST to Server B private IP}:17077
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/18182'"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    mem_limit: 4g
+    cpus: 2.0
+
+  benchmark-submit:
+    <<: *spark-common
+    container_name: tashu-spark-benchmark-submit
+    profiles:
+      - tools
+    restart: "no"
+    volumes:
+      - ./workload.py:/opt/tashu/spark-benchmark/workload.py:ro
+      - /srv/tashu/data/spark-benchmark/results:/srv/tashu/spark-benchmark/results
+      - /srv/tashu/data/spark-benchmark/work:/srv/tashu/spark-benchmark/work
+    command:
+      - /opt/spark/bin/spark-submit
+      - --version
+    mem_limit: 2g
+    cpus: 2.0
