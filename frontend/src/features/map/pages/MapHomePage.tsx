@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { ApiError } from '@/shared/api/client';
 import type { PlaceSearchResult, Pos, RoutePath } from '@/shared/api/types';
 import { latLngToPos } from '@/shared/lib/coords';
+import { formatDistance } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/Button';
 import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/stations';
 import { NOTICE_POPUPS_QUERY_KEY, getNoticePopups } from '@/features/map/api/noticePopups';
@@ -39,10 +40,11 @@ import {
   isNoticePopupHidden,
   markNoticePopupClosed,
 } from '@/features/map/lib/noticePopupHide';
-import { getRouteProgress } from '@/features/map/lib/routeProgress';
+import { getRouteProgress, hasArrived } from '@/features/map/lib/routeProgress';
 import { toLegs } from '@/features/map/lib/routeSegments';
 import {
   assignBadges,
+  formatMinutes,
   sortSummaries,
   summarizeRoutes,
   type RouteSort,
@@ -148,6 +150,9 @@ export function MapHomePage() {
   const location = useCurrentLocation();
   // 읽기만 하므로 state가 아니라 ref에 둔다(지도를 옮길 때마다 화면을 다시 그릴 이유가 없다)
   const mapRef = useRef<naver.maps.Map | null>(null);
+  // 12 안내 시작 시각(도착 요약의 소요 시간 계산용)과 도착 처리 중복 방지 플래그 — 렌더에 쓰지 않아 ref로 둔다
+  const guideStartAtRef = useRef<number | null>(null);
+  const arrivalHandledRef = useRef(false);
   const handleMapReady = useCallback((map: naver.maps.Map | null) => {
     mapRef.current = map;
   }, []);
@@ -522,6 +527,27 @@ export function MapHomePage() {
     () => (detailRoute === null ? 0 : toLegs(detailRoute).length),
     [detailRoute],
   );
+
+  // 목적지 근처(30m 이내)에 오면 안내를 자동으로 끝내고 소요 시간·이동 거리를 토스트로 알린다.
+  // "안내 종료" 버튼으로 직접 끝낼 때는 요약을 보여주지 않는다 — 도착이 아니라 중단이라서다
+  useEffect(() => {
+    if (!guideActive) {
+      guideStartAtRef.current = null;
+      arrivalHandledRef.current = false;
+      return;
+    }
+    guideStartAtRef.current ??= Date.now();
+    if (arrivalHandledRef.current || guideProgress === null || !hasArrived(guideProgress)) return;
+    arrivalHandledRef.current = true;
+    const elapsedSec = (Date.now() - guideStartAtRef.current) / 1000;
+    const totalDistanceM = detailRoute?.distance.reduce((sum, m) => sum + m, 0) ?? 0;
+    showToast(
+      `도착했습니다! ${formatMinutes(elapsedSec)} · ${formatDistance(totalDistanceM)} 이동했어요.`,
+    );
+    // endGuide()와 같은 동작(11 상세로 복귀) — 함수로 빼면 의존성 배열에 매번 새로 걸려 직접 호출한다
+    navigate(-1);
+  }, [guideActive, guideProgress, detailRoute, showToast, navigate]);
+
   // 남은 시간은 남은 거리 비율로 총 소요 시간을 줄여 잡는다(구간별 속도 차이는 무시)
   const guideRemainingSec =
     guideProgress === null || selectedRouteIndex === null

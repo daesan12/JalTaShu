@@ -38,7 +38,9 @@ const EMPTY: RouteProgress = {
 function cumulativeDistances(points: Pos[]): number[] {
   const cumulative = [0];
   for (let i = 1; i < points.length; i++) {
-    cumulative.push(cumulative[i - 1] + haversineMeters(posToLatLng(points[i - 1]), posToLatLng(points[i])));
+    cumulative.push(
+      cumulative[i - 1] + haversineMeters(posToLatLng(points[i - 1]), posToLatLng(points[i])),
+    );
   }
   return cumulative;
 }
@@ -95,6 +97,14 @@ export function getRouteProgress(route: RoutePath, position: Pos | null): RouteP
     legRemainingM: Math.max(0, Math.round(ends[legIndex] - traveledM)),
     ratio: Math.min(1, traveledM / totalM),
   };
+}
+
+/** 도착 판정 거리(m) — GPS 오차를 감안해 정확히 0m이 아니라 이 안쪽이면 도착으로 본다 */
+const ARRIVAL_THRESHOLD_M = 30;
+
+/** 목적지에 도착했다고 볼 수 있는지 — 12 안내 자동 종료 판단에 쓴다 */
+export function hasArrived(progress: RouteProgress): boolean {
+  return progress.legIndex !== -1 && progress.remainingM <= ARRIVAL_THRESHOLD_M;
 }
 
 /** 구간 안내 문구 — 회전 정보가 없어 "무엇을 하는 구간인지"만 말한다 */

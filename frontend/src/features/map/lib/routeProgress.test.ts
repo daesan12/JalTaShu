@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RoutePath } from '@/shared/api/types';
-import { getRouteProgress, legInstruction } from '@/features/map/lib/routeProgress';
+import { getRouteProgress, hasArrived, legInstruction } from '@/features/map/lib/routeProgress';
 
 /**
  * 위도 36.35에서 경도 0.001도 ≈ 89.6m.
@@ -76,6 +76,23 @@ describe('getRouteProgress', () => {
     const progress = getRouteProgress(route({ location: [POINTS[0]] }), null);
     expect(progress.legIndex).toBe(-1);
     expect(progress.leg).toBeNull();
+  });
+});
+
+describe('hasArrived', () => {
+  it('목적지 근처(30m 이내)면 도착으로 본다', () => {
+    const progress = getRouteProgress(route(), { xPos: 127.01, yPos: 36.35 });
+    expect(hasArrived(progress)).toBe(true);
+  });
+
+  it('아직 멀면 도착이 아니다', () => {
+    const progress = getRouteProgress(route(), { xPos: 127.005, yPos: 36.35 });
+    expect(hasArrived(progress)).toBe(false);
+  });
+
+  it('좌표가 모자란 빈 결과는 도착이 아니다', () => {
+    const progress = getRouteProgress(route({ location: [POINTS[0]] }), null);
+    expect(hasArrived(progress)).toBe(false);
   });
 });
 
