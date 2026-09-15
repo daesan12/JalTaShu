@@ -108,6 +108,10 @@ pipeline {
                         credentialsId: 'aws-ecr-push',
                         usernameVariable: 'AWS_ACCESS_KEY_ID',
                         passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    ),
+                    string(
+                        credentialsId: 'naver-map-client-id',
+                        variable: 'FRONTEND_MAP_CLIENT_ID'
                     )
                 ]) {
                     sh '''
@@ -140,6 +144,7 @@ pipeline {
                           --build-arg FRONTEND_LOGIN_PATH=/staging-auth \
                           --build-arg FRONTEND_BASE_PATH=/staging/ \
                           --build-arg FRONTEND_ENABLE_MSW=false \
+                          --build-arg FRONTEND_MAP_CLIENT_ID="${FRONTEND_MAP_CLIENT_ID}" \
                           --tag "${frontend_local}" \
                           .
 

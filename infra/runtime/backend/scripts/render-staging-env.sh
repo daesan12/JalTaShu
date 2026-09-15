@@ -70,6 +70,7 @@ trap 'rm -f "${temporary_file:-}"; unset kakao_rest_api_key kakao_client_secret 
   printf 'JWT_ACCESS_TOKEN_EXPIRES=%s\n' "${jwt_access_expires}"
   printf 'JWT_REFRESH_TOKEN_EXPIRES=%s\n' "${jwt_refresh_expires}"
   printf 'JWT_SECURE=%s\n' "${jwt_secure}"
+  printf 'SERVER_FORWARD_HEADERS_STRATEGY=%s\n' 'framework'
   printf 'TZ=%s\n' 'Asia/Seoul'
 } > "${temporary_file}"
 

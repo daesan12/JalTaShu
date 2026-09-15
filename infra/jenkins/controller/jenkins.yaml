@@ -79,6 +79,11 @@ credentials:
               id: "server-a-deploy-host"
               secret: "${server_a_deploy_host}"
               description: "Server A private deployment host"
+          - string:
+              scope: GLOBAL
+              id: "naver-map-client-id"
+              secret: "${naver_map_client_id}"
+              description: "Naver Maps browser Client ID for staging frontend builds"
 
 unclassified:
   location:

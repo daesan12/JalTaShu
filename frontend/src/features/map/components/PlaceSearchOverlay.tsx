@@ -14,9 +14,6 @@ import {
 } from '@/features/map/api/places';
 import { PlaceRow } from '@/features/map/components/PlaceRow';
 
-/** 출발지 바꾸기는 별도 이슈라 지금은 안내만 띄운다 */
-const COMING_SOON = '준비 중입니다.';
-
 const stroke = {
   stroke: 'currentColor',
   strokeWidth: 2,
@@ -31,17 +28,29 @@ function placeKey(place: PlaceSearchResult) {
 
 interface PlaceSearchOverlayProps {
   onClose: () => void;
-  /** 결과·최근 검색에서 장소를 고르면 호출. 최근 검색 저장은 이 컴포넌트가 처리한다 */
+  /** 결과·최근 검색에서 장소를 고르면 호출(현재 field 기준). 최근 검색 저장은 이 컴포넌트가 처리한다 */
   onSelect: (place: PlaceSearchResult) => void;
   /** 현재 위치 — 결과까지의 직선거리를 보여주는 데 쓴다. 모르면 null */
   currentLocation: Pos | null;
-  /** 위치를 다시 조회한다("현재 위치" 줄·"내 위치" 칩). 실패 안내는 페이지가 띄운다 */
+  /** 위치를 다시 조회한다("내 위치" 칩). 실패 안내는 페이지가 띄운다 */
   onRefreshLocation: () => void;
-  /** 위치 조회 중 — 출발지 줄 문구를 바꾼다 */
+  /** 위치 조회 중 — 문구를 바꾼다 */
   locationLoading: boolean;
-  /** "지도에서 선택" — 오버레이를 닫고 지도 선택 모드로 넘어간다 */
+  /** "지도에서 선택" — 오버레이를 닫고 지도 선택 모드로 넘어간다(현재 field 기준) */
   onPickOnMap: () => void;
-  showToast: (text: string) => void;
+  /**
+   * 'destination'(기본) — 목적지를 고르는 원래 화면. 위에 출발지 줄 + 바꾸기 버튼이 있다.
+   * 'start' — 출발지를 고르는 중첩 화면(출발지 줄을 눌러 들어옴). 헤더·칩 문구가 달라진다.
+   */
+  field?: 'start' | 'destination';
+  /** field==='destination'일 때 출발지 줄에 보여줄 이름("현재 위치" 또는 고른 장소 이름) */
+  startLabel: string;
+  /** field==='destination'일 때 출발지 줄을 누르면 — 출발지 고르는 화면으로 이동 */
+  onEditStart: () => void;
+  /** field==='destination'일 때 바꾸기(↕) 버튼 — 출발지·목적지를 서로 맞바꾼다 */
+  onSwap: () => void;
+  /** field==='start'일 때 "현재 위치 사용" — 고른 출발지를 지우고 자동(현재 위치)으로 되돌린다 */
+  onUseCurrentLocationAsStart: () => void;
 }
 
 /**
@@ -55,8 +64,13 @@ export function PlaceSearchOverlay({
   onRefreshLocation,
   locationLoading,
   onPickOnMap,
-  showToast,
+  field = 'destination',
+  startLabel,
+  onEditStart,
+  onSwap,
+  onUseCurrentLocationAsStart,
 }: PlaceSearchOverlayProps) {
+  const isStartMode = field === 'start';
   const [input, setInput] = useState('');
   // 실제로 검색을 실행한 검색어. 입력 중인 글자와 분리해 결과가 흔들리지 않게 한다
   const [submitted, setSubmitted] = useState('');
@@ -113,7 +127,7 @@ export function PlaceSearchOverlay({
       aria-label="장소 검색"
       className="pt-safe pb-safe fixed inset-y-0 left-1/2 z-30 flex w-full max-w-[430px] -translate-x-1/2 flex-col bg-surface"
     >
-      {/* 상단 — 뒤로가기 · 출발/목적지 · 바꾸기 */}
+      {/* 상단 — 뒤로가기 · (목적지 모드일 때만) 출발지 줄 + 바꾸기 · 검색 입력 */}
       <div className="flex items-start gap-1 px-2 pt-2">
         <div className="flex flex-col items-center">
           <button
@@ -126,33 +140,38 @@ export function PlaceSearchOverlay({
               <path d="M15 5 8 12l7 7" {...stroke} />
             </svg>
           </button>
-          <button
-            type="button"
-            aria-label="출발지와 목적지 바꾸기"
-            onClick={() => showToast(COMING_SOON)}
-            className="flex h-11 w-11 items-center justify-center rounded-full text-gray-500 transition-[background-color] duration-75 active:bg-gray-100"
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5">
-              <path d="M8 4v13M5 14l3 3 3-3M16 20V7M13 10l3-3 3 3" {...stroke} strokeWidth={1.8} />
-            </svg>
-          </button>
+          {isStartMode ? null : (
+            <button
+              type="button"
+              aria-label="출발지와 목적지 바꾸기"
+              onClick={onSwap}
+              className="flex h-11 w-11 items-center justify-center rounded-full text-gray-500 transition-[background-color] duration-75 active:bg-gray-100"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5">
+                <path
+                  d="M8 4v13M5 14l3 3 3-3M16 20V7M13 10l3-3 3 3"
+                  {...stroke}
+                  strokeWidth={1.8}
+                />
+              </svg>
+            </button>
+          )}
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-2 pr-2">
-          {/* 출발지는 항상 현재 위치다. 누르면 위치를 다시 잡는다(권한을 나중에 허용한 경우용) */}
-          <button
-            type="button"
-            onClick={onRefreshLocation}
-            disabled={locationLoading}
-            className="flex min-h-11 items-center gap-2.5 rounded-xl bg-background px-3.5 text-left transition-[background-color] duration-75 active:bg-gray-100 disabled:opacity-60"
-          >
-            <span aria-hidden="true" className="flex h-4 w-4 items-center justify-center">
-              <span className="h-3.5 w-3.5 rounded-full border-[2.5px] border-primary" />
-            </span>
-            <span className="truncate text-[15px] text-gray-900">
-              {locationLoading ? '현재 위치 확인 중…' : '현재 위치'}
-            </span>
-          </button>
+          {/* 목적지를 고르는 화면에서만 출발지 줄을 보여준다. 누르면 출발지 고르는 화면(field='start')으로 들어간다 */}
+          {isStartMode ? null : (
+            <button
+              type="button"
+              onClick={onEditStart}
+              className="flex min-h-11 items-center gap-2.5 rounded-xl bg-background px-3.5 text-left transition-[background-color] duration-75 active:bg-gray-100"
+            >
+              <span aria-hidden="true" className="flex h-4 w-4 items-center justify-center">
+                <span className="h-3.5 w-3.5 rounded-full border-[2.5px] border-primary" />
+              </span>
+              <span className="truncate text-[15px] text-gray-900">{startLabel}</span>
+            </button>
+          )}
 
           <form onSubmit={handleSubmit} className="relative">
             <span
@@ -166,7 +185,7 @@ export function PlaceSearchOverlay({
               inputMode="search"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="어디로 갈까요?"
+              placeholder={isStartMode ? '출발지를 검색해 보세요' : '어디로 갈까요?'}
               enterKeyHint="search"
               autoComplete="off"
               autoFocus
@@ -189,7 +208,13 @@ export function PlaceSearchOverlay({
       </div>
 
       <div className="flex gap-2 px-4 pt-3 pb-3">
-        <Chip onClick={onRefreshLocation}>내 위치</Chip>
+        {isStartMode ? (
+          <Chip onClick={onUseCurrentLocationAsStart}>현재 위치 사용</Chip>
+        ) : (
+          <Chip onClick={onRefreshLocation} disabled={locationLoading}>
+            내 위치
+          </Chip>
+        )}
         <Chip onClick={onPickOnMap}>지도에서 선택</Chip>
       </div>
 
