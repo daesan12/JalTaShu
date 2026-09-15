@@ -87,8 +87,17 @@ const GUIDE_PARAM = 'guide';
  */
 const PICK_PARAM = 'pick';
 
+/**
+ * 08에서 출발지를 고르는 중이면 `?search=1&field=start`(목적지 검색 위에 한 단계 더).
+ * "지도에서 선택"까지 들어가면 `?search=1&field=start&pick=1`. 값이 없거나 다르면 목적지 모드다.
+ */
+const FIELD_PARAM = 'field';
+const START_FIELD_VALUE = 'start';
+
 /** 지도에서 고른 지점의 이름 — 역지오코딩을 하지 않으므로 주소 대신 이 문구를 쓴다 */
 const PICKED_PLACE_TITLE = '지도에서 선택한 위치';
+/** 바꾸기(↕) 버튼으로 목적지 자리에 들어갈 때 쓰는, 이전 출발 위치의 이름 */
+const SWAPPED_START_TITLE = '출발했던 위치';
 
 /**
  * 시트가 열리면 하단 버튼을 시트 높이만큼 올린다.
@@ -119,6 +128,7 @@ export function MapHomePage() {
   const detailInUrl = searchParams.get(DETAIL_PARAM) === '1';
   const guideInUrl = searchParams.get(GUIDE_PARAM) === '1';
   const pickInUrl = searchParams.get(PICK_PARAM) === '1';
+  const startFieldInUrl = searchParams.get(FIELD_PARAM) === START_FIELD_VALUE;
   const [compareSnap, setCompareSnap] = useState<RouteCompareSnap>('half');
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [stationSnap, setStationSnap] = useState<StationSnap>('peek');
@@ -129,6 +139,8 @@ export function MapHomePage() {
   // 현재위치 버튼을 누른 횟수 — 같은 자리에서 다시 눌러도 지도가 그 위치로 돌아오게 하는 신호
   const [locationFocusToken, setLocationFocusToken] = useState(0);
   const [rentSheetOpen, setRentSheetOpen] = useState(false);
+  // 출발지를 직접 골랐을 때만 값이 있다. null이면 항상 현재 위치가 출발지다
+  const [customStart, setCustomStart] = useState<PlaceSearchResult | null>(null);
   const location = useCurrentLocation();
   // 읽기만 하므로 state가 아니라 ref에 둔다(지도를 옮길 때마다 화면을 다시 그릴 이유가 없다)
   const mapRef = useRef<naver.maps.Map | null>(null);
@@ -232,9 +244,16 @@ export function MapHomePage() {
     navigate(-1);
   }
 
-  /** 08 "지도에서 선택" — 검색 위에 한 단계 쌓는다. 뒤로가기가 곧 취소다 */
+  /** 08 "지도에서 선택" — 검색 위에 한 단계 쌓는다. 뒤로가기가 곧 취소다. 출발지 화면에서 들어왔으면 field를 유지한다 */
   function openMapPick() {
-    setSearchParams({ [SEARCH_PARAM]: '1', [PICK_PARAM]: '1' });
+    const params: Record<string, string> = { [SEARCH_PARAM]: '1', [PICK_PARAM]: '1' };
+    if (startFieldInUrl) params[FIELD_PARAM] = START_FIELD_VALUE;
+    setSearchParams(params);
+  }
+
+  /** 08 출발지 줄 — 검색 위에 한 단계 쌓는다(`field=start`). 뒤로가기는 목적지 검색으로 복귀 */
+  function openStartSearch() {
+    setSearchParams({ [SEARCH_PARAM]: '1', [FIELD_PARAM]: START_FIELD_VALUE });
   }
 
   /** 취소 — 검색 화면으로 돌아간다 */
@@ -243,8 +262,8 @@ export function MapHomePage() {
   }
 
   /**
-   * 확정 — 지금 지도 중심을 목적지로 삼는다. 열면서 쌓은 두 단계(검색·선택)를 함께 닫아
-   * 다른 흐름과 같이 "고르면 07로 돌아온다"가 되게 한다.
+   * 확정 — 지금 지도 중심을 목적지(또는 field='start'면 출발지)로 삼는다.
+   * 열면서 쌓은 두 단계(검색·선택)를 함께 닫는다 — 목적지면 07로, 출발지면 목적지 검색 화면으로 돌아간다.
    */
   function confirmMapPick() {
     const center = mapRef.current?.getCenter();
@@ -253,9 +272,20 @@ export function MapHomePage() {
       return;
     }
     const { xPos, yPos } = latLngToPos({ lat: center.lat(), lng: center.lng() });
-    // 역지오코딩을 하지 않으므로 주소는 비운다 — 목적지 시트는 이름만 보여준다
-    setDestination({ title: PICKED_PLACE_TITLE, address: '', roadAddress: '', xPos, yPos });
-    setRouteResult(null);
+    // 역지오코딩을 하지 않으므로 주소는 비운다 — 시트는 이름만 보여준다
+    const picked: PlaceSearchResult = {
+      title: PICKED_PLACE_TITLE,
+      address: '',
+      roadAddress: '',
+      xPos,
+      yPos,
+    };
+    if (startFieldInUrl) {
+      setCustomStart(picked);
+    } else {
+      setDestination(picked);
+      setRouteResult(null);
+    }
     navigate(-2);
   }
 
@@ -267,8 +297,51 @@ export function MapHomePage() {
     closeSearch();
   }
 
+  // 목적지를 지우면 처음부터 다시 찾는 것과 같으므로 골라둔 출발지도 함께 되돌린다
   function clearDestination() {
     setDestination(null);
+    setRouteResult(null);
+    setCustomStart(null);
+  }
+
+  /** 출발지 고르는 화면(field='start')에서 장소를 고르면 — 검색 화면(field 없음)으로 한 단계만 되돌아간다 */
+  function selectStart(place: PlaceSearchResult) {
+    setCustomStart(place);
+    setRouteResult(null);
+    closeSearch();
+  }
+
+  /** "현재 위치 사용" — 골라둔 출발지를 지우고 자동(현재 위치)으로 되돌린 뒤 검색 화면으로 복귀 */
+  function useCurrentLocationAsStart() {
+    setCustomStart(null);
+    closeSearch();
+  }
+
+  /**
+   * 바꾸기(↕) — 출발지·목적지를 서로 맞바꾼다. 출발지가 아직 "현재 위치"(커스텀 없음)라면
+   * 그 자리를 채우기 위해 지금 위치를 하나의 장소로 확정해 목적지 쪽으로 옮긴다.
+   */
+  function swapStartAndDestination() {
+    if (destination === null) {
+      showToast('목적지를 먼저 선택해 주세요.');
+      return;
+    }
+    if (customStart === null) {
+      if (location.position === null) {
+        showToast('현재 위치를 몰라 바꿀 수 없습니다.');
+        return;
+      }
+      setDestination({
+        title: SWAPPED_START_TITLE,
+        address: '',
+        roadAddress: '',
+        xPos: location.position.xPos,
+        yPos: location.position.yPos,
+      });
+    } else {
+      setDestination(customStart);
+    }
+    setCustomStart(destination);
     setRouteResult(null);
   }
 
@@ -288,16 +361,19 @@ export function MapHomePage() {
     setLocationFocusToken((token) => token + 1);
   }
 
-  // 출발지는 현재 위치다. 위치를 못 얻으면 지도 중심에서 찾되 그 사실을 알린다 —
+  // 출발지를 직접 골랐으면 그 좌표를 그대로 쓴다. 아니면 현재 위치이고,
+  // 위치를 못 얻으면 지도 중심에서 찾되 그 사실을 알린다 —
   // 조회 자체를 막으면 권한을 거절한 사용자는 경로를 아예 못 본다
   async function searchRoutes() {
     if (destination === null) return;
+    const end = { xPos: destination.xPos, yPos: destination.yPos };
+    if (customStart !== null) {
+      routeSearch.mutate({ start: { xPos: customStart.xPos, yPos: customStart.yPos }, end });
+      return;
+    }
     const start = await location.ensure();
     if (!start.ok) showToast(START_FALLBACK_NOTICE);
-    routeSearch.mutate({
-      start: start.ok ? start.position : viewedCenterAsStart(),
-      end: { xPos: destination.xPos, yPos: destination.yPos },
-    });
+    routeSearch.mutate({ start: start.ok ? start.position : viewedCenterAsStart(), end });
   }
 
   // ← 버튼: 비교를 끝내고 목적지 확인 시트로. 열 때 히스토리를 하나 쌓았으니 뒤로가기와 같다
@@ -503,13 +579,19 @@ export function MapHomePage() {
       {/* 검색 오버레이는 탭바(z-20)를 덮고, 뒤에 오는 토스트(z-30)보다는 아래에 둔다 */}
       {searchOpen ? (
         <PlaceSearchOverlay
+          // field가 바뀌면 입력 중이던 검색어·결과를 새로 시작해야 하므로 컴포넌트를 새로 만든다
+          key={startFieldInUrl ? 'start' : 'destination'}
+          field={startFieldInUrl ? 'start' : 'destination'}
           onClose={closeSearch}
-          onSelect={selectDestination}
+          onSelect={startFieldInUrl ? selectStart : selectDestination}
           currentLocation={location.position}
           onRefreshLocation={refreshLocation}
           locationLoading={location.loading}
           onPickOnMap={openMapPick}
-          showToast={showToast}
+          startLabel={customStart?.title ?? (location.loading ? '현재 위치 확인 중…' : '현재 위치')}
+          onEditStart={openStartSearch}
+          onSwap={swapStartAndDestination}
+          onUseCurrentLocationAsStart={useCurrentLocationAsStart}
         />
       ) : null}
 
