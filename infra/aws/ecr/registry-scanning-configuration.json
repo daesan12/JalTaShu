@@ -1,0 +1,14 @@
+{
+  "scanType": "BASIC",
+  "rules": [
+    {
+      "scanFrequency": "SCAN_ON_PUSH",
+      "repositoryFilters": [
+        {
+          "filter": "tashu/*",
+          "filterType": "WILDCARD"
+        }
+      ]
+    }
+  ]
+}

@@ -6,14 +6,19 @@ import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { SignupPage } from '@/features/auth/pages/SignupPage';
 import { MapHomePage } from '@/features/map/pages/MapHomePage';
 import { HistoryPage } from '@/features/history/pages/HistoryPage';
+import { RideDetailPage } from '@/features/history/pages/RideDetailPage';
 import { BikeInfoPage } from '@/features/mypage/pages/BikeInfoPage';
+import { BikeInsurancePage } from '@/features/mypage/pages/BikeInsurancePage';
+import { OpenApiPage } from '@/features/mypage/pages/OpenApiPage';
 import { FaqPage } from '@/features/mypage/pages/FaqPage';
 import { GuidePage } from '@/features/mypage/pages/GuidePage';
 import { NoticesPage } from '@/features/mypage/pages/NoticesPage';
 import { SettingsPage } from '@/features/mypage/pages/SettingsPage';
 import { SupportPage } from '@/features/mypage/pages/SupportPage';
+import { WithdrawPage } from '@/features/mypage/pages/WithdrawPage';
 import { MyPage } from '@/features/mypage/pages/MyPage';
 import { PaymentMethodsPage } from '@/features/mypage/pages/PaymentMethodsPage';
+import { RecommendedCoursesPage } from '@/features/mypage/pages/RecommendedCoursesPage';
 import { OnboardingPage } from '@/features/onboarding/pages/OnboardingPage';
 import { BikeReportsPage } from '@/features/rental/pages/BikeReportsPage';
 import { BikeStatusPage } from '@/features/rental/pages/BikeStatusPage';
@@ -39,15 +44,20 @@ export const router = createBrowserRouter(
           { path: '/report/bikes/:code', element: <BikeStatusPage /> }, // 18 자전거 상태
           { path: '/report/bikes/:code/reports', element: <BikeReportsPage /> }, // 20 제보 리스트
           { path: '/report/my', element: <MyReportsPage /> }, // 17-4 내 민원 내역
-          { path: '/history', element: <HistoryPage /> }, // 22~23 기록 (경호)
+          { path: '/history', element: <HistoryPage /> }, // 22 이동 기록 (경호)
+          { path: '/history/:rideId', element: <RideDetailPage /> }, // 23 기록 상세
           { path: '/mypage', element: <MyPage /> }, // 24 프로필 (경호)
           { path: '/mypage/guide', element: <GuidePage /> }, // 34 이용안내
           { path: '/mypage/payments', element: <PaymentMethodsPage /> }, // 결제수단
           { path: '/mypage/bike-info', element: <BikeInfoPage /> }, // 자전거 정보
+          { path: '/mypage/bike-info/courses', element: <RecommendedCoursesPage /> }, // 추천 코스
+          { path: '/mypage/bike-info/insurance', element: <BikeInsurancePage /> }, // 자전거 보험
+          { path: '/mypage/bike-info/open-api', element: <OpenApiPage /> }, // Open API
           { path: '/mypage/support', element: <SupportPage /> }, // 고객센터
           { path: '/mypage/support/notices', element: <NoticesPage /> }, // 공지사항
           { path: '/mypage/support/faq', element: <FaqPage /> }, // 자주 묻는 질문
           { path: '/mypage/settings', element: <SettingsPage /> }, // 설정
+          { path: '/mypage/withdraw', element: <WithdrawPage /> }, // 회원 탈퇴
         ],
       },
     ],

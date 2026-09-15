@@ -98,11 +98,14 @@ export function MyPage() {
           </li>
         </ul>
 
-        {/* 회원 탈퇴 — 백엔드 API 확정 후 연결 */}
         <div className="mt-10 text-center">
-          <span className="text-sm text-gray-300 underline underline-offset-2">
-            회원 탈퇴 (준비 중)
-          </span>
+          <button
+            type="button"
+            onClick={() => navigate('/mypage/withdraw')}
+            className="min-h-11 px-3 text-sm text-gray-400 underline underline-offset-2 active:text-gray-500"
+          >
+            회원 탈퇴
+          </button>
         </div>
       </div>
 

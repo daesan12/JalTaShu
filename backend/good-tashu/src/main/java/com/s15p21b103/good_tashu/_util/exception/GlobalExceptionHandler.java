@@ -1,10 +1,12 @@
 package com.s15p21b103.good_tashu._util.exception;
 
 import com.s15p21b103.good_tashu._util.response.ApiResponse;
+import com.s15p21b103.good_tashu.map.exception.MapException;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
 import com.s15p21b103.good_tashu.notice.exception.NoticeException;
 import com.s15p21b103.good_tashu.user.exception.UserException;
 import com.s15p21b103.good_tashu.fcm.exception.FcmException;
+import com.s15p21b103.good_tashu.admin.exception.AdminException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -16,6 +18,19 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(AdminException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAdminException(AdminException e) {
+        log.warn("관리자 요청 오류: {}", e.getErrorCode());
+        return ResponseEntity.status(e.getErrorCode().getStatus())
+                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
+    }
+    @ExceptionHandler(MapException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMapException(MapException e) {
+        log.warn("장소 검색 오류: {}", e.getErrorCode());
+        return ResponseEntity.status(e.getErrorCode().getStatus())
+                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException e) {
         log.warn("잘못된 요청: {}", e.getMessage());
