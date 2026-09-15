@@ -75,3 +75,13 @@ sudo /opt/tashu/mysql/scripts/verify-backup-restore.sh \
 - 첫 정식 백업 성공, timer `enabled`·`active` 확인
 - 존재하지 않는 MySQL을 지정했을 때 완성 파일 없이 실패하는 동작 확인
 - lock을 선점한 상태에서 두 번째 백업이 종료 코드 75로 차단되는 동작 확인
+
+## 2026-09-15 S3 원격 백업 검증 결과
+
+- MySQL 백업 전용 IAM 자격증명을 `/etc/tashu/mysql-backup/aws-credentials`에 `0600 root:root`로 저장했다.
+- 전용 IAM은 `backups/mysql/`만 목록·업로드·다운로드할 수 있고 Collector의 `bronze/realtime/` 접근은 거부됐다.
+- 로컬 백업 17세트의 gzip·SHA-256을 검증한 뒤 S3에 백업과 checksum 객체 34개를 업로드했다.
+- S3에서 최신 백업과 checksum을 임시 경로로 다시 내려받아 SHA-256 일치와 격리 MySQL 실제 복원을 확인했다.
+- `tashu-mysql-backup-upload.timer`를 활성화했고 systemd service 실행이 종료 코드 0으로 성공했다.
+- 존재하지 않는 자격증명 경로를 주입하면 업로드만 종료 코드 1로 실패하고 운영 MySQL과 로컬·원격 백업 timer는 계속 정상임을 확인했다.
+- 자격증명 값, AWS Access Key ID와 Secret Access Key는 Git과 문서에 기록하지 않았다.
