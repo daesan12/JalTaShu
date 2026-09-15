@@ -1,0 +1,43 @@
+{
+  "benchmark": "spark-worker-failure-recovery-synthetic-aggregation",
+  "date": "2026-09-15",
+  "spark_version": "4.1.3",
+  "input": {
+    "rows": 100000000,
+    "partitions": 96
+  },
+  "cluster": {
+    "workers": 2,
+    "cores_per_worker": 2,
+    "executor_cores": 2,
+    "executor_memory": "2g"
+  },
+  "failure": {
+    "target": "benchmark worker on the controller host",
+    "inject_after_both_executors_registered": true,
+    "outage_seconds": 15,
+    "worker_rejoined": true
+  },
+  "healthy_runs_seconds": [21.533, 21.980, 21.616],
+  "failure_runs_seconds": [33.290, 34.355, 32.424],
+  "summary": {
+    "healthy_median_seconds": 21.616,
+    "failure_median_seconds": 33.290,
+    "added_seconds": 11.674,
+    "slowdown_percent": 54.0,
+    "healthy_rows_per_second": 4626203,
+    "failure_rows_per_second": 3003905,
+    "all_failure_runs_completed": true
+  },
+  "checksum": {
+    "row_count": 100000000,
+    "group_count": 131904,
+    "metric_sum": 49955639909,
+    "metric_max_sum": 131656069,
+    "identical_across_all_runs": true
+  },
+  "excluded_preflight": {
+    "reason": "Earlier runs injected failure before both executors were confirmed or used an incorrect host/container result path.",
+    "used_in_summary": false
+  }
+}
