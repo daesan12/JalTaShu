@@ -13,6 +13,8 @@ Server B에서 Spark Standalone Master, Worker, History Server를 실행하는 �
 | `conf/spark-defaults.conf` | 이벤트 로그, 시간대, 기본 파티션 등 공통 설정 | 없음 |
 | `scripts/bootstrap-dirs.sh` | 호스트 데이터 디렉터리와 Spark UID/GID 권한 생성 | 없음 |
 | `scripts/smoke-test.sh` | SparkPi 작업을 제출해 Master와 Worker 연결 검증 | 없음 |
+| `scripts/submit-data-job.sh` | 데이터 작업 폴더 안의 Python 파일만 고정된 Spark 자원으로 제출 | 없음 |
+| `scripts/configure-data-user-access.sh` | `tashu-data` 계정에 위 제출 명령 하나만 허용하는 sudoers 설정 설치 | 없음 |
 
 모든 파일은 Git으로 관리한다. 비밀번호, AWS 키, Kafka 인증정보는 이 폴더에 넣지 않는다.
 
@@ -68,6 +70,32 @@ sudo docker compose -f /opt/tashu/spark/compose.yml down
 ```
 
 데이터 디렉터리는 bind mount이므로 `down` 명령으로 삭제되지 않는다.
+
+## 데이터 담당자 작업 제출
+
+데이터 담당자 코드는 `/srv/tashu/workspace/data` 아래에 둔다. 이 폴더는 Git 저장소가 아니며
+실험 중인 PySpark 코드와 임시 결과를 보관하는 서버 작업 공간이다. PEM, API key, 비밀번호는
+이 폴더에 저장하지 않는다.
+
+인프라 담당자가 제한 권한을 한 번 설치한다.
+
+```bash
+sudo /opt/tashu/spark/scripts/configure-data-user-access.sh
+```
+
+이 설정은 `tashu-data`를 Docker group에 넣지 않는다. 대신 root가 소유한 제출 script 하나만
+비밀번호 없이 실행하도록 `/etc/sudoers.d/tashu-data-spark-submit`에 허용한다. 제출 script는
+workspace 밖 경로와 Python 이외 파일을 거부하고 Master·Worker가 healthy일 때만 고정된 CPU와
+메모리 설정으로 작업을 실행한다.
+
+데이터 담당자는 workspace 기준 상대 경로로 작업을 제출한다.
+
+```bash
+sudo /opt/tashu/spark/scripts/submit-data-job.sh jobs/streaming_consumer.py
+```
+
+Python 파일은 submit container에 read-only로 연결된다. 작업이 쓰는 결과와 checkpoint는 기존
+`/srv/tashu/data/spark` 하위 경로를 사용한다.
 
 ## 다음 단계
 
