@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 네이버 지도 SDK가 일부 리소스를 http로 받아오므로 해당 도메인만 평문 통신 허용
+     (안드로이드 9+는 기본 차단 — SDK 콘솔 안내에 따른 설정) -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">map.naver.com</domain>
+        <domain includeSubdomains="true">map.naver.net</domain>
+    </domain-config>
+</network-security-config>

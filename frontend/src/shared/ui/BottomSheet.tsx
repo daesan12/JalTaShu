@@ -106,6 +106,8 @@ export function BottomSheet({
         ref={sheetRef}
         role="dialog"
         aria-modal={showBackdrop}
+        // 닫힌 시트는 DOM에 남아 있으므로(닫힘 애니메이션) 포커스·autoFocus가 새지 않게 차단
+        inert={!open}
         className={`pb-safe fixed bottom-0 left-1/2 z-40 w-full max-w-[430px] -translate-x-1/2 rounded-t-2xl bg-surface shadow-[0_-4px_20px_rgb(0_0_0/0.12)] transition-[height,translate] duration-300 ease-out ${
           SNAP_HEIGHT_CLASS[snapPoint]
         } ${open ? 'translate-y-0' : 'translate-y-full'}`}
