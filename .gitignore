@@ -16,6 +16,7 @@ out/
 **/venv/
 **/__pycache__/
 **/.pytest_cache/
+**/.deps/
 
 # Secrets
 .env
