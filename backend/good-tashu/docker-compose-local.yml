@@ -1,0 +1,23 @@
+name: good-tashu
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: good-tashu-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: Asia/Seoul
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+  redis:
+    image: redis:8.8.1
+    container_name: good-tashu-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"

@@ -16,6 +16,7 @@ out/
 **/venv/
 **/__pycache__/
 **/.pytest_cache/
+**/.deps/
 
 # Secrets
 .env
@@ -42,6 +43,9 @@ data-pipeline/collector/**/health.json
 data-pipeline/collector/**/collector_state.json
 data-pipeline/collector/**/snapshots-*.csv
 data-pipeline/collector/**/*.log
+
+# Claude Code
+.claude/
 
 # OS files
 .DS_Store

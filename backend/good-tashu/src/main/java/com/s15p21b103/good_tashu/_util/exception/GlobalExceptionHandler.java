@@ -1,6 +1,12 @@
 package com.s15p21b103.good_tashu._util.exception;
 
-import com.b204.datame._util.response.ApiResponse;
+import com.s15p21b103.good_tashu._util.response.ApiResponse;
+import com.s15p21b103.good_tashu.map.exception.MapException;
+import com.s15p21b103.good_tashu.cycle.exception.CycleException;
+import com.s15p21b103.good_tashu.notice.exception.NoticeException;
+import com.s15p21b103.good_tashu.user.exception.UserException;
+import com.s15p21b103.good_tashu.fcm.exception.FcmException;
+import com.s15p21b103.good_tashu.admin.exception.AdminException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -12,6 +18,19 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(AdminException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAdminException(AdminException e) {
+        log.warn("관리자 요청 오류: {}", e.getErrorCode());
+        return ResponseEntity.status(e.getErrorCode().getStatus())
+                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
+    }
+    @ExceptionHandler(MapException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMapException(MapException e) {
+        log.warn("장소 검색 오류: {}", e.getErrorCode());
+        return ResponseEntity.status(e.getErrorCode().getStatus())
+                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException e) {
         log.warn("잘못된 요청: {}", e.getMessage());
@@ -19,6 +38,30 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.BAD_REQUEST)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(ApiResponse.error(400, e.getMessage()));
+    }
+
+    @ExceptionHandler(FcmException.class)
+    public ResponseEntity<ApiResponse<Void>> handleFcmException(FcmException e) {
+        log.warn("Fcm에서 에러 발생: {}", e.getErrorCode().getMessage());
+        return ResponseEntity
+                .status(e.getErrorCode().getStatus())
+                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
+    }
+
+    @ExceptionHandler(CycleException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCycleException(CycleException e) {
+        log.warn("Cycle에서 에러 발생: {}", e.getErrorCode().getMessage());
+        return ResponseEntity
+                .status(e.getErrorCode().getStatus())
+                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
+    }
+
+    @ExceptionHandler(NoticeException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoticeException(NoticeException e) {
+        log.warn("Notice에서 에러 발생: {}", e.getErrorCode().getMessage());
+        return ResponseEntity
+                .status(e.getErrorCode().getStatus())
+                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -40,4 +83,14 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR.value(), "INTERNAL_SERVER_ERROR"));
     }
+
+    // 유저 예외 처리
+    @ExceptionHandler(UserException.class)
+    public ResponseEntity<ApiResponse<Void>> handleValidation(UserException e) {
+        log.warn("유저에서 예외 발생: {}", e.getErrorCode().getMessage());
+        return ResponseEntity
+                .status(e.getErrorCode().getStatus())
+                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
+    }
+
 }

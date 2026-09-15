@@ -1,0 +1,22 @@
+[Unit]
+Description=Tashu MySQL production and staging backup
+Requires=docker.service
+After=docker.service
+ConditionPathExists=/var/run/docker.sock
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+Environment=MYSQL_CONTAINER_NAME=tashu-mysql
+Environment=MYSQL_BACKUP_DIR=/srv/tashu/backups/mysql
+Environment=MYSQL_BACKUP_RETENTION_DAYS=7
+ExecStart=/usr/local/sbin/tashu-mysql-backup
+SuccessExitStatus=75
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/tashu/backups /run/lock
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=true

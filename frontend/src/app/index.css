@@ -1,0 +1,82 @@
+@import 'tailwindcss';
+
+/*
+ * 디자인 토큰 — Figma "잘타슈" 디자인 시스템과 1:1 이름 매칭
+ * ⚠ brand/primary(#4c8a12)만 Figma 변수에서 확정 추출된 값.
+ *   나머지는 근사값이므로 Figma 컬러 변수 확정 시 "값만" 교체하면 전체 반영됨.
+ */
+@theme {
+  --font-sans:
+    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto,
+    'Noto Sans KR', sans-serif;
+
+  /* brand */
+  --color-primary: #4c8a12; /* Figma brand/primary (확정) */
+  --color-primary-dark: #3c6e0e;
+  --color-primary-light: #eef6e4;
+
+  /* 대여소 잔여 상태 (StatusBadge·StationMarker 공용): 여유/보통/부족 */
+  --color-status-high: #4c8a12;
+  --color-status-mid: #f59e0b;
+  --color-status-low: #ef4444;
+
+  /* 10 경로 비교 — 후보 강점 뱃지·지도 경로선 공용: 가장 빠름 / 자전거 많음 / 오르막 적음 / 도보 짧음 */
+  --color-route-fast: #a0522d;
+  --color-route-bikes: #6b8e23;
+  --color-route-flat: #3b82f6;
+  --color-route-walk: #8b5cf6;
+
+  /* surface */
+  --color-background: #f5f6f8;
+  --color-surface: #ffffff;
+
+  /* etc */
+  --color-kakao: #fee500;
+}
+
+/* 안전영역(노치·홈 인디케이터) 유틸 — Capacitor WebView 대비 */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
+
+@layer base {
+  html {
+    /* 기기 회전 시 글자 크기 자동 확대 방지 */
+    -webkit-text-size-adjust: 100%;
+    font-family: var(--font-sans);
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-background);
+    /* 당겨서 새로고침·오버스크롤 튕김 방지 (앱 느낌) */
+    overscroll-behavior: none;
+    /* 길게 눌러 텍스트 선택되는 것 방지 */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* 입력창에서는 텍스트 선택 허용 */
+  input,
+  textarea {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
+@layer utilities {
+  /* 실시간으로 바뀌는 숫자(잔여 대수, 남은 시간)에 사용 — 자릿수 흔들림 방지 */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
