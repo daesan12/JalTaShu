@@ -112,3 +112,6 @@ services:
 networks:
   tashu-spark:
     name: tashu-spark
+    ipam:
+      config:
+        - subnet: 172.30.20.0/24

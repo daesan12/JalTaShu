@@ -4,6 +4,7 @@ set -euo pipefail
 readonly SPARK_HOME_DIR=/opt/tashu/spark
 readonly COMPOSE_FILE="$SPARK_HOME_DIR/compose.yml"
 readonly DATA_WORKSPACE=/srv/tashu/workspace/data
+readonly SPARK_IVY_CACHE=/srv/tashu/data/spark/ivy
 
 if (( EUID != 0 )); then
   echo "이 명령은 제한된 sudo 권한으로 실행해야 합니다." >&2
@@ -52,6 +53,16 @@ for container in tashu-spark-master tashu-spark-worker-b; do
   fi
 done
 
+mapfile -d '' KAFKA_JARS < <(
+  find "$SPARK_IVY_CACHE/jars" -maxdepth 1 -type f -name '*.jar' -print0 | sort -z
+)
+if (( ${#KAFKA_JARS[@]} == 0 )); then
+  echo "Kafka connector cache가 없습니다. 인프라 담당자가 cache-kafka-connector.sh를 먼저 실행해야 합니다." >&2
+  exit 1
+fi
+
+readonly KAFKA_JARS_CSV=$(IFS=,; printf '%s' "${KAFKA_JARS[*]}")
+
 readonly JOB_CONTAINER_PATH="/workspace/data/${JOB_REAL#"$WORKSPACE_REAL"/}"
 
 exec docker compose \
@@ -61,10 +72,12 @@ exec docker compose \
   --rm \
   --no-deps \
   --volume "$WORKSPACE_REAL:/workspace/data:ro" \
+  --volume "$SPARK_IVY_CACHE:$SPARK_IVY_CACHE:ro" \
   spark-submit \
   /opt/spark/bin/spark-submit \
   --master spark://spark-master:7077 \
   --deploy-mode client \
+  --jars "$KAFKA_JARS_CSV" \
   --conf spark.cores.max=2 \
   --conf spark.executor.cores=1 \
   --conf spark.executor.memory=1g \
