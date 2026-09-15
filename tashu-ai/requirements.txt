@@ -1,0 +1,10 @@
+# Tashu AI (CLAUDE.md: pandas/LightGBM/scipy/scikit-learn/joblib, no GPU/DL)
+pandas>=2.2
+pyarrow>=16
+tzdata>=2024.1        # Windows lacks IANA tz DB - required for Asia/Seoul aware datetimes
+lightgbm>=4.3
+scipy>=1.13
+scikit-learn>=1.5
+joblib>=1.4
+holidays>=0.50        # holiday_type feature (stage 3)
+pytest>=8.2
