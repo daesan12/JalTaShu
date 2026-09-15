@@ -1,0 +1,11 @@
+[Unit]
+Description=Upload Tashu MySQL backups to S3 every 6 hours
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:30:00 UTC
+RandomizedDelaySec=10m
+Persistent=true
+Unit=tashu-mysql-backup-upload.service
+
+[Install]
+WantedBy=timers.target
