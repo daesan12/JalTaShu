@@ -14,3 +14,19 @@ export interface RentCycleRequest {
 export function rentCycle({ cycleId }: RentCycleRequest): Promise<string> {
   return apiPost<string>('/cycle/rental', { cycleId });
 }
+
+/**
+ * 자전거 반납 요청 — 백엔드 `POST /api/cycle/return`.
+ * 대여와 달리 반납할 대여소(`stationId`)가 필요하다. 07 대여소 마커를 눌러 그 시트가 열린
+ * 상태에서 반납하는 흐름이라, `stationId`는 지금 열려 있는 대여소 시트의 대여소로 정해진다
+ * (따로 검색해서 고르지 않는다).
+ */
+export interface ReturnCycleRequest {
+  cycleId: string;
+  stationId: string;
+}
+
+/** 성공 시 반납 시각(ISO 8601)을 돌려준다 */
+export function returnCycle({ cycleId, stationId }: ReturnCycleRequest): Promise<string> {
+  return apiPost<string>('/cycle/return', { cycleId, stationId });
+}
