@@ -1,0 +1,25 @@
+[Unit]
+Description=Upload verified Tashu MySQL backups to private S3 storage
+Wants=network-online.target
+After=network-online.target tashu-mysql-backup.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+Environment=AWS_SHARED_CREDENTIALS_FILE=/etc/tashu/mysql-backup/aws-credentials
+Environment=AWS_DEFAULT_REGION=ap-northeast-2
+Environment=AWS_EC2_METADATA_DISABLED=true
+Environment=AWS_PAGER=
+Environment=MYSQL_BACKUP_DIR=/srv/tashu/backups/mysql
+Environment=MYSQL_BACKUP_S3_URI=s3://s15p21b103-tashu-datalake/backups/mysql/
+ExecStart=/opt/tashu/mysql/scripts/upload-backups-to-s3.sh
+TimeoutStartSec=15min
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

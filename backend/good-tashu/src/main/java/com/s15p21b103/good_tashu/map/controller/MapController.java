@@ -38,4 +38,12 @@ public class MapController {
         List<PlaceSearchRecentListResponse> response = mapService.getRecentSearchPlace(userId, limit);
         return ApiResponse.success(response);
     }
+
+    //특정 검색 장소 기록 삭제
+    @DeleteMapping("/recent/{recentPlaceId}")
+    public ApiResponse<Void> deleteRecentSearchPlace(@currentUserId Long userId,
+                                                     @PathVariable("recentPlaceId") Long placeId) {
+        mapService.deleteRecentSearchPlace(userId, placeId);
+        return ApiResponse.success("최근 검색어가 삭제되었습니다.");
+    }
 }

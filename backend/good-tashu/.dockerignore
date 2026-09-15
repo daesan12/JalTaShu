@@ -1,0 +1,6 @@
+.gradle/
+build/
+.idea/
+*.iml
+backend-local.env
+src/main/resources/firebase/*.json

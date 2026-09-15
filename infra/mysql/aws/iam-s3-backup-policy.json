@@ -1,0 +1,35 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadBucketLocation",
+      "Effect": "Allow",
+      "Action": "s3:GetBucketLocation",
+      "Resource": "arn:aws:s3:::s15p21b103-tashu-datalake"
+    },
+    {
+      "Sid": "ListOnlyMysqlBackupPrefix",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::s15p21b103-tashu-datalake",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "backups/mysql",
+            "backups/mysql/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ReadAndWriteOnlyMysqlBackups",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:AbortMultipartUpload"
+      ],
+      "Resource": "arn:aws:s3:::s15p21b103-tashu-datalake/backups/mysql/*"
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+package com.s15p21b103.good_tashu.admin.service;
+
+import com.s15p21b103.good_tashu.admin.dto.res.AdminUserListResponse;
+import com.s15p21b103.good_tashu.admin.repository.AdminUserRepository;
+import com.s15p21b103.good_tashu.admin.repository.AdminRepository;
+import com.s15p21b103.good_tashu.admin.repository.UserBanRecordRepository;
+import com.s15p21b103.good_tashu.admin.domain.UserBanRecordEntity;
+import com.s15p21b103.good_tashu.admin.dto.req.UserBanRequest;
+import com.s15p21b103.good_tashu.user.repository.UserRepository;
+import com.s15p21b103.good_tashu.admin.exception.AdminException;
+import static com.s15p21b103.good_tashu.admin.exception.AdminErrorCode.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Locale;
+
+@Service
+@RequiredArgsConstructor
+public class AdminUserService {
+    private final AdminUserRepository adminUserRepository;
+    private final AdminRepository adminRepository;
+    private final UserRepository userRepository;
+    private final UserBanRecordRepository userBanRecordRepository;
+
+    @Transactional
+    public void banUser(Long adminId, Long userId, UserBanRequest request) {
+        // 제재를 실행한 관리자와 대상 사용자를 확인
+        var admin = adminRepository.findById(adminId)
+                .orElseThrow(() -> new AdminException(NOT_EXISTS_ADMIN));
+        var user = userRepository.findById(userId)
+                .orElseThrow(() -> new AdminException(NOT_EXISTS_USER));
+        // 현재 유효한 제재가 있으면 중복 제재 방지
+        if (userBanRecordRepository.findFirstByUser_UserIdAndReleasedAtIsNullAndScheduledEndAtAfter(
+                userId, java.time.LocalDateTime.now()).isPresent()) {
+            throw new AdminException(ALREADY_BANNED);
+        }
+        // 제재 내역을 저장
+        userBanRecordRepository.save(new UserBanRecordEntity(user, admin,
+                request.scheduledEndAt(), request.comment()));
+    }
+
+    @Transactional
+    public void releaseUserBan(Long userId) {
+        // 존재하는 사용자만 제재 해제 가능
+        if (userRepository.findById(userId).isEmpty()) {
+            throw new AdminException(NOT_EXISTS_USER);
+        }
+        // 해제 시각을 기록
+        userBanRecordRepository.releaseActiveBan(userId, java.time.LocalDateTime.now());
+    }
+
+    //최근 이용일과 현재 제재 상태를 사용자 목록으로 조회
+    @Transactional(readOnly = true)
+    public List<AdminUserListResponse> getUserList(String statement, String order) {
+        // 허용된 필터·정렬 값으로 정규화 후 DB 조회
+        String normalizedStatement = normalizeStatement(statement);
+        String normalizedOrder = normalizeOrder(order);
+        // 조회 결과를 관리자 화면용 응답 DTO로 변환
+        return adminUserRepository.findUserSummaries(normalizedStatement, normalizedOrder).stream()
+                .map(user -> new AdminUserListResponse(
+                        user.getUserId(), user.getRecentUsingAt(), user.getUserStatement()))
+                .toList();
+    }
+    //유저상태 파라미터 검증
+    private String normalizeStatement(String statement) {
+        if (statement == null || statement.isBlank()) {
+            return "";
+        }
+        String value = statement.strip().toUpperCase(Locale.ROOT);
+        if (!value.equals("BANNED") && !value.equals("NORMAL")) {
+            throw new AdminException(INVALID_STATEMENT);
+        }
+        return value;
+    }
+    //정렬순서 파라미터 검증
+    private String normalizeOrder(String order) {
+        if (order == null || order.isBlank()) {
+            return "newest";
+        }
+        String value = order.strip().toLowerCase(Locale.ROOT);
+        if (!value.equals("newest") && !value.equals("oldest")) {
+            throw new AdminException(INVALID_ORDER);
+        }
+        return value;
+    }
+}

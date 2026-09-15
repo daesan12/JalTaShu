@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Tashu MySQL backup every 6 hours
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:15:00 UTC
+RandomizedDelaySec=10m
+Persistent=true
+Unit=tashu-mysql-backup.service
+
+[Install]
+WantedBy=timers.target

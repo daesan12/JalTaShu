@@ -1,5 +1,6 @@
 package com.s15p21b103.good_tashu._util.jwt.handler;
 
+import com.s15p21b103.good_tashu._util.config.OAuth2Properties;
 import com.s15p21b103.good_tashu._util.jwt.JwtProperties;
 import com.s15p21b103.good_tashu._util.jwt.JwtService;
 import com.s15p21b103.good_tashu._util.jwt.refresh_token.dto.res.RefreshTokenResponseDto;
@@ -30,7 +31,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private final JwtProperties jwtProperties;
     private final JsonMapper jsonMapper;
     private final RefreshTokenService refreshTokenService;
-
+    private final OAuth2Properties oAuth2Properties;
     public record LoginTokenResponse(
             String accessToken,
             String tokenType,
@@ -45,16 +46,6 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
         // Refresh Token 발급
         RefreshTokenResponseDto refreshToken = refreshTokenService.issue(socialOAuth2User.getUserId());
-
-        // Access Token 발급
-        String accessToken = jwtService.createAccessToken(socialOAuth2User.getUserId(), refreshToken.authVersion());
-
-        // 응답 데이터 구성
-        LoginTokenResponse data = new LoginTokenResponse(
-                accessToken,
-                "Bearer",
-                jwtProperties.accessTokenExpires().toSeconds()
-        );
 
         // refresh Token을 Http Only 쿠키 전달
         // 설정된 전체 수명이 아니라 실제 만료까지 남은 시간을 사용
@@ -88,11 +79,11 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         // refresh token 저장
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-        // 응답 데이터를 json으로 변환하여 작성
-        response.getWriter().write(
-                jsonMapper.writeValueAsString(ApiResponse.success(data))
-        );
-
+//        // 응답 데이터를 json으로 변환하여 작성
+//        response.getWriter().write(
+//                jsonMapper.writeValueAsString(ApiResponse.success(data))
+//        );
+        response.sendRedirect(oAuth2Properties.successUrl());
 
     }
 }
