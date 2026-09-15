@@ -62,8 +62,7 @@ export interface StationPrediction {
 }
 
 /**
- * 장소 검색 결과 한 건 — 백엔드 `GET /map?query=`(#18) 응답 그대로. 최근 검색(`GET /map/recent`)과
- * 저장 요청(`POST /map/location/recent`)도 같은 형태다.
+ * 장소 검색 결과 한 건 — 백엔드 `GET /map?query=`(#18) 응답 그대로.
  * `xPos`=경도, `yPos`=위도(백엔드 확정). 지도에 찍을 때는 `posToLatLng()`로만 바꾼다.
  */
 export interface PlaceSearchResult {
@@ -74,6 +73,15 @@ export interface PlaceSearchResult {
   roadAddress: string;
   xPos: number;
   yPos: number;
+}
+
+/**
+ * 최근 검색 한 건 — 백엔드 `GET /map/recent`(2026-09-14 `8ecfd37`) 응답.
+ * 검색 결과(`PlaceSearchResult`)와 모양이 같지만 삭제(`DELETE /map/recent/{placeId}`)에 쓸
+ * `placeId`가 더 있다. 같은 타입 하나로 둘 다 쓰면 검색 결과 쪽엔 없는 필드가 있는 것처럼 보인다.
+ */
+export interface RecentPlace extends PlaceSearchResult {
+  placeId: number;
 }
 
 /** 백엔드 좌표 필드 쌍 — `xPos`=경도, `yPos`=위도(확정). 지도에 찍을 때는 `posToLatLng()`로만 바꾼다 */

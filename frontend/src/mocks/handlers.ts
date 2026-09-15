@@ -3,6 +3,7 @@ import type {
   ApiResponse,
   BikeStation,
   PlaceSearchResult,
+  RecentPlace,
   Pos,
   RoutePath,
   Station,
@@ -542,13 +543,21 @@ function buildMockRoutes(start: Pos, end: Pos): RoutePath[] {
 const RENTED_CYCLE_IDS = ['22B01262'];
 
 const RECENT_PLACES_KEY = 'msw_recent_places';
+/** 최근 검색 목업의 placeId 발급 카운터 — 실제로는 DB auto increment 역할 */
+const RECENT_PLACES_NEXT_ID_KEY = 'msw_recent_places_next_id';
 
-function getMockRecentPlaces(): PlaceSearchResult[] {
+function getMockRecentPlaces(): RecentPlace[] {
   try {
-    return JSON.parse(localStorage.getItem(RECENT_PLACES_KEY) ?? '[]') as PlaceSearchResult[];
+    return JSON.parse(localStorage.getItem(RECENT_PLACES_KEY) ?? '[]') as RecentPlace[];
   } catch {
     return [];
   }
+}
+
+function nextMockPlaceId(): number {
+  const next = Number(localStorage.getItem(RECENT_PLACES_NEXT_ID_KEY) ?? '1');
+  localStorage.setItem(RECENT_PLACES_NEXT_ID_KEY, String(next + 1));
+  return next;
 }
 
 export const handlers = [
@@ -935,6 +944,7 @@ export const handlers = [
     if (!body.title?.trim()) return fail(400, '장소 이름은 필수입니다.');
     const recent = getMockRecentPlaces();
     recent.unshift({
+      placeId: nextMockPlaceId(),
       title: body.title.trim(),
       address: body.address ?? '',
       roadAddress: body.roadAddress ?? '',
@@ -947,6 +957,18 @@ export const handlers = [
       message: '최근 검색한 장소가 등록되었습니다.',
       data: null,
     });
+  }),
+
+  http.delete('/api/map/recent/:placeId', async ({ params }) => {
+    await delay(200);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const placeId = Number(params.placeId);
+    const recent = getMockRecentPlaces();
+    const next = recent.filter((place) => place.placeId !== placeId);
+    if (next.length === recent.length) return fail(404, '이미 삭제된 최근 검색입니다.');
+    localStorage.setItem(RECENT_PLACES_KEY, JSON.stringify(next));
+    return HttpResponse.json({ code: 200, message: '삭제되었습니다.', data: null });
   }),
 
   http.post('/api/cycle/rental', async ({ request }) => {

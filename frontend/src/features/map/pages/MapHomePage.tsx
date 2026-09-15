@@ -652,6 +652,7 @@ export function MapHomePage() {
           onRefreshLocation={refreshLocation}
           locationLoading={location.loading}
           onPickOnMap={openMapPick}
+          showToast={showToast}
           startLabel={startLabel}
           onEditStart={openStartSearch}
           onSwap={swapStartAndDestination}
