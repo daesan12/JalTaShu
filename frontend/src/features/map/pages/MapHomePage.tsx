@@ -482,9 +482,16 @@ export function MapHomePage() {
     setSearchParams({ [ROUTES_PARAM]: '1', [DETAIL_PARAM]: '1', [GUIDE_PARAM]: '1' });
   }
 
-  // "안내 종료"·뒤로가기 → 경로 상세(11)로
+  /**
+   * "안내 종료"를 직접 눌러 끝낼 때 — 실제로 도착한 게 아니라 중간에 그만둔 것이므로 요약 없이
+   * 지도로 나간다. 목적지·경로도 처음부터 다시 찾도록 같이 초기화한다(`clearDestination`).
+   * 자동 도착 감지(아래 useEffect)는 이 함수를 쓰지 않고 `navigate(-1)`로 11 상세로만 돌아간다
+   * — 그건 실제 도착이라 요약을 보여줘야 해서 다르게 취급한다.
+   * 브라우저·하드웨어 뒤로가기는 그대로 한 단계만 닫는다(11로) — 여기서 건드리지 않는다.
+   */
   function endGuide() {
-    navigate(-1);
+    clearDestination();
+    navigate('/');
   }
 
   // 공지 상세 화면이 아직 없어 연결된 공지 번호와 상관없이 목록으로 보낸다
