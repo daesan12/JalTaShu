@@ -163,6 +163,8 @@ prepare_candidate() {
   frontend_image="${account_id}.dkr.ecr.${region}.amazonaws.com/tashu/frontend:${tag}"
   backend_image="${account_id}.dkr.ecr.${region}.amazonaws.com/tashu/backend:${tag}"
 
+  write_state candidate-slot "${candidate_slot}"
+  write_state candidate-sha "${image_sha}"
   echo "비활성 ${candidate_slot} slot에 production ${image_sha} 배포를 시작합니다."
   "${pull_script}" tashu/frontend "${tag}"
   "${pull_script}" tashu/backend "${tag}"
@@ -173,8 +175,6 @@ prepare_candidate() {
     exit 1
   fi
 
-  write_state candidate-slot "${candidate_slot}"
-  write_state candidate-sha "${image_sha}"
   echo "PRODUCTION_CANDIDATE_READY slot=${candidate_slot} sha=${image_sha}"
 }
 
@@ -210,6 +210,43 @@ activate_candidate() {
   write_state active-sha "${candidate_sha}"
   rm -f "${state_dir}/candidate-slot" "${state_dir}/candidate-sha"
   echo "PRODUCTION_TRAFFIC_SWITCHED slot=${candidate_slot} sha=${candidate_sha}"
+}
+
+cleanup_candidate() {
+  local candidate_slot candidate_sha active_slot container_name
+  if [[ ! ${image_sha} =~ ^[0-9a-f]{12}$ ]]; then
+    echo 'cleanup 사용법: jenkins-production-deploy.sh cleanup <12자리 Git SHA>' >&2
+    exit 1
+  fi
+
+  candidate_slot="$(read_state candidate-slot)"
+  candidate_sha="$(read_state candidate-sha)"
+  if [[ -z ${candidate_slot} && -z ${candidate_sha} ]]; then
+    echo "정리할 production candidate가 없습니다: sha=${image_sha}"
+    return 0
+  fi
+  if [[ ! ${candidate_slot} =~ ^(blue|green)$ ]]; then
+    echo '저장된 candidate slot이 올바르지 않아 자동 정리를 중단합니다.' >&2
+    exit 1
+  fi
+  if [[ ${candidate_sha} != "${image_sha}" ]]; then
+    echo "정리 요청 SHA와 candidate SHA가 달라 자동 정리를 중단합니다: requested=${image_sha}" >&2
+    exit 1
+  fi
+
+  active_slot="$(read_state active-slot)"
+  if [[ ${candidate_slot} == "${active_slot}" ]]; then
+    echo 'candidate가 현재 활성 slot이므로 자동 정리를 거부합니다.' >&2
+    exit 1
+  fi
+
+  for container_name in "tashu-frontend-${candidate_slot}" "tashu-backend-${candidate_slot}"; do
+    if docker container inspect "${container_name}" >/dev/null 2>&1; then
+      docker rm --force "${container_name}" >/dev/null
+    fi
+  done
+  rm -f "${state_dir}/candidate-slot" "${state_dir}/candidate-sha"
+  echo "PRODUCTION_CANDIDATE_CLEANED slot=${candidate_slot} sha=${candidate_sha}"
 }
 
 rollback_production() {
@@ -255,6 +292,7 @@ fi
 case "${action}" in
   prepare) prepare_candidate ;;
   activate) activate_candidate ;;
+  cleanup) cleanup_candidate ;;
   rollback)
     if [[ -n ${image_sha} ]]; then
       echo 'rollback에는 SHA 인자를 사용하지 않습니다.' >&2
@@ -263,7 +301,7 @@ case "${action}" in
     rollback_production
     ;;
   *)
-    echo '사용법: jenkins-production-deploy.sh <prepare SHA|activate SHA|rollback>' >&2
+    echo '사용법: jenkins-production-deploy.sh <prepare SHA|activate SHA|cleanup SHA|rollback>' >&2
     exit 1
     ;;
 esac

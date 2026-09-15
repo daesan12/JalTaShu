@@ -22,7 +22,7 @@ Blue와 Green Backend는 같은 `tashu_prod` MySQL DB와 Redis database `0`을 �
 | `compose.yml` | slot별 컨테이너, loopback 포트, health check와 자원 제한 | 없음 |
 | `scripts/render-backend-env.sh` | 서버 Secret으로 production Backend 환경파일 생성 | 없음 |
 | `scripts/deploy-slot.sh` | 지정한 slot에 이미 pull한 immutable ECR image 실행 | 없음 |
-| `scripts/jenkins-production-deploy.sh` | 후보 준비, Nginx 전환, 이전 slot 롤백 | 없음 |
+| `scripts/jenkins-production-deploy.sh` | 후보 준비·정리, Nginx 전환, 이전 slot 롤백 | 없음 |
 | `/etc/tashu/backend-production/runtime.env` | 운영 DB·Redis·JWT·OAuth 최종 환경변수 | Server A 전용, Git 금지 |
 | `/var/lib/tashu-production/` | 활성·이전·후보 slot과 SHA 상태 | Secret 없음 |
 
@@ -40,14 +40,32 @@ Backend도 같은 tag를 사용해 한 배포의 두 image를 명확히 묶는�
 6. `Proceed`이면 Nginx upstream 두 개를 같은 slot으로 바꾸고 한 번만 reload한다.
 7. 인증서의 공개 도메인으로 최대 30초 동안 Frontend·Backend 응답을 반복 확인한다.
 8. 공개 Frontend·Backend 검증이 실패하면 이전 slot으로 자동 롤백한다.
+9. 실패·`Abort`·시간 초과이면 활성화되지 않은 candidate 컨테이너와 후보 상태를 자동 정리한다.
 
 승인 대기 제한은 15분이다. `Abort`하거나 시간이 지나면 기존 활성 slot은 바뀌지 않는다.
-새 candidate 컨테이너는 트래픽을 받지 않은 채 남아 다음 점검에 사용할 수 있다.
-`Proceed`는 Jenkins에서 Build 권한이 있는 로그인 사용자만 누를 수 있다. 승인 대기 중에는
-현재 단일 Docker Agent executor 하나를 최대 15분 사용하므로 다른 Pipeline은 대기할 수 있다.
+승인 대기 중에는 활성 slot과 candidate slot이 함께 실행되지만 Nginx는 활성 slot에만
+사용자 트래픽을 보낸다. 승인하지 않은 배포가 끝나면 candidate 컨테이너와
+`candidate-slot`, `candidate-sha` 상태 파일을 제거한다. 정리 요청 SHA가 저장된 candidate SHA와
+다르거나 candidate가 이미 활성 slot이면 삭제하지 않는다.
+
+`Proceed`로 전환에 성공한 뒤에는 빠른 롤백을 위해 직전 slot을 실행 상태로 유지한다.
+따라서 성공 후 Blue와 Green이 함께 실행되는 것은 의도한 동작이다. `Proceed`는 Jenkins에서
+Build 권한이 있는 로그인 사용자만 누를 수 있다. 승인 대기 중에는 현재 단일 Docker Agent
+executor 하나를 최대 15분 사용하므로 다른 Pipeline은 대기할 수 있다.
 SSH 접속에는 Server A 사설 주소를 사용하고, HTTPS health 검사에는 인증서의 공개 도메인을
 사용한다. Nginx graceful reload 직후에는 이전 worker가 짧게 응답할 수 있어 한 번의 요청으로
 성공·실패를 판단하지 않는다.
+
+자동 정리에 실패했을 때 관리자는 같은 Build SHA로 안전하게 다시 실행할 수 있다.
+
+```bash
+sudo /opt/tashu/infra/runtime/production/scripts/jenkins-production-deploy.sh \
+  cleanup <12자리 Git SHA>
+```
+
+저장된 candidate SHA가 다르거나 candidate가 이미 active slot이면 명령은 삭제를 거부한다.
+정상 정리 대상은 candidate Frontend·Backend 컨테이너와 두 candidate 상태 파일뿐이며,
+Blue·Green이 공유하는 `tashu-app` Docker network는 삭제하지 않는다.
 
 ## 운영 환경파일
 
