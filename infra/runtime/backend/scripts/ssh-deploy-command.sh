@@ -20,6 +20,10 @@ case "${action:-}" in
     [[ ${argument:-} =~ ^[0-9a-f]{12}$ && -z ${extra:-} ]] || exit 1
     exec sudo -n /usr/local/sbin/tashu-jenkins-production activate "${argument}"
     ;;
+  cleanup-production)
+    [[ ${argument:-} =~ ^[0-9a-f]{12}$ && -z ${extra:-} ]] || exit 1
+    exec sudo -n /usr/local/sbin/tashu-jenkins-production cleanup "${argument}"
+    ;;
   rollback-production)
     [[ -z ${argument:-} && -z ${extra:-} ]] || exit 1
     exec sudo -n /usr/local/sbin/tashu-jenkins-production rollback

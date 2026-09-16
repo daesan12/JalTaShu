@@ -475,6 +475,31 @@ pipeline {
     }
 
     post {
+        unsuccessful {
+            script {
+                if (env.BRANCH_NAME == 'main' && env.GIT_SHORT_SHA?.trim()) {
+                    withCredentials([
+                        string(
+                            credentialsId: 'server-a-deploy-host',
+                            variable: 'SERVER_A_DEPLOY_HOST'
+                        )
+                    ]) {
+                        sshagent(credentials: ['server-a-staging-deploy']) {
+                            sh '''
+                                ssh \
+                                  -o BatchMode=yes \
+                                  -o StrictHostKeyChecking=yes \
+                                  -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+                                  -o ConnectTimeout=10 \
+                                  -T \
+                                  "tashu-jenkins@${SERVER_A_DEPLOY_HOST}" \
+                                  "cleanup-production ${GIT_SHORT_SHA}"
+                            '''
+                        }
+                    }
+                }
+            }
+        }
         always {
             sh '''
                 if [ -n "${CI_IMAGE_TAG:-}" ]; then
