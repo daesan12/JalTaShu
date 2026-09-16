@@ -19,7 +19,7 @@ class MapSaveRecentPlaceTest {
     private final RecentPlaceRepository places = mock(RecentPlaceRepository.class);
     private final UserRepository users = mock(UserRepository.class);
     private final MapService service = new MapService(
-            mock(com.s15p21b103.good_tashu.map.client.NaverPlaceClient.class), places, users);
+            mock(com.s15p21b103.good_tashu.map.client.NaverPlaceClient.class), places, users, mock(PathService.class));
 
     @Test
     void savesSelectedPlaceWithCorrectCoordinates() {

@@ -15,7 +15,7 @@ import static org.mockito.Mockito.*;
 class MapRecentPlaceTest {
     private final RecentPlaceRepository repository = mock(RecentPlaceRepository.class);
     private final MapService service = new MapService(mock(NaverPlaceClient.class), repository,
-            mock(com.s15p21b103.good_tashu.user.repository.UserRepository.class));
+            mock(com.s15p21b103.good_tashu.user.repository.UserRepository.class), mock(PathService.class));
 
     @Test
     void queriesUserRecordsWithLimitAndMapsCoordinates() {

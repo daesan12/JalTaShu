@@ -4,6 +4,7 @@ import com.s15p21b103.good_tashu.map.client.NaverPlaceClient;
 import com.s15p21b103.good_tashu.map.client.dto.NaverPlaceItem;
 import com.s15p21b103.good_tashu.map.exception.MapException;
 import lombok.RequiredArgsConstructor;
+import com.s15p21b103.good_tashu.map.dto.res.PathResponseDto;
 import org.springframework.web.util.HtmlUtils;
 import java.math.BigDecimal;
 import static com.s15p21b103.good_tashu.map.exception.MapErrorCode.*;
@@ -27,6 +28,7 @@ public class MapService {
     private final NaverPlaceClient naverPlaceClient;
     private final RecentPlaceRepository recentPlaceRepository;
     private final UserRepository userRepository;
+    private final PathService pathService;
 
     // 최근 선택한 장소 저장
     @Transactional
@@ -114,5 +116,10 @@ public class MapService {
         if (deleted == 0) {
             throw new MapException(NOT_EXISTS_RECENT_PLACE);
         }
+    }
+
+    // 경로 반환
+    public PathResponseDto getPath(Long userId, BigDecimal startLat, BigDecimal startLng, BigDecimal endLat, BigDecimal endLng) {
+        return pathService.buildResponse(startLat, startLng, endLat, endLng);
     }
 }

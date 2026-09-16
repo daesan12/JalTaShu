@@ -40,7 +40,8 @@ class NaverPlaceLiveTest {
         var restClient = new NaverApiConfig().naverRestClient(clientId, clientSecret);
         var service = new MapService(new NaverPlaceClient(restClient, JsonMapper.builder().build(), clientId, clientSecret),
                 org.mockito.Mockito.mock(com.s15p21b103.good_tashu.map.repository.RecentPlaceRepository.class),
-                org.mockito.Mockito.mock(com.s15p21b103.good_tashu.user.repository.UserRepository.class));
+                org.mockito.Mockito.mock(com.s15p21b103.good_tashu.user.repository.UserRepository.class),
+                org.mockito.Mockito.mock(PathService.class));
 
         var results = service.searchPlace("대전역");
 

@@ -1,15 +1,21 @@
 package com.s15p21b103.good_tashu.map.controller;
 
 import com.s15p21b103.good_tashu._util.response.ApiResponse;
-import com.s15p21b103.good_tashu.map.domain.res.PlaceSearchRecentListResponse;
-import com.s15p21b103.good_tashu.map.domain.res.PlaceSearchResultListResponse;
+import com.s15p21b103.good_tashu.map.dto.res.PathResponseDto;
+import com.s15p21b103.good_tashu.map.dto.res.PlaceSearchRecentListResponse;
+import com.s15p21b103.good_tashu.map.dto.res.PlaceSearchResultListResponse;
 import com.s15p21b103.good_tashu.map.service.MapService;
-import com.s15p21b103.good_tashu.map.domain.req.RecentPlaceRequest;
+import com.s15p21b103.good_tashu.map.dto.req.RecentPlaceRequest;
 import jakarta.validation.Valid;
 import com.s15p21b103.good_tashu.user.annotation.currentUserId;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.DecimalMax;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @RequiredArgsConstructor
@@ -45,5 +51,18 @@ public class MapController {
                                                      @PathVariable("recentPlaceId") Long placeId) {
         mapService.deleteRecentSearchPlace(userId, placeId);
         return ApiResponse.success("최근 검색어가 삭제되었습니다.");
+    }
+
+    // 경로 조회
+    @GetMapping("/path")
+    public ResponseEntity<ApiResponse<PathResponseDto>> getPath(
+            @currentUserId Long userId,
+            @RequestParam("startLat") @NotNull @DecimalMin("-90") @DecimalMax("90") BigDecimal startLat,
+            @RequestParam("startLng") @NotNull @DecimalMin("-180") @DecimalMax("180") BigDecimal startLng,
+            @RequestParam("endLat") @NotNull @DecimalMin("-90") @DecimalMax("90") BigDecimal endLat,
+            @RequestParam("endLng") @NotNull @DecimalMin("-180") @DecimalMax("180") BigDecimal endLng
+            ) {
+        PathResponseDto responseDto = mapService.getPath(userId, startLat, startLng, endLat, endLng);
+        return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
 }

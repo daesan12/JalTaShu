@@ -12,12 +12,29 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<ApiResponse<Void>> handleRequestParameter(Exception e) {
+        log.warn("요청 파라미터 오류: {}", e.getClass().getSimpleName());
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error(400, "필수 요청 파라미터가 없거나 형식이 올바르지 않습니다."));
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodValidation(HandlerMethodValidationException e) {
+        int status = e.getStatusCode().value();
+        return ResponseEntity.status(status).body(ApiResponse.error(status,
+                e.isForReturnValue() ? "INTERNAL_SERVER_ERROR" : "요청 파라미터가 허용 범위를 벗어났습니다."));
+    }
+
     @ExceptionHandler(AdminException.class)
     public ResponseEntity<ApiResponse<Void>> handleAdminException(AdminException e) {
         log.warn("관리자 요청 오류: {}", e.getErrorCode());
