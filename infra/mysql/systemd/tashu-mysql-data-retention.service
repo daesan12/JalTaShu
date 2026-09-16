@@ -1,0 +1,22 @@
+[Unit]
+Description=Prune Tashu real-time MySQL history older than 48 hours
+Requires=docker.service
+After=docker.service
+ConditionPathExists=/var/run/docker.sock
+ConditionPathExists=/etc/tashu/mysql/data-writer-password
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+Environment=MYSQL_CONTAINER_NAME=tashu-mysql
+Environment=MYSQL_DATA_RETENTION_HOURS=48
+Environment=MYSQL_DATA_PRUNE_BATCH_SIZE=10000
+Environment=MYSQL_DATA_PRUNE_MAX_BATCHES=100
+ExecStart=/usr/local/sbin/tashu-mysql-prune-data-history
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=true

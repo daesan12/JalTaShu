@@ -14,8 +14,11 @@ Server B에서 Spark Standalone Master, Worker, History Server를 실행하는 �
 | `scripts/bootstrap-dirs.sh` | 호스트 데이터 디렉터리와 Spark UID/GID 권한 생성 | 없음 |
 | `scripts/smoke-test.sh` | SparkPi 작업을 제출해 Master와 Worker 연결 검증 | 없음 |
 | `scripts/cache-kafka-connector.sh` | Spark 4.1.3용 공식 Kafka connector를 한 번 받아 cache | 없음 |
+| `scripts/cache-mysql-connector.sh` | 공식 MySQL Connector/J 9.6.0을 한 번 받아 cache | 없음 |
 | `scripts/submit-data-job.sh` | 데이터 작업 폴더 안의 Python 파일만 고정된 Spark 자원으로 제출 | 없음 |
 | `scripts/configure-data-user-access.sh` | `tashu-data` 계정에 위 제출 명령 하나만 허용하는 sudoers 설정 설치 | 없음 |
+| `scripts/configure-mysql-writer-credential.sh` | MySQL writer Secret을 Server B root 전용 경로에 저장 | 입력값만 Secret |
+| `scripts/mysql-jdbc-smoke-test.py` | 실제 Spark executor에서 MySQL 읽기와 UTC session을 검증 | 없음 |
 
 모든 파일은 Git으로 관리한다. 비밀번호, AWS 키, Kafka 인증정보는 이 폴더에 넣지 않는다.
 
@@ -29,6 +32,7 @@ Server B에서 Spark Standalone Master, Worker, History Server를 실행하는 �
 | `/srv/tashu/data/spark/output` | 검증·벤치마크 결과 |
 | `/srv/tashu/data/spark/work` | Worker가 실행 중 사용하는 임시 작업 파일 |
 | `/srv/tashu/data/spark/ivy` | Spark 4.1.3 Kafka connector와 의존성의 재사용 cache |
+| `/etc/tashu/streaming/mysql-data-writer.env` | root만 읽고 Spark 제출 컨테이너에만 전달하는 MySQL JDBC URL·writer Secret |
 
 ## 서비스 역할
 
@@ -42,6 +46,10 @@ Server B에서 Spark Standalone Master, Worker, History Server를 실행하는 �
 Spark Docker network는 `172.30.20.0/24`로 고정한다. Server B UFW에는 이 내부 대역에서
 Server B 사설 주소의 Kafka `9092`로 가는 TCP 연결만 허용한다. 외부 인터넷과 다른
 서비스 포트는 열지 않는다.
+
+Spark의 MySQL 연결은 Server B 사설 IP `172.26.4.110`에서 Server A 사설 IP
+`172.26.8.114:3306`으로만 허용한다. MySQL은 공개 주소에 bind하지 않고 Server A UFW에도
+Server B 한 대만 등록한다. 사람은 이 포트를 직접 사용하지 않고 DBeaver SSH tunnel을 사용한다.
 
 ```bash
 sudo ufw allow from 172.30.20.0/24 to <SERVER_B_PRIVATE_IP> port 9092 proto tcp comment 'Kafka from Spark containers'
@@ -97,6 +105,7 @@ sudo docker compose -f /opt/tashu/spark/compose.yml down
 
 ```bash
 sudo /opt/tashu/spark/scripts/cache-kafka-connector.sh
+sudo /opt/tashu/spark/scripts/cache-mysql-connector.sh
 sudo /opt/tashu/spark/scripts/configure-data-user-access.sh
 ```
 
@@ -118,6 +127,11 @@ Python 파일은 submit container에 read-only로 연결된다. 작업이 쓰는
 `org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.3`을 Maven Central에서 한 번 받아
 `/srv/tashu/data/spark/ivy`에 보관한다. 데이터 담당자의 제출 명령은 외부에서 library를 다시
 받지 않고 검증된 cache를 read-only로 연결한다.
+
+MySQL JDBC도 공식 Connector/J `com.mysql:mysql-connector-j:9.6.0`을 같은 cache에 고정한다.
+Spark SQL session과 JDBC connection session은 모두 UTC다. 제출 script는
+`/etc/tashu/streaming/mysql-data-writer.env`를 컨테이너 환경으로만 주입하며 Secret을 workspace,
+Git과 명령 인자에 기록하지 않는다.
 
 ## 다음 단계
 

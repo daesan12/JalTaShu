@@ -5,6 +5,7 @@ readonly SPARK_HOME_DIR=/opt/tashu/spark
 readonly COMPOSE_FILE="$SPARK_HOME_DIR/compose.yml"
 readonly DATA_WORKSPACE=/srv/tashu/workspace/data
 readonly SPARK_IVY_CACHE=/srv/tashu/data/spark/ivy
+readonly MYSQL_ENV_FILE=/etc/tashu/streaming/mysql-data-writer.env
 
 if (( EUID != 0 )); then
   echo "이 명령은 제한된 sudo 권한으로 실행해야 합니다." >&2
@@ -53,15 +54,20 @@ for container in tashu-spark-master tashu-spark-worker-b; do
   fi
 done
 
-mapfile -d '' KAFKA_JARS < <(
-  find "$SPARK_IVY_CACHE/jars" -maxdepth 1 -type f -name '*.jar' -print0 | sort -z
-)
-if (( ${#KAFKA_JARS[@]} == 0 )); then
-  echo "Kafka connector cache가 없습니다. 인프라 담당자가 cache-kafka-connector.sh를 먼저 실행해야 합니다." >&2
+if [[ ! -r "$MYSQL_ENV_FILE" ]]; then
+  echo "MySQL writer 환경파일을 읽을 수 없습니다: $MYSQL_ENV_FILE" >&2
   exit 1
 fi
 
-readonly KAFKA_JARS_CSV=$(IFS=,; printf '%s' "${KAFKA_JARS[*]}")
+mapfile -d '' CONNECTOR_JARS < <(
+  find "$SPARK_IVY_CACHE/jars" -maxdepth 1 -type f -name '*.jar' -print0 | sort -z
+)
+if (( ${#CONNECTOR_JARS[@]} == 0 )); then
+  echo "Spark connector cache가 없습니다. 인프라 담당자가 connector cache script를 먼저 실행해야 합니다." >&2
+  exit 1
+fi
+
+readonly CONNECTOR_JARS_CSV=$(IFS=,; printf '%s' "${CONNECTOR_JARS[*]}")
 
 readonly JOB_CONTAINER_PATH="/workspace/data/${JOB_REAL#"$WORKSPACE_REAL"/}"
 
@@ -71,13 +77,14 @@ exec docker compose \
   run \
   --rm \
   --no-deps \
+  --env-from-file "$MYSQL_ENV_FILE" \
   --volume "$WORKSPACE_REAL:/workspace/data:ro" \
   --volume "$SPARK_IVY_CACHE:$SPARK_IVY_CACHE:ro" \
   spark-submit \
   /opt/spark/bin/spark-submit \
   --master spark://spark-master:7077 \
   --deploy-mode client \
-  --jars "$KAFKA_JARS_CSV" \
+  --jars "$CONNECTOR_JARS_CSV" \
   --conf spark.cores.max=2 \
   --conf spark.executor.cores=1 \
   --conf spark.executor.memory=1g \

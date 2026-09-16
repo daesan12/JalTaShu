@@ -12,6 +12,8 @@ services:
       - mysql_root_password
     ports:
       - 127.0.0.1:3306:3306
+      # Server B의 Spark만 사설망으로 접근한다. UFW에서도 Server B 한 대만 허용한다.
+      - 172.26.8.114:3306:3306
     volumes:
       - mysql-data:/var/lib/mysql
       - ./conf.d/tashu.cnf:/etc/mysql/conf.d/tashu.cnf:ro
