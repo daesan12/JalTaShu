@@ -20,6 +20,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import requests
 
+from kafka_publisher import WeatherKafkaError, WeatherKafkaOutbox, WeatherKafkaPublisher
+
 
 API_URL = (
     "https://apis.data.go.kr/1360000/"
@@ -43,6 +45,15 @@ def _env_int(name: str, default: int) -> int:
 
 def _env_path(name: str, default: str) -> Path:
     return Path(os.environ.get(name, "").strip() or default)
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name, str(default)).strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    raise RuntimeError(f"{name} must be true or false")
 
 
 DATA_ROOT = _env_path("WEATHER_DATA_DIR", "data")
@@ -172,6 +183,14 @@ class WeatherCollector:
             raise RuntimeError("WEATHER_RELEASE_MINUTE must be less than 60")
         self.session = requests.Session()
         self.stop_requested = False
+        self.kafka_enabled = _env_bool("WEATHER_KAFKA_ENABLED", False)
+        self.kafka_outbox: WeatherKafkaOutbox | None = None
+        if self.kafka_enabled:
+            publisher = WeatherKafkaPublisher.from_env()
+            spool_dir = _env_path(
+                "WEATHER_KAFKA_SPOOL_DIR", str(DATA_ROOT / "kafka-spool")
+            )
+            self.kafka_outbox = WeatherKafkaOutbox(publisher, spool_dir)
 
     def fetch(self, now: datetime | None = None) -> WeatherObservation:
         fetched_at = now.astimezone(KST) if now else datetime.now(KST)
@@ -231,6 +250,9 @@ class WeatherCollector:
     def _update_health(
         self, observation: WeatherObservation, path: Path, created: bool
     ) -> None:
+        kafka_pending = (
+            self.kafka_outbox.pending_count() if self.kafka_outbox is not None else 0
+        )
         _atomic_json(
             HEALTH_PATH,
             {
@@ -241,15 +263,51 @@ class WeatherCollector:
                 "rainfall_1h": observation.rainfall_1h,
                 "path": str(path),
                 "new_file": created,
+                "kafka_enabled": self.kafka_enabled,
+                "kafka_pending_events": kafka_pending,
             },
         )
 
+    def _replay_kafka(self) -> None:
+        if self.kafka_outbox is None:
+            return
+        try:
+            result = self.kafka_outbox.replay_pending()
+            if result.delivered_events:
+                logging.info(
+                    "weather Kafka replay delivered=%d pending=%d",
+                    result.delivered_events,
+                    result.pending_events,
+                )
+        except WeatherKafkaError:
+            logging.exception(
+                "weather Kafka replay failed pending=%d",
+                self.kafka_outbox.pending_count(),
+            )
+
+    def _enqueue_kafka(self, observation: WeatherObservation, created: bool) -> None:
+        if self.kafka_outbox is None or not created:
+            return
+        try:
+            path = self.kafka_outbox.enqueue(observation)
+            logging.info(
+                "weather Kafka spool saved event_id=%s path=%s",
+                f"{observation.observed_at.isoformat()}:{observation.nx}:{observation.ny}",
+                path,
+            )
+        except WeatherKafkaError:
+            logging.exception("weather Kafka spool save failed")
+            return
+        self._replay_kafka()
+
     def collect_once(self, now: datetime | None = None) -> WeatherObservation:
+        self._replay_kafka()
         last_error: Exception | None = None
         for attempt in range(1, MAX_ATTEMPTS + 1):
             try:
                 observation = self.fetch(now)
                 path, created = self.save(observation)
+                self._enqueue_kafka(observation, created)
                 self._update_health(observation, path, created)
                 logging.info(
                     "weather collected observed_at=%s temperature=%.1f rainfall_1h=%.1f new_file=%s",
@@ -280,6 +338,8 @@ class WeatherCollector:
 
     def close(self) -> None:
         self.session.close()
+        if self.kafka_outbox is not None:
+            self.kafka_outbox.close()
 
 
 def main() -> int:
