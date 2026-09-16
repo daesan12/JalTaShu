@@ -48,8 +48,12 @@
   --color-admin-text: #18181b;
   --color-admin-muted: #71717a;
 
-  /* Admin/Badge 5종은 상태가 아니라 역할 4개로 묶는다 (정상 = panel/muted 재사용) */
+  --color-admin-primary: #18181b; /* Primary 버튼 바탕 — 값은 text와 같지만 쓰임이 달라 따로 둔다 */
+  --color-admin-primary-hover: #3f3f46;
+
+  /* Admin/Badge 5종을 색 역할 3개로 묶는다: 정상=해결됨(초록), 정지=미해결(빨강) */
   --color-admin-danger: #dc2626; /* Danger 버튼 바탕 */
+  --color-admin-danger-hover: #b91c1c;
   --color-admin-danger-bg: #fee2e2; /* 미해결 · 정지 */
   --color-admin-danger-text: #991b1b;
   --color-admin-warn-bg: #fef3c7; /* 처리중 */
