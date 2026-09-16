@@ -10,6 +10,6 @@ scipy==1.17.1
 scikit-learn==1.9.1
 joblib==1.6.0
 holidays==0.104       # holiday_type feature
-pymysql==2.2.8        # serve: MySQL tashu_data read-only
+pymysql==1.2.0        # serve: MySQL tashu_data read-only (pymysql.__version__ 문자열은 2.2.8로 다르게 찍힘 — pip 버전이 기준)
 redis==8.1.0          # serve: prediction cache
 pytest==9.1.1
