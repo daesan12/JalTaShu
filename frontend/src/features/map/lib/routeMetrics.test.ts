@@ -53,12 +53,28 @@ describe('sortSummaries', () => {
   ];
 
   it('확보 우선: 대수 많은 순, 같으면 빠른 순. 원본은 건드리지 않는다', () => {
-    expect(sortSummaries(summaries, 'bikes').map((s) => s.index)).toEqual([1, 3, 2, 0]);
+    expect(sortSummaries(summaries, ['bikes']).map((s) => s.index)).toEqual([1, 3, 2, 0]);
     expect(summaries[0].index).toBe(0);
   });
 
   it('오르막 적게: 누적 상승 적은 순', () => {
-    expect(sortSummaries(summaries, 'flat').map((s) => s.index)).toEqual([2, 1, 3, 0]);
+    expect(sortSummaries(summaries, ['flat']).map((s) => s.index)).toEqual([2, 1, 3, 0]);
+  });
+
+  it('아무 칩도 없으면 빠른 순', () => {
+    expect(sortSummaries(summaries, []).map((s) => s.index)).toEqual([0, 1, 3, 2]);
+  });
+
+  it('둘 다 켜면 확보 우선으로 줄 세우고 동률(1·3번)은 오르막 적은 쪽이 앞', () => {
+    // bikes만일 때는 동률을 시간으로 갈라 [1, 3, ...]이지만, flat이 동점 처리에 끼면 45m < 60m로 1번이 앞
+    expect(sortSummaries(summaries, ['bikes', 'flat']).map((s) => s.index)).toEqual([1, 3, 2, 0]);
+    const tieBreak = [
+      { index: 0, totalSec: 1000, walkSec: 100, ascentM: 80, expectedBikeCnt: 4 },
+      { index: 1, totalSec: 1400, walkSec: 100, ascentM: 20, expectedBikeCnt: 4 },
+    ];
+    // bikes만이면 빠른 0번이 앞, flat이 동점 처리면 오르막 적은 1번이 앞
+    expect(sortSummaries(tieBreak, ['bikes']).map((s) => s.index)).toEqual([0, 1]);
+    expect(sortSummaries(tieBreak, ['bikes', 'flat']).map((s) => s.index)).toEqual([1, 0]);
   });
 });
 
