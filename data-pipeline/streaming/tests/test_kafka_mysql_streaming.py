@@ -4,6 +4,7 @@ import importlib.util
 import pathlib
 import sys
 import unittest
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 
@@ -34,6 +35,7 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(settings.weather_topic, "tashu.weather-observation.v1")
         self.assertEqual(settings.starting_offsets, "earliest")
         self.assertEqual(settings.trigger_seconds, 10)
+        self.assertTrue(settings.checkpoint_root.endswith("kafka-mysql-v2"))
 
     def test_missing_secret_environment_fails(self):
         env = base_env()
@@ -55,6 +57,27 @@ class SettingsTest(unittest.TestCase):
 
 
 class SqlContractTest(unittest.TestCase):
+    def test_kst_timestamp_is_serialized_as_actual_utc(self):
+        kst = timezone(timedelta(hours=9))
+        observed_at = datetime(2026, 9, 16, 14, 0, 0, tzinfo=kst)
+
+        result = MODULE.utc_mysql_timestamp(observed_at)
+
+        self.assertEqual(result, "2026-09-16 05:00:00.000000")
+
+    def test_datetime_serialization_does_not_depend_on_process_timezone(self):
+        source = datetime.fromisoformat("2026-09-16T14:00:00+09:00")
+        equivalent_utc = datetime(2026, 9, 16, 5, 0, tzinfo=timezone.utc)
+
+        self.assertEqual(
+            MODULE.utc_mysql_timestamp(source),
+            MODULE.utc_mysql_timestamp(equivalent_utc),
+        )
+
+    def test_naive_datetime_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "must include a timezone"):
+            MODULE.utc_mysql_timestamp(datetime(2026, 9, 16, 14, 0, 0))
+
     def test_station_upsert_is_parameterized_and_idempotent(self):
         sql = MODULE.mysql_insert_sql(MODULE.STATION_TABLE, MODULE.STATION_COLUMNS)
         self.assertEqual(sql.count("?"), len(MODULE.STATION_COLUMNS))

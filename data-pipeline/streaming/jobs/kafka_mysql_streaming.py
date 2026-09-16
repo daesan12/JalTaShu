@@ -10,7 +10,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 
@@ -104,11 +104,11 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         ).strip(),
         checkpoint_root=values.get(
             "TASHU_STREAM_CHECKPOINT_ROOT",
-            "/srv/tashu/spark/checkpoints/kafka-mysql-v1",
+            "/srv/tashu/spark/checkpoints/kafka-mysql-v2",
         ).rstrip("/"),
         dead_letter_root=values.get(
             "TASHU_STREAM_DEAD_LETTER_ROOT",
-            "/srv/tashu/spark/output/dead-letter/kafka-mysql-v1",
+            "/srv/tashu/spark/output/dead-letter/kafka-mysql-v2",
         ).rstrip("/"),
         trigger_seconds=_positive_int(values, "TASHU_STREAM_TRIGGER_SECONDS", 10),
         starting_offsets=starting_offsets,
@@ -137,10 +137,17 @@ def mysql_insert_sql(table: str, columns: Sequence[str]) -> str:
     )
 
 
+def utc_mysql_timestamp(value: datetime) -> str:
+    """Serialize an aware instant as a MySQL UTC timestamp without local TZ use."""
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("timestamp datetime must include a timezone")
+    return value.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")
+
+
 def _jdbc_value(value: Any) -> Any:
-    """Convert Spark Row values into stable JDBC setter inputs."""
+    """Convert values to stable JDBC inputs and reject ambiguous datetimes."""
     if isinstance(value, datetime):
-        return value.strftime("%Y-%m-%d %H:%M:%S.%f")
+        return utc_mysql_timestamp(value)
     return value
 
 
@@ -437,7 +444,13 @@ def _batch_handler(
 
             valid = batch.filter(F.col("is_valid"))
             for source, target in timestamp_renames.items():
-                valid = valid.drop(source).withColumnRenamed(target, source)
+                # Spark timestamps are instants. Formatting them inside Spark while
+                # spark.sql.session.timeZone=UTC avoids Python datetime conversion,
+                # which otherwise depends on the driver's operating-system timezone.
+                valid = valid.withColumn(
+                    source,
+                    F.date_format(F.col(target), "yyyy-MM-dd HH:mm:ss.SSSSSS"),
+                ).drop(target)
             selected = valid.select(*columns).dropDuplicates(["event_id"])
             written = execute_mysql_upsert(
                 selected.toLocalIterator(),
@@ -502,7 +515,7 @@ def main() -> None:
     queries = [
         _start_query(
             station_stream,
-            query_name="tashu-station-kafka-mysql-v1",
+            query_name="tashu-station-kafka-mysql-v2",
             checkpoint=f"{settings.checkpoint_root}/station",
             trigger_seconds=settings.trigger_seconds,
             handler=_batch_handler(
@@ -516,7 +529,7 @@ def main() -> None:
         ),
         _start_query(
             weather_stream,
-            query_name="tashu-weather-kafka-mysql-v1",
+            query_name="tashu-weather-kafka-mysql-v2",
             checkpoint=f"{settings.checkpoint_root}/weather",
             trigger_seconds=settings.trigger_seconds,
             handler=_batch_handler(
