@@ -136,7 +136,7 @@ export function MapHomePage() {
   const [stationSnap, setStationSnap] = useState<StationSnap>('peek');
   const [destination, setDestination] = useState<PlaceSearchResult | null>(null);
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
-  const [routeSort, setRouteSort] = useState<RouteSort>('bikes');
+  const [routeSort, setRouteSort] = useState<RouteSort[]>(['bikes']);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null);
   // 현재위치 버튼을 누른 횟수 — 같은 자리에서 다시 눌러도 지도가 그 위치로 돌아오게 하는 신호
   const [locationFocusToken, setLocationFocusToken] = useState(0);
@@ -471,6 +471,12 @@ export function MapHomePage() {
     navigate(-1);
   }
 
+  // 정렬 칩이 바뀌면 이전 선택을 유지하지 않고 새 기준의 1순위 경로를 선택한다
+  function changeRouteSort(next: RouteSort[]) {
+    setRouteSort(next);
+    setSelectedRouteIndex(sortSummaries(routeSummaries, next)[0]?.index ?? null);
+  }
+
   // 10의 "바로 안내 시작" → 11 경로 상세. 카드 버튼은 선택과 무관하게 눌릴 수 있어 선택도 함께 맞춘다
   function openRouteDetail(index: number) {
     setSelectedRouteIndex(index);
@@ -701,7 +707,7 @@ export function MapHomePage() {
           badges={routeBadges}
           fetchedAt={routeResult.fetchedAt}
           sort={routeSort}
-          onSortChange={setRouteSort}
+          onSortChange={changeRouteSort}
           selectedIndex={selectedRouteIndex}
           onSelect={setSelectedRouteIndex}
           onStart={openRouteDetail}

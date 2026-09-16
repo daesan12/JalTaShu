@@ -41,8 +41,9 @@ interface RouteCompareSheetProps {
   badges: (RouteBadgeKind | null)[];
   /** 후보를 받은 시각 — 도착 예정 시각 계산용 */
   fetchedAt: number;
-  sort: RouteSort;
-  onSortChange: (sort: RouteSort) => void;
+  /** 켜져 있는 정렬 칩들 (0~2개, SORT_ORDER 순서 유지) */
+  sort: RouteSort[];
+  onSortChange: (sort: RouteSort[]) => void;
   selectedIndex: number | null;
   onSelect: (index: number) => void;
   /** "바로 안내 시작" — 11 경로 상세는 후속 이슈라 지금은 안내만 띄운다 */
@@ -68,6 +69,12 @@ export function RouteCompareSheet({
 }: RouteCompareSheetProps) {
   const sorted = useMemo(() => sortSummaries(summaries, sort), [summaries, sort]);
   const selected = selectedIndex === null ? null : (summaries[selectedIndex] ?? null);
+
+  /** 칩 하나를 켜고 끈다 — 우선순위가 예측 가능하도록 결과는 항상 SORT_ORDER 순서 */
+  function toggleSort(kind: RouteSort) {
+    const next = sort.includes(kind) ? sort.filter((s) => s !== kind) : [...sort, kind];
+    onSortChange(SORT_ORDER.filter((s) => next.includes(s)));
+  }
 
   // 공용 시트는 4단계를 돌려주지만 여기서는 peek 아니면 확장으로만 본다
   function changeSnap(next: SnapPoint) {
@@ -101,7 +108,7 @@ export function RouteCompareSheet({
             </p>
             <div className="flex gap-1.5">
               {SORT_ORDER.map((kind) => (
-                <Chip key={kind} selected={sort === kind} onClick={() => onSortChange(kind)}>
+                <Chip key={kind} selected={sort.includes(kind)} onClick={() => toggleSort(kind)}>
                   {SORT_LABEL[kind]}
                 </Chip>
               ))}

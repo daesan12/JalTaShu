@@ -5,7 +5,7 @@ import type { RoutePath } from '@/shared/api/types';
  * 순수 함수로 두어 유닛 테스트한다. 표시(칩·카드)는 컴포넌트가 이 값을 그대로 쓴다.
  */
 
-/** 칩 — 한 번에 하나만 선택. 필터가 아니라 정렬 기준이다(후보를 숨기지 않는다) */
+/** 칩 — 각각 독립 토글(0~2개 선택). 필터가 아니라 정렬 기준이다(후보를 숨기지 않는다) */
 export type RouteSort = 'bikes' | 'flat';
 
 /**
@@ -57,14 +57,24 @@ export function summarizeRoutes(routes: RoutePath[]): RouteSummary[] {
   return routes.map(summarizeRoute);
 }
 
-/** 칩 기준으로 정렬한 새 배열. 같으면 빠른 경로가 앞 */
-export function sortSummaries(summaries: RouteSummary[], sort: RouteSort): RouteSummary[] {
-  const byTime = (a: RouteSummary, b: RouteSummary) => a.totalSec - b.totalSec;
-  return [...summaries].sort((a, b) =>
-    sort === 'bikes'
-      ? b.expectedBikeCnt - a.expectedBikeCnt || byTime(a, b)
-      : a.ascentM - b.ascentM || byTime(a, b),
-  );
+const SORT_COMPARATORS: Record<RouteSort, (a: RouteSummary, b: RouteSummary) => number> = {
+  bikes: (a, b) => b.expectedBikeCnt - a.expectedBikeCnt,
+  flat: (a, b) => a.ascentM - b.ascentM,
+};
+
+/**
+ * 선택된 칩들을 순서대로 적용해 정렬한 새 배열.
+ * 배열 앞의 기준이 1차, 뒤의 기준은 동점 처리. 아무것도 없거나 모두 같으면 빠른 경로가 앞.
+ * (칩을 둘 다 켜면 [bikes, flat] — 확보 우선으로 줄 세우고 동률은 오르막 적은 쪽)
+ */
+export function sortSummaries(summaries: RouteSummary[], sorts: RouteSort[]): RouteSummary[] {
+  return [...summaries].sort((a, b) => {
+    for (const key of sorts) {
+      const diff = SORT_COMPARATORS[key](a, b);
+      if (diff !== 0) return diff;
+    }
+    return a.totalSec - b.totalSec;
+  });
 }
 
 /** 뱃지를 붙이는 순서. 한 후보가 여러 기준에서 1등이면 앞 순서의 뱃지만 받고, 그 기준은 다음 후보에게 */
