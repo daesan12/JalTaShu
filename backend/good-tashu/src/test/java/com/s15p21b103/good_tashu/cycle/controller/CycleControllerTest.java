@@ -73,13 +73,13 @@ class CycleControllerTest {
         when(cycleService.claimCycle(eq(1L), any())).thenReturn(new CycleClaimResponse(10L));
 
         mvc.perform(multipart("/api/cycle/claim").file(photo)
-                        .param("cycleId", "C1").param("claimCategory", "TIRE").param("content", "타이어 펑크"))
+                        .param("usageId", "100").param("claimCategory", "TIRE").param("content", "타이어 펑크"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.claimId").value(10));
 
         var captor = ArgumentCaptor.forClass(CycleClaimRequest.class);
         verify(cycleService).claimCycle(eq(1L), captor.capture());
-        assertThat(captor.getValue().cycleId()).isEqualTo("C1");
+        assertThat(captor.getValue().usageId()).isEqualTo(100L);
         assertThat(captor.getValue().claimCategory()).isEqualTo(ClaimCategory.TIRE);
         assertThat(captor.getValue().content()).isEqualTo("타이어 펑크");
         assertThat(captor.getValue().file().getBytes()).containsExactly(1, 2);
@@ -89,7 +89,7 @@ class CycleControllerTest {
     void multipartClaimAllowsMissingPhoto() throws Exception {
         when(cycleService.claimCycle(eq(1L), any())).thenReturn(new CycleClaimResponse(10L));
         mvc.perform(multipart("/api/cycle/claim")
-                        .param("cycleId", "C1").param("claimCategory", "TIRE").param("content", "타이어 펑크"))
+                        .param("usageId", "100").param("claimCategory", "TIRE").param("content", "타이어 펑크"))
                 .andExpect(status().isOk());
         var captor = ArgumentCaptor.forClass(CycleClaimRequest.class);
         verify(cycleService).claimCycle(eq(1L), captor.capture());
@@ -98,7 +98,7 @@ class CycleControllerTest {
 
     @Test
     void missingClaimCategoryIsRejectedBeforeServiceCall() throws Exception {
-        mvc.perform(multipart("/api/cycle/claim").param("cycleId", "C1").param("content", "내용"))
+        mvc.perform(multipart("/api/cycle/claim").param("usageId", "100").param("content", "내용"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
         verifyNoInteractions(cycleService);

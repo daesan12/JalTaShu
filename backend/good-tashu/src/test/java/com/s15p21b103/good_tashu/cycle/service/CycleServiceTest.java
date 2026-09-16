@@ -24,7 +24,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -59,14 +58,23 @@ class CycleServiceTest {
     }
 
     private void claimEligibility(boolean eligible) {
-        existingUserAndCycle();
-        when(cycleUsageRepository.existsByUserEntityAndCycleEntityAndReturnAtBetween(
-                eq(user), eq(cycle), any(LocalDateTime.class), any(LocalDateTime.class)))
-                .thenReturn(eligible);
+        LocalDateTime returnAt = LocalDateTime.now().minusHours(1);
+        if (!eligible) {
+            returnAt = LocalDateTime.now().minusDays(2);
+        }
+        CycleUsageEntity usage = CycleUsageEntity.builder()
+                .cycleUsageId(100L)
+                .userEntity(user)
+                .cycleEntity(cycle)
+                .rentalAt(LocalDateTime.now().minusDays(2))
+                .returnAt(returnAt)
+                .build();
+        when(cycleUsageRepository.findByCycleUsageIdAndUserEntity_UserId(100L, 1L))
+                .thenReturn(Optional.of(usage));
     }
 
     private CycleClaimRequest claimRequest(MultipartFile file) {
-        return new CycleClaimRequest("C1", ClaimCategory.TIRE, "타이어 펑크", file);
+        return new CycleClaimRequest(100L, ClaimCategory.TIRE, "타이어 펑크", file);
     }
 
     @Test
@@ -193,8 +201,8 @@ class CycleServiceTest {
         var order = inOrder(s3Service, cycleClaimRepository);
         order.verify(s3Service).uploadImage(photo);
         order.verify(cycleClaimRepository).save(captor.capture());
-        assertThat(captor.getValue().getUserEntity()).isSameAs(user);
-        assertThat(captor.getValue().getCycleEntity()).isSameAs(cycle);
+        assertThat(captor.getValue().getCycleUsageEntity().getUserEntity()).isSameAs(user);
+        assertThat(captor.getValue().getCycleUsageEntity().getCycleEntity()).isSameAs(cycle);
         assertThat(captor.getValue().getClaimCategory()).isEqualTo(ClaimCategory.TIRE);
         assertThat(captor.getValue().getContent()).isEqualTo("타이어 펑크");
         assertThat(captor.getValue().getStatus()).isEqualTo(ClaimStatus.READY);
@@ -217,21 +225,44 @@ class CycleServiceTest {
     }
 
     @Test
-    void claimUsesExactOneDayWindowAndRejectsIneligibleUserBeforeUpload() {
+    void claimRejectsUsageOutsideAllowedWindowsBeforeUpload() {
         claimEligibility(false);
-        LocalDateTime before = LocalDateTime.now();
         var photo = new MockMultipartFile("file", "photo.jpg", "image/jpeg", new byte[]{1});
         assertThatThrownBy(() -> cycleService.claimCycle(1L, claimRequest(photo)))
                 .isInstanceOfSatisfying(CycleException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(CANT_WRITE_CLAIM));
-        LocalDateTime after = LocalDateTime.now();
+        verify(cycleUsageRepository).findByCycleUsageIdAndUserEntity_UserId(100L, 1L);
+        verifyNoInteractions(s3Service, cycleClaimRepository);
+    }
 
-        var from = ArgumentCaptor.forClass(LocalDateTime.class);
-        var to = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(cycleUsageRepository).existsByUserEntityAndCycleEntityAndReturnAtBetween(
-                eq(user), eq(cycle), from.capture(), to.capture());
-        assertThat(Duration.between(from.getValue(), to.getValue())).isEqualTo(Duration.ofDays(1));
-        assertThat(to.getValue()).isBetween(before, after);
+    @Test
+    void claimAllowsUsageWithinThirtyMinutesOfRental() {
+        CycleUsageEntity usage = CycleUsageEntity.builder()
+                .cycleUsageId(100L)
+                .userEntity(user)
+                .cycleEntity(cycle)
+                .rentalAt(LocalDateTime.now().minusMinutes(10))
+                .build();
+        when(cycleUsageRepository.findByCycleUsageIdAndUserEntity_UserId(100L, 1L))
+                .thenReturn(Optional.of(usage));
+        when(cycleClaimRepository.save(any()))
+                .thenReturn(CycleClaimEntity.builder().id(10L).build());
+
+        assertThat(cycleService.claimCycle(1L, claimRequest(null)).claimId()).isEqualTo(10L);
+
+        ArgumentCaptor<CycleClaimEntity> captor = ArgumentCaptor.forClass(CycleClaimEntity.class);
+        verify(cycleClaimRepository).save(captor.capture());
+        assertThat(captor.getValue().getCycleUsageEntity()).isSameAs(usage);
+    }
+
+    @Test
+    void claimRejectsUsageNotOwnedByAuthenticatedUser() {
+        when(cycleUsageRepository.findByCycleUsageIdAndUserEntity_UserId(100L, 1L))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> cycleService.claimCycle(1L, claimRequest(null)))
+                .isInstanceOfSatisfying(CycleException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(NOT_EXIST_USAGE));
         verifyNoInteractions(s3Service, cycleClaimRepository);
     }
 
@@ -267,10 +298,12 @@ class CycleServiceTest {
     @Test
     void claimListReturnsRequestedFields() {
         LocalDateTime createdAt = LocalDateTime.of(2026, 9, 10, 10, 0);
-        var claim = CycleClaimEntity.builder().id(10L).userEntity(user).cycleEntity(cycle)
+        CycleUsageEntity usage = CycleUsageEntity.builder().cycleUsageId(100L)
+                .userEntity(user).cycleEntity(cycle).build();
+        var claim = CycleClaimEntity.builder().id(10L).cycleUsageEntity(usage)
                 .claimCategory(ClaimCategory.TIRE).content("타이어 펑크").createdAt(createdAt).build();
         when(cycleRepository.existsById("C1")).thenReturn(true);
-        when(cycleClaimRepository.findAllByCycleEntity_CycleIdOrderByCreatedAtDescIdDesc("C1"))
+        when(cycleClaimRepository.findAllByCycleUsageEntity_CycleEntity_CycleIdOrderByCreatedAtDescIdDesc("C1"))
                 .thenReturn(List.of(claim));
 
         assertThat(cycleService.getCycleClaims("C1")).singleElement().satisfies(response -> {
@@ -285,7 +318,7 @@ class CycleServiceTest {
     @Test
     void claimListReturnsEmptyListForCycleWithoutClaims() {
         when(cycleRepository.existsById("C1")).thenReturn(true);
-        when(cycleClaimRepository.findAllByCycleEntity_CycleIdOrderByCreatedAtDescIdDesc("C1"))
+        when(cycleClaimRepository.findAllByCycleUsageEntity_CycleEntity_CycleIdOrderByCreatedAtDescIdDesc("C1"))
                 .thenReturn(List.of());
         assertThat(cycleService.getCycleClaims("C1")).isEmpty();
     }

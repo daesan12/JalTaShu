@@ -119,7 +119,6 @@ public class CycleService {
         //조회
         CycleEntity cycleEntity = cycleRepository.findById(request.cycleId())
                 .orElseThrow(() -> new CycleException(NOT_EXIST_CYCLE_ID));
-
         //자전거 대여가능상태 확인
         if(cycleEntity.getStatus() != CycleStatus.READY) {
             throw new CycleException(CYCLE_NOT_READY);
@@ -183,18 +182,21 @@ public class CycleService {
 
     @Transactional
     public CycleClaimResponse claimCycle(Long userId, CycleClaimRequest request) {
-        UserEntity userEntity = userRepository.findById(userId)
-                .orElseThrow(() -> new UserException(NOT_EXISTS_USER));
-        //조회
-        CycleEntity cycleEntity = cycleRepository.findById(request.cycleId())
-                .orElseThrow(() -> new CycleException(NOT_EXIST_CYCLE_ID));
+        CycleUsageEntity cycleUsageEntity = cycleUsageRepository
+                .findByCycleUsageIdAndUserEntity_UserId(request.usageId(), userId)
+                .orElseThrow(() -> new CycleException(NOT_EXIST_USAGE));
 
-        //탑승기록확인
-        //자전거 이용 완료 이후 1일이내에 작성 가능함
+        // 탑승 기록을 기준으로 제보 가능한 시간인지 확인한다.
+        // QR 인식 이후 30분 이내이거나 자전거 이용 완료 이후 1일 이내에 작성 가능하다.
         LocalDateTime now = LocalDateTime.now();
 
-        if(!(cycleUsageRepository.existsByUserEntityAndCycleEntityAndReturnAtBetween(
-                userEntity, cycleEntity, now.minusDays(1), now))) {
+        boolean withinRentalWindow = cycleUsageEntity.getRentalAt() != null
+                && !cycleUsageEntity.getRentalAt().isBefore(now.minusMinutes(30))
+                && !cycleUsageEntity.getRentalAt().isAfter(now);
+        boolean withinReturnWindow = cycleUsageEntity.getReturnAt() != null
+                && !cycleUsageEntity.getReturnAt().isBefore(now.minusDays(1))
+                && !cycleUsageEntity.getReturnAt().isAfter(now);
+        if (!withinRentalWindow && !withinReturnWindow) {
             throw new CycleException(CANT_WRITE_CLAIM);
         }
 
@@ -206,8 +208,7 @@ public class CycleService {
         }
 
         CycleClaimEntity cycleClaimEntity = CycleClaimEntity.builder()
-                .cycleEntity(cycleEntity)
-                .userEntity(userEntity)
+                .cycleUsageEntity(cycleUsageEntity)
                 .claimCategory(request.claimCategory())
                 .content(request.content())
                 .status(ClaimStatus.READY)
@@ -227,11 +228,12 @@ public class CycleService {
             throw new CycleException(NOT_EXIST_CYCLE_ID);
         }
 
-        return cycleClaimRepository.findAllByCycleEntity_CycleIdOrderByCreatedAtDescIdDesc(cycleId)
+        return cycleClaimRepository
+                .findAllByCycleUsageEntity_CycleEntity_CycleIdOrderByCreatedAtDescIdDesc(cycleId)
                 .stream()
                 .map(claim -> new CycleClaimListResponse(
                         claim.getId(),
-                        claim.getUserEntity().getNickname(),
+                        claim.getCycleUsageEntity().getUserEntity().getNickname(),
                         claim.getClaimCategory(),
                         claim.getContent(),
                         claim.getCreatedAt()))

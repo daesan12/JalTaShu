@@ -2,6 +2,14 @@ package com.s15p21b103.good_tashu.admin.controller;
 
 import com.s15p21b103.good_tashu._util.response.ApiResponse;
 import com.s15p21b103.good_tashu.admin.annotation.currentAdminId;
+import com.s15p21b103.good_tashu.admin.dto.req.AdminCycleClaimUpdateRequest;
+import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleClaimResponse;
+import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleClaimDetailResponse;
+import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleClaimListResponse;
+import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleClaimUpdateResponse;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleStatisticsResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleListResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleDetailStatisticsResponse;
@@ -27,6 +35,44 @@ import java.util.List;
 @RequestMapping("/api/admin")
 public class AdminCycleController {
     private final AdminCycleService adminCycleService;
+
+    // 자전거별 제보 조회
+    @GetMapping("/cycle/{cycleId}/claim")
+    public ApiResponse<List<AdminCycleClaimResponse>> getCycleClaims(
+            @currentAdminId Long adminId,
+            @PathVariable(name = "cycleId") String cycleId) {
+        return ApiResponse.success(adminCycleService.getCycleClaims(cycleId));
+    }
+
+    // 자전거 신고 상세 조회
+    @GetMapping("/cycle/claim/{claimId}")
+    public ApiResponse<AdminCycleClaimDetailResponse> getCycleClaimDetail(
+            @currentAdminId Long adminId,
+            @PathVariable(name = "claimId") Long claimId) {
+        return ApiResponse.success(adminCycleService.getCycleClaimDetail(claimId));
+    }
+
+    // 모든 자전거 제보 조회
+    @GetMapping("/cycle/claim")
+    public ApiResponse<List<AdminCycleClaimListResponse>> getCycleClaimList(
+            @currentAdminId Long adminId,
+            @RequestParam(name = "nickname", defaultValue = "") String nickname,
+            @RequestParam(name = "cycleId", defaultValue = "") String cycleId,
+            @RequestParam(name = "order", defaultValue = "newest") String order,
+            @RequestParam(name = "status", defaultValue = "") String status) {
+        // TODO: 검색·정렬 조건 검증 및 전체 제보 조회 서비스 연결
+        return ApiResponse.success(
+                adminCycleService.getCycleClaimList(nickname, cycleId, order, status));
+    }
+
+    // 제보 상태 변경 및 관리자 코멘트 작성
+    @PatchMapping("/cycle/claim/{claimId}")
+    public ApiResponse<AdminCycleClaimUpdateResponse> updateCycleClaim(
+            @currentAdminId Long adminId,
+            @PathVariable(name = "claimId") Long claimId,
+            @Valid @RequestBody AdminCycleClaimUpdateRequest request) {
+        return ApiResponse.success(adminCycleService.updateCycleClaim(claimId, request));
+    }
 
     // 모든 자전거 통계
     @GetMapping("/cycle/statics")

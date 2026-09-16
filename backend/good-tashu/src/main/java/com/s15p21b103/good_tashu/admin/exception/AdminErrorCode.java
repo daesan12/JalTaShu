@@ -7,6 +7,10 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum AdminErrorCode {
+    INVALID_CLAIM_STATUS(HttpStatus.BAD_REQUEST,
+            "status는 READY, IN_PROGRESS, COMPLETED 중 하나만 가능합니다."),
+    INVALID_CLAIM_ID(HttpStatus.BAD_REQUEST, "제보 ID가 올바르지 않습니다."),
+    NOT_EXISTS_CLAIM(HttpStatus.NOT_FOUND, "존재하지 않는 제보입니다."),
     NOT_EXISTS_ADMIN(HttpStatus.NOT_FOUND, "존재하지 않는 관리자입니다."),
     NOT_EXISTS_USER(HttpStatus.NOT_FOUND, "존재하지 않는 사용자입니다."),
     ALREADY_BANNED(HttpStatus.CONFLICT, "이미 제재 중인 사용자입니다."),
