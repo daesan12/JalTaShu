@@ -1,10 +1,13 @@
 # Tashu AI (CLAUDE.md: pandas/LightGBM/scipy/scikit-learn/joblib, no GPU/DL)
-pandas>=2.2
-pyarrow>=16
-tzdata>=2024.1        # Windows lacks IANA tz DB - required for Asia/Seoul aware datetimes
-lightgbm>=4.3
-scipy>=1.13
-scikit-learn>=1.5
-joblib>=1.4
-holidays>=0.50        # holiday_type feature (stage 3)
-pytest>=8.2
+# Versions PINNED to the training environment (2026-09-15) — models are joblib(pickle)
+# artifacts, so serving must load them with the same library versions.
+pandas==3.0.5
+pyarrow==25.0.1
+numpy==2.4.6
+tzdata==2026.4        # Windows lacks IANA tz DB - required for Asia/Seoul aware datetimes
+lightgbm==4.7.0
+scipy==1.17.1
+scikit-learn==1.9.1
+joblib==1.6.0
+holidays==0.104       # holiday_type feature
+pytest==9.1.1
