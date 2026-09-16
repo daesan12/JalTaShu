@@ -33,6 +33,11 @@ Backend 컨테이너는 같은 `tashu-app` Docker network에서 `tashu-mysql:330
 | `scripts/generate-data-access-secrets.sh` | 데이터·AI·DBeaver 계정 비밀번호를 값 출력 없이 최초 생성 |
 | `scripts/bootstrap-data-database.sh` | `tashu_data`와 writer/reader/observer 최소 권한 계정을 반복 실행 가능하게 생성 |
 | `scripts/verify-data-isolation.sh` | 세 계정의 허용 작업 성공과 금지 작업 차단을 실제 SQL로 검증 |
+| `schema/tashu-data.sql` | 실시간 대여소·날씨 이력 테이블과 조회 인덱스 정의 |
+| `scripts/bootstrap-data-tables.sh` | 확정 DDL을 MySQL에 반복 적용 |
+| `scripts/prune-data-history.sh` | 48시간이 지난 행을 최대 10,000행 단위로 나누어 삭제 |
+| `scripts/verify-data-tables.sh` | upsert·조회·48시간 보존 동작을 검증용 행으로 확인 |
+| `systemd/tashu-mysql-data-retention.*` | 15분마다 48시간 보존 정리를 실행하는 oneshot service와 timer |
 
 ## Secret과 데이터 위치
 
@@ -69,6 +74,19 @@ MySQL 데이터는 `tashu-mysql-data` Docker volume에 저장한다. 컨테이�
 
 계정이 `'%'` host로 생성되더라도 MySQL의 호스트 포트는 `127.0.0.1`에만 bind되어 있다. 따라서 인터넷이나 다른 서버에서 직접 접속할 수 없다. Server B의 Spark 연결을 허용할 때는 사설 IP bind, 방화벽, MySQL host 제한을 함께 설계하고 별도로 검증한다.
 
+## 실시간 이력 테이블과 시간 규칙
+
+| 테이블 | 중복 방지 | AI 조회 인덱스 | 48시간 삭제 기준 |
+| --- | --- | --- | --- |
+| `station_availability` | `event_id`, `(snapshot_id, station_id)` | `(station_id, collected_at DESC)`, `snapshot_id` | `collected_at` |
+| `weather_observation` | `event_id`, `(observed_at, nx, ny)` | `observed_at` | `observed_at` |
+
+MySQL 서버 기본 timezone은 `+00:00`이며 Spark와 AI 연결도 UTC session을 사용한다. Kafka의 `+09:00` ISO8601 시각은 Spark가 UTC로 변환해 저장하고 AI가 필요할 때 `Asia/Seoul`로 변환한다.
+
+Spark는 재전송된 event를 `INSERT ... ON DUPLICATE KEY UPDATE` 방식으로 upsert한다. AI는 같은 `snapshot_id`의 저장 행 수가 `station_count`와 같은 완전한 snapshot만 사용한다.
+
+`tashu-mysql-data-retention.timer`는 15분마다 실행되고 48시간이 지난 행을 한 transaction당 최대 10,000행씩 삭제한다. 한 번의 실행은 테이블당 최대 100 batch로 제한해 장시간 잠금을 피한다. S3 Parquet 장기 보존은 이 DB 정리와 독립적으로 유지한다.
+
 ## DBeaver로 안전하게 조회
 
 DBeaver Community는 Windows에 설치한다. MySQL 포트 `3306`을 인터넷에 열지 않고 DBeaver의 SSH tunnel 기능을 사용한다.
@@ -103,7 +121,9 @@ DBeaver Community는 Windows에 설치한다. MySQL 포트 `3306`을 인터넷�
 3. `docker compose config`로 최종 설정을 검사한다.
 4. MySQL을 시작하고 `healthy`를 확인한다.
 5. `bootstrap-databases.sh`와 `bootstrap-data-database.sh`로 DB와 사용자를 생성한다.
-6. 계정 분리, 데이터 보존과 백업·복원을 검증한다.
+6. `bootstrap-data-tables.sh`로 실시간 이력 테이블을 생성한다.
+7. retention service와 timer를 설치하고 `verify-data-tables.sh`로 보존 동작을 검증한다.
+8. 계정 분리, 데이터 보존과 백업·복원을 검증한다.
 
 ## 완료 기준
 
@@ -111,6 +131,7 @@ DBeaver Community는 Windows에 설치한다. MySQL 포트 `3306`을 인터넷�
 - 호스트에서는 `127.0.0.1:3306`만 listen하고 UFW에 3306 규칙이 없다.
 - production 사용자는 `tashu_prod`만, staging 사용자는 `tashu_staging`만 접근한다.
 - data writer는 `tashu_data` DML만, AI reader와 observer는 허용된 DB의 SELECT만 실행한다.
+- 확정 DDL의 두 테이블과 인덱스가 존재하고 48시간 초과 행만 batch 삭제된다.
 - 시험 테이블과 행이 컨테이너 재시작·서버 재부팅 후 유지된다.
 - 모든 비밀번호 값이 Git과 로그에 없다.
 - 실제 `mysqldump`를 빈 시험 DB에 복원한다.
