@@ -44,6 +44,11 @@ data-pipeline/collector/**/collector_state.json
 data-pipeline/collector/**/snapshots-*.csv
 data-pipeline/collector/**/*.log
 
+# Weather collector runtime data
+data-pipeline/weather-collector/data/
+data-pipeline/weather-collector/health.json
+data-pipeline/weather-collector/**/*.log
+
 # Claude Code
 .claude/
 
