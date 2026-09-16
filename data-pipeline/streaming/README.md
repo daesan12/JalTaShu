@@ -21,6 +21,8 @@ MySQL hot store에 저장한다.
 - JSON 계약을 통과하지 못한 메시지는 DB에 넣지 않고 dead-letter JSON으로 저장한다.
 - Kafka offset은 topic/partition별 checkpoint가 관리한다.
 - Spark SQL과 MySQL session timezone은 UTC다.
+- timezone-aware 원본 시각은 Spark SQL 안에서 UTC 문자열로 직렬화한다. Python 또는
+  컨테이너 운영체제의 timezone에 의존하지 않는다.
 
 ## 운영 환경변수
 
@@ -53,13 +55,17 @@ sudo /opt/tashu/spark/scripts/submit-data-job.sh jobs/kafka_mysql_streaming.py
 checkpoint와 dead-letter 경로:
 
 ```text
-/srv/tashu/data/spark/checkpoints/kafka-mysql-v1/station
-/srv/tashu/data/spark/checkpoints/kafka-mysql-v1/weather
-/srv/tashu/data/spark/output/dead-letter/kafka-mysql-v1/
+/srv/tashu/data/spark/checkpoints/kafka-mysql-v2/station
+/srv/tashu/data/spark/checkpoints/kafka-mysql-v2/weather
+/srv/tashu/data/spark/output/dead-letter/kafka-mysql-v2/
 ```
 
 checkpoint를 삭제하면 retention 범위의 이벤트를 처음부터 다시 읽는다. 운영 중에는 임의로
 삭제하지 않는다. 재처리는 MySQL에서 중복 행을 만들지는 않지만 불필요한 전체 replay가 발생한다.
+
+`v2` checkpoint는 UTC 변환 오류가 있던 `v1`과 의도적으로 분리되어 있다. 최초 v2 배포 시
+인프라 담당자가 잘못 적재된 hot-store 행을 초기화한 뒤 실행하면 Kafka retention 범위를
+`earliest`부터 다시 적재한다. 기존 v1 checkpoint는 검증이 끝날 때까지 백업으로 보존한다.
 
 ## 검증
 

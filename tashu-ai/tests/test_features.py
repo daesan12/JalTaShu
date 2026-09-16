@@ -94,12 +94,23 @@ def test_minutes_since_rain_raining_now_is_zero():
     assert w["minutes_since_rain"].iloc[0] == 0.0
 
 
-def test_minutes_since_rain_elapsed_from_last_rainy_obs():
+def test_minutes_since_rain_elapsed_from_last_rainy_bucket():
+    """기준점은 관측 시각(06:00)이 아니라 06시 관측이 available이던 마지막 버킷(07:30) — Spark 정의."""
     prepared = prepare_weather(
         obs_frame([("2024-06-05 06:00", 20.0, 2.0), ("2024-06-05 07:00", 20.0, 0.0), ("2024-06-05 08:00", 20.0, 0.0)])
     )
-    w = align_weather(ts_series("2024-06-05 08:50"), prepared)  # eff=08시, 마지막 강수 06시
-    assert w["minutes_since_rain"].iloc[0] == 170.0  # 08:50 − 06:00
+    w = align_weather(ts_series("2024-06-05 08:50"), prepared)  # eff=08시, 마지막 강수 06시 관측
+    assert w["minutes_since_rain"].iloc[0] == 80.0  # 08:50 − 07:30
+
+
+def test_minutes_since_rain_matches_spark_example():
+    """Spark train_buckets 2026-01-10 실측: 08시 2.7mm, 09시 0.1mm → 08:45~09:30 = 0, 09:45 = 15, 10:00 = 30."""
+    prepared = prepare_weather(
+        obs_frame([("2026-01-10 07:00", 4.1, 0.0), ("2026-01-10 08:00", 3.7, 2.7), ("2026-01-10 09:00", 4.4, 0.1)])
+    )
+    w = align_weather(ts_series("2026-01-10 08:45", "2026-01-10 09:30", "2026-01-10 09:45", "2026-01-10 10:00"), prepared)
+    assert w["minutes_since_rain"].tolist() == [0.0, 0.0, 15.0, 30.0]
+    assert w["rainfall_1h"].tolist() == [2.7, 2.7, 0.1, 0.1]
 
 
 def test_minutes_since_rain_capped_at_1440():
@@ -122,12 +133,14 @@ def test_minutes_since_rain_no_rain_history():
     assert w["minutes_since_rain"].iloc[1] == config.MINUTES_SINCE_RAIN_CAP  # 이력 ≥ 1440분
 
 
-def test_minutes_since_rain_nan_when_current_rain_unknown():
+def test_minutes_since_rain_counts_through_unknown_current_rain():
+    """강수값이 NaN(ffill 3h 초과)이어도 '비 아님'으로 보고 경과분은 계속 센다 (Spark 동일)."""
     prepared = prepare_weather(
         obs_frame([("2024-06-05 00:00", 20.0, 2.0), ("2024-06-05 01:00", 20.0, 0.0)])
     )
     w = align_weather(ts_series("2024-06-05 06:50"), prepared)  # eff=06시: ffill 한도(3h) 초과 → 강수 NaN
-    assert np.isnan(w["rainfall_1h"].iloc[0]) and np.isnan(w["minutes_since_rain"].iloc[0])
+    assert np.isnan(w["rainfall_1h"].iloc[0])
+    assert w["minutes_since_rain"].iloc[0] == 320.0  # 06:50 − 01:30 (00시 관측의 마지막 available 버킷)
 
 
 # ── 프로파일 조인·진입점 ─────────────────────────────────────────────────

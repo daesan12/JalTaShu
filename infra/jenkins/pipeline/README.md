@@ -9,6 +9,7 @@
 | `frontend.Dockerfile` | Node.js 22 LTS 환경에서 `npm ci` 후 test, lint, production build를 차례로 실행한다. |
 | `collector.Dockerfile` | Python 3.12 환경에서 Collector 의존성을 설치하고 단위 테스트 12개를 실행한다. |
 | `backend.Dockerfile` | Java 21 환경에서 Gradle Wrapper test를 실행한다. Wrapper 설정이 있으면 Jenkins가 Backend 단계도 자동 실행한다. |
+| `ai-serving.Dockerfile` | Python 3.12 환경에서 AI 서빙(`tashu-ai/`) 의존성을 설치하고 pytest를 실행한다. 유일하게 **실행 image**로도 쓰인다 — Server B에서 `python -m src.serve`가 매분 배치를 돌린다. 모델 3파일은 `/workspace/artifacts/models` volume, DB·Redis 접속은 `--env-file`(`/etc/tashu/ai-serving/*.env`)로 주입한다. build context는 `tashu-ai/`. |
 
 ## 실행 원리
 
@@ -20,6 +21,7 @@ Jenkins Controller는 빌드를 실행하지 않는다. `docker` label의 Build 
 
 - Frontend: `node:22.23.2-bookworm-slim`
 - Collector: `python:3.12.14-slim-bookworm`
+- AI serving: `python:3.12.14-slim-bookworm` (+ `libgomp1` — lightgbm 런타임)
 - Backend: `eclipse-temurin:21.0.12_8-jdk-noble`
 
 ## 외부 설정 상태

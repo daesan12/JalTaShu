@@ -1,6 +1,5 @@
 package com.s15p21b103.good_tashu.cycle.domain;
 
-import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,13 +21,9 @@ public class CycleClaimEntity  {
     @Column(name = "cycle_claim_id")
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "cycle_id", nullable = false)
-    private CycleEntity cycleEntity;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private UserEntity userEntity;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "cycle_usage_id", nullable = false)
+    private CycleUsageEntity cycleUsageEntity;
 
     @Column(name = "category", nullable = false)
     @Enumerated(EnumType.STRING)
@@ -37,7 +32,7 @@ public class CycleClaimEntity  {
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    @Column(name = "status", nullable = false, length = 10)
+    @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     private ClaimStatus status;
 
@@ -47,4 +42,14 @@ public class CycleClaimEntity  {
     @Column(name = "created_at")
     @CreationTimestamp
     private LocalDateTime createdAt;
+
+    @Column(name = "admin_comment", length = 255)
+    private String adminComment;
+
+    public void updateReview(ClaimStatus status, String adminComment) {
+        this.status = status;
+        if (adminComment != null) {
+            this.adminComment = adminComment;
+        }
+    }
 }
