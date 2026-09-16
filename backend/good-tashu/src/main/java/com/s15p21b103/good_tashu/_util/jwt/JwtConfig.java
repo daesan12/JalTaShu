@@ -45,7 +45,8 @@ public class JwtConfig {
     public JwtDecoder accessTokenJwtDecoder(
            SecretKey jwtSecretKey,
            JwtProperties jwtProperties,
-           AuthVersionValidator authVersionValidator
+           AuthVersionValidator authVersionValidator,
+           AdminAccessTokenValidator adminAccessTokenValidator
     ) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder
                 .withSecretKey(jwtSecretKey)
@@ -53,6 +54,14 @@ public class JwtConfig {
                 //Nimbus의 기본 typ 검증을 끄고, createAtJwtValidator()가 access token에 맞는 typ를 검증하도록
                 .validateType(false)
                 .build();
+
+        // iat값이 없을 때 Spring Security에서 exp로 임의로 생성하는 문제 해결
+        var claimConverter = MappedJwtClaimSetConverter.withDefaults(java.util.Map.of());
+        decoder.setClaimSetConverter(claims -> {
+            var converted = claimConverter.convert(claims);
+            if (!claims.containsKey("iat")) converted.remove("iat");
+            return converted;
+        });
 
         // JWT의 내용이 유효한지 검사할 검증 규칙 객체
         OAuth2TokenValidator<Jwt> accessTokenValidator =
@@ -69,9 +78,20 @@ public class JwtConfig {
                         .build();
         // decoder에 jwt 검증기(validator) 연결
         decoder.setJwtValidator(jwt -> {
+            if (jwt.getIssuedAt() == null) {
+                return org.springframework.security.oauth2.core.OAuth2TokenValidatorResult.failure(
+                        new org.springframework.security.oauth2.core.OAuth2Error(
+                                "invalid_token", "Missing issued-at claim", null));
+            }
             var result = accessTokenValidator.validate(jwt);
             if(result.hasErrors())
                 return result;
+            Object roles = jwt.getClaims().get("roles");
+            boolean userRole = java.util.List.of("USER").equals(roles)
+                    || java.util.List.of("GUEST").equals(roles);
+            if (jwt.hasClaim("principalType") || jwt.getSubject().startsWith("admin:") || !userRole) {
+                return adminAccessTokenValidator.validate(jwt);
+            }
             return authVersionValidator.validate(jwt);
         });
         return decoder;

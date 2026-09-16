@@ -2,6 +2,18 @@ package com.s15p21b103.good_tashu.admin.controller;
 
 import com.s15p21b103.good_tashu.admin.dto.res.AdminUserListResponse;
 import com.s15p21b103.good_tashu.admin.service.AdminUserService;
+import com.s15p21b103.good_tashu.admin.service.AdminAuthService;
+import com.s15p21b103.good_tashu.admin.dto.req.AdminLoginRequest;
+import com.s15p21b103.good_tashu.user.dto.res.TokenResponseDto;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
+import com.s15p21b103.good_tashu._util.jwt.JwtProperties;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import java.time.Duration;
+import java.time.Instant;
 import com.s15p21b103.good_tashu.admin.annotation.currentAdminId;
 import com.s15p21b103.good_tashu.admin.dto.req.UserBanRequest;
 import jakarta.validation.Valid;
@@ -16,6 +28,46 @@ import java.util.List;
 @RequestMapping("/api/admin")
 public class AdminController {
     private final AdminUserService adminUserService;
+    private final AdminAuthService adminAuthService;
+    private final JwtProperties jwtProperties;
+
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<TokenResponseDto>> login(
+            @Valid @RequestBody AdminLoginRequest request) {
+        return tokenResponse(adminAuthService.login(request));
+    }
+
+    @PostMapping("/token/refresh")
+    public ResponseEntity<ApiResponse<TokenResponseDto>> refresh(
+            @CookieValue(name = "admin_refresh_token", required = false) String refreshToken) {
+        return tokenResponse(adminAuthService.refresh(refreshToken));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(@currentAdminId Long adminId,
+            @AuthenticationPrincipal Jwt jwt) {
+        adminAuthService.logout(adminId, jwt.getClaimAsString("authVersion"));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header(HttpHeaders.SET_COOKIE, refreshCookie("", 0).toString())
+                .body(ApiResponse.success("로그아웃되었습니다."));
+    }
+
+    private ResponseEntity<ApiResponse<TokenResponseDto>> tokenResponse(AdminAuthService.LoginResult result) {
+        long remaining = Duration.between(Instant.now(), result.refreshToken().expiresAt()).getSeconds();
+        if (remaining <= 0) throw new IllegalStateException("관리자 리프레시 토큰이 만료되었습니다.");
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .header("Pragma", "no-cache")
+                .header(HttpHeaders.SET_COOKIE, refreshCookie(result.refreshToken().refreshToken(), remaining).toString())
+                .body(ApiResponse.success(result.accessToken()));
+    }
+
+    private ResponseCookie refreshCookie(String token, long maxAge) {
+        return ResponseCookie.from("admin_refresh_token", token).httpOnly(true)
+                .secure(jwtProperties.secure()).sameSite("Lax").path("/api/admin")
+                .maxAge(maxAge).build();
+    }
 
     //사용자 목록 조회
     @GetMapping("/user/list")

@@ -1,7 +1,6 @@
 package com.s15p21b103.good_tashu._util.jwt.refresh_token.repository;
 
 import com.s15p21b103.good_tashu._util.jwt.refresh_token.domain.RefreshTokenRecord;
-import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -13,7 +12,6 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-@RequiredArgsConstructor
 public class RefreshTokenRepository {
     // 기존 userId-only 토큰과 분리한다. 같은 hash tag로 Lua의 키를 동일 슬롯에 배치한다.
     private static final String PREFIX = "auth:{refresh-auth}:v2:";
@@ -22,6 +20,18 @@ public class RefreshTokenRepository {
     private static final DefaultRedisScript<Long> REVOKE = script("revoke");
     private final StringRedisTemplate redisTemplate;
     private final JsonMapper jsonMapper;
+    private final String prefix;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public RefreshTokenRepository(StringRedisTemplate redisTemplate, JsonMapper jsonMapper) {
+        this(redisTemplate, jsonMapper, PREFIX);
+    }
+
+    public RefreshTokenRepository(StringRedisTemplate redisTemplate, JsonMapper jsonMapper, String prefix) {
+        this.redisTemplate = redisTemplate;
+        this.jsonMapper = jsonMapper;
+        this.prefix = prefix;
+    }
 
     public enum RotationResult { ROTATED, INVALID, REUSED }
 
@@ -70,8 +80,8 @@ public class RefreshTokenRepository {
                 : Optional.of(jsonMapper.readValue(json, RefreshTokenRecord.class));
     }
 
-    private static String userKey(Long userId) { return PREFIX + "user:" + userId; }
-    private static String tokenKey(String tokenHash) { return PREFIX + "token:" + tokenHash; }
+    private String userKey(Long userId) { return prefix + "user:" + userId; }
+    private String tokenKey(String tokenHash) { return prefix + "token:" + tokenHash; }
 
     private static DefaultRedisScript<Long> script(String name) {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
