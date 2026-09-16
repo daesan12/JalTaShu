@@ -1,4 +1,4 @@
-package com.s15p21b103.good_tashu.map.domain.req;
+package com.s15p21b103.good_tashu.map.dto.req;
 
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
