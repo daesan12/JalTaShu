@@ -1,0 +1,38 @@
+{
+  "format": "headerless signed integers; north-to-south rows, west-to-east columns",
+  "crs": "EPSG:4326",
+  "nrows": 1332,
+  "ncols": 1332,
+  "lon_min": 127.2300000000407,
+  "lon_max": 127.59972222226298,
+  "lat_min": 36.16027777777462,
+  "lat_max": 36.52999999999689,
+  "value_scale": 100,
+  "elevation_unit": "metre (see source unit metadata)",
+  "smooth_sigma_pixels": 0.0,
+  "elevation_min_m": -15.0,
+  "elevation_max_m": 891.0,
+  "invalid_pixels": 0,
+  "source": {
+    "filename": "daejeon-dem.tif",
+    "sha256": "365befe1c16bd5fa1047549905c5c5cdd3feb2e6876d8de9cd32b0e5c0229b12",
+    "crs": "EPSG:4326",
+    "width": 1332,
+    "height": 1332,
+    "bounds": [
+      127.22986111115182,
+      36.16013888888573,
+      127.59986111115187,
+      36.53013888888578
+    ],
+    "resolution": [
+      0.0002777777777778146,
+      0.0002777777777778146
+    ],
+    "nodata": -32768.0,
+    "band_unit_metadata": null,
+    "band_scale": 1.0,
+    "band_offset": 0.0,
+    "vertical_scale_to_metres": 1.0
+  }
+}

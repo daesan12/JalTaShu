@@ -1,0 +1,28 @@
+name: tashu-osrm
+
+x-osrm: &osrm
+  image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+  command: ["osrm-routed", "--algorithm", "mld", "/data/map.osrm"]
+  restart: unless-stopped
+
+services:
+  osrm-foot:
+    <<: *osrm
+    volumes:
+      - ./data/foot:/data:ro
+    ports:
+      - "127.0.0.1:5000:5000"
+
+  osrm-bicycle:
+    <<: *osrm
+    volumes:
+      - ./data/bicycle:/data:ro
+    ports:
+      - "127.0.0.1:5001:5000"
+
+  osrm-uphill:
+    <<: *osrm
+    volumes:
+      - ./data/uphill:/data:ro
+    ports:
+      - "127.0.0.1:5002:5000"
