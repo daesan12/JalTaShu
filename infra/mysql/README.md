@@ -24,7 +24,7 @@ Backend 컨테이너는 같은 `tashu-app` Docker network에서 `tashu-mysql:330
 
 | 파일 | 역할 |
 | --- | --- |
-| `compose.yml` | MySQL 이미지, loopback 포트, volume, health check와 자원 한도 정의 |
+| `compose.yml` | MySQL 이미지, loopback·Server A 사설 포트, volume, health check와 자원 한도 정의 |
 | `.env.example` | Secret 값이 아닌 서버 경로 예시 |
 | `conf.d/tashu.cnf` | UTF-8, UTC, 연결 수와 InnoDB 메모리 기준 |
 | `scripts/generate-secrets.sh` | Server A에 root/prod/staging 비밀번호 파일을 값 출력 없이 최초 생성 |
@@ -72,7 +72,15 @@ MySQL 데이터는 `tashu-mysql-data` Docker volume에 저장한다. 컨테이�
 | `tashu_ai_reader` | AI 서빙이 최신·과거 snapshot 조회 | `SELECT` on `tashu_data` |
 | `tashu_observer` | 사람이 DBeaver로 상태 확인 | `SELECT` on `tashu_prod`, `tashu_staging`, `tashu_data` |
 
-계정이 `'%'` host로 생성되더라도 MySQL의 호스트 포트는 `127.0.0.1`에만 bind되어 있다. 따라서 인터넷이나 다른 서버에서 직접 접속할 수 없다. Server B의 Spark 연결을 허용할 때는 사설 IP bind, 방화벽, MySQL host 제한을 함께 설계하고 별도로 검증한다.
+계정이 `'%'` host로 생성되더라도 MySQL은 loopback과 Server A 사설 주소에만 bind되고 UFW가 Server B 한 대만 허용한다. 따라서 인터넷이나 다른 서버에서는 직접 접속할 수 없다.
+
+## Server B Spark 사설 연결
+
+MySQL은 Server A에서 `127.0.0.1:3306`과 사설 주소 `172.26.8.114:3306`에만 bind한다. Server A UFW는 Server B 사설 주소 `172.26.4.110` 한 대에서 오는 TCP 3306만 허용한다. 공개 주소와 다른 서버는 접근할 수 없다.
+
+Server B에는 `/etc/tashu/streaming/mysql-data-writer.env`를 `root:root`, mode `0600`으로 저장한다. `tashu-data`는 제한된 sudo 제출 script를 통해서만 이 Secret을 Spark 제출 컨테이너에 전달하며 workspace, Git과 명령 인자에는 비밀번호를 기록하지 않는다.
+
+실제 Spark executor에서 MySQL Connector/J로 `tashu_data`를 읽고 session timezone `+00:00`을 확인해야 연결 완료로 판정한다.
 
 ## 실시간 이력 테이블과 시간 규칙
 
@@ -128,7 +136,7 @@ DBeaver Community는 Windows에 설치한다. MySQL 포트 `3306`을 인터넷�
 ## 완료 기준
 
 - `tashu-mysql`이 `healthy`이고 재부팅 후 자동 시작한다.
-- 호스트에서는 `127.0.0.1:3306`만 listen하고 UFW에 3306 규칙이 없다.
+- 호스트에서는 `127.0.0.1:3306`과 Server A 사설 주소만 listen하고 UFW는 Server B 한 대의 3306 연결만 허용한다.
 - production 사용자는 `tashu_prod`만, staging 사용자는 `tashu_staging`만 접근한다.
 - data writer는 `tashu_data` DML만, AI reader와 observer는 허용된 DB의 SELECT만 실행한다.
 - 확정 DDL의 두 테이블과 인덱스가 존재하고 48시간 초과 행만 batch 삭제된다.
