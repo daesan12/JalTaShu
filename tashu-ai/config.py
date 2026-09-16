@@ -90,3 +90,22 @@ MODELS_DIR = ARTIFACTS_DIR / "models"
 SNAPSHOT_MATCH_TOLERANCE_MIN = 3     # delta 재현: 목표 시각 ±3분 내 스냅샷 없으면 NaN
 REDIS_KEY_PATTERN = "pred:{station_id}:{horizon_min}"
 REDIS_TTL_SECONDS = 180              # 2~3분 — 추론 중단 시 자연 소멸
+PROFILE_PATH = MODELS_DIR / "station_profile.parquet"  # 모델 3파일 중 하나 (S3 아티팩트 번들, 재계산 없음)
+
+# 접속 정보는 환경변수로만 받는다 (비밀번호를 코드·Git에 두지 않음 — 인프라가 Secret으로 주입).
+# 이름은 인프라와 합의된 값 (2026-09-16). MySQL은 준비 완료, Redis는 제안 중.
+DB_ENV = dict(host="TASHU_AI_DB_HOST", port="TASHU_AI_DB_PORT", name="TASHU_AI_DB_NAME",
+              user="TASHU_AI_DB_USER", password="TASHU_AI_DB_PASSWORD")
+REDIS_ENV = dict(host="TASHU_AI_REDIS_HOST", port="TASHU_AI_REDIS_PORT", db="TASHU_AI_REDIS_DB",
+                 password="TASHU_AI_REDIS_PASSWORD")
+SNAPSHOT_TABLE = "station_availability"   # infra/mysql/schema/tashu-data.sql — 저장 시각은 UTC
+WEATHER_TABLE = "weather_observation"
+
+# 가동 점검 — 데이터 담당 활성화 조건 4개 (2026-09-16). 하나라도 실패하면 Redis에 쓰지 않는다.
+SNAPSHOT_MAX_AGE_MIN = 2            # ① 최신 collected_at이 현재보다 이보다 오래되면 미가동
+SNAPSHOT_HISTORY_MIN = 65           # ② 조회·요구 이력 창: delta_60m + 매칭 오차 3분 + 여유
+WEATHER_HISTORY_HOURS = 24          # ③ minutes_since_rain 상한(1440분)을 판정하려면 24시간 이력 필요
+#                                     ④ 완전 snapshot(COUNT(*) = station_count)만 사용 — SQL에서 필터
+UNKNOWN_STATION_MAX_RATIO = 0.5     # 학습에 없던 station_id 비율이 이보다 크면 ID 포맷 불일치로 간주
+SERVE_INTERVAL_SECONDS = 60         # 매분 배치
+SERVE_TIME_BUDGET_SECONDS = 5       # 완료 기준: 1,374곳 × 3지평 < 5초 (초과 시 경고 로그)

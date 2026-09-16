@@ -1,0 +1,26 @@
+# 로컬 개발용 — 실 MySQL(Server A)은 방화벽으로 개발 PC에서 접속 불가.
+# 운영과 같은 DDL(infra/mysql/schema/tashu-data.sql)을 초기화 스크립트로 적용한다.
+# 사용법: tashu-ai/dev/README 참조 (docker compose -f dev/compose.yml up -d).
+services:
+  mysql:
+    image: mysql:8.4.11
+    command: --default-time-zone=+00:00
+    environment:
+      MYSQL_ROOT_PASSWORD: dev
+      MYSQL_USER: tashu_ai_reader
+      MYSQL_PASSWORD: dev
+      MYSQL_DATABASE: tashu_data
+    ports:
+      - "3307:3306"
+    volumes:
+      - ../../infra/mysql/schema/tashu-data.sql:/docker-entrypoint-initdb.d/10-tashu-data.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h127.0.0.1 -uroot -pdev --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "6380:6379"
