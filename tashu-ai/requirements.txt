@@ -10,4 +10,6 @@ scipy==1.17.1
 scikit-learn==1.9.1
 joblib==1.6.0
 holidays==0.104       # holiday_type feature
+pymysql==2.2.8        # serve: MySQL tashu_data read-only
+redis==8.1.0          # serve: prediction cache
 pytest==9.1.1
