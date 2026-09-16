@@ -3,7 +3,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { formatDate, formatDistance, formatMinutes } from '@/shared/lib/format';
 import { getRides } from '@/features/history/api/rides';
-import { ELLIPSIS, getPageItems } from '@/features/history/lib/pagination';
+import { ELLIPSIS, getPageItems } from '@/shared/lib/pagination';
 
 /** 이용 내역 행의 경로 아이콘 (파랑=도보, 초록=자전거 두 줄) */
 function RouteIcon() {

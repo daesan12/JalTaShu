@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getPageItems } from '@/features/history/lib/pagination';
+import { getPageItems } from '@/shared/lib/pagination';
 
 describe('getPageItems', () => {
   it('첫 페이지: 1 2 3 … 8 (프레임 기준)', () => {
