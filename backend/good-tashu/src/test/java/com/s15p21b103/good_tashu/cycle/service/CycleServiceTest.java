@@ -18,6 +18,7 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -83,7 +84,7 @@ class CycleServiceTest {
 
         LocalDateTime rentalAt = cycleService.rentalCycle(1L, new CycleRentalRequest("C1"));
 
-        var usageCaptor = ArgumentCaptor.forClass(CycleUsageEntity.class);
+        ArgumentCaptor<CycleUsageEntity> usageCaptor = ArgumentCaptor.forClass(CycleUsageEntity.class);
         verify(cycleUsageRepository).save(usageCaptor.capture());
         assertThat(cycle.getStatus()).isEqualTo(CycleStatus.RENTING);
         assertThat(cycle.getStationEntity()).isNull();
@@ -191,14 +192,14 @@ class CycleServiceTest {
     @Test
     void claimUploadsPhotoAndSavesAuthorCategoryAndPath() {
         claimEligibility(true);
-        var photo = new MockMultipartFile("file", "photo.jpg", "image/jpeg", new byte[]{1});
+        MockMultipartFile photo = new MockMultipartFile("file", "photo.jpg", "image/jpeg", new byte[]{1});
         when(s3Service.uploadImage(photo)).thenReturn("images/test-key");
         when(cycleClaimRepository.save(any())).thenReturn(CycleClaimEntity.builder().id(10L).build());
 
         assertThat(cycleService.claimCycle(1L, claimRequest(photo)).claimId()).isEqualTo(10L);
 
-        var captor = ArgumentCaptor.forClass(CycleClaimEntity.class);
-        var order = inOrder(s3Service, cycleClaimRepository);
+        ArgumentCaptor<CycleClaimEntity> captor = ArgumentCaptor.forClass(CycleClaimEntity.class);
+        InOrder order = inOrder(s3Service, cycleClaimRepository);
         order.verify(s3Service).uploadImage(photo);
         order.verify(cycleClaimRepository).save(captor.capture());
         assertThat(captor.getValue().getCycleUsageEntity().getUserEntity()).isSameAs(user);
@@ -218,7 +219,7 @@ class CycleServiceTest {
 
         cycleService.claimCycle(1L, claimRequest(photo));
 
-        var captor = ArgumentCaptor.forClass(CycleClaimEntity.class);
+        ArgumentCaptor<CycleClaimEntity> captor = ArgumentCaptor.forClass(CycleClaimEntity.class);
         verify(cycleClaimRepository).save(captor.capture());
         assertThat(captor.getValue().getPath()).isNull();
         verifyNoInteractions(s3Service);
@@ -227,7 +228,7 @@ class CycleServiceTest {
     @Test
     void claimRejectsUsageOutsideAllowedWindowsBeforeUpload() {
         claimEligibility(false);
-        var photo = new MockMultipartFile("file", "photo.jpg", "image/jpeg", new byte[]{1});
+        MockMultipartFile photo = new MockMultipartFile("file", "photo.jpg", "image/jpeg", new byte[]{1});
         assertThatThrownBy(() -> cycleService.claimCycle(1L, claimRequest(photo)))
                 .isInstanceOfSatisfying(CycleException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(CANT_WRITE_CLAIM));
@@ -269,7 +270,7 @@ class CycleServiceTest {
     @Test
     void uploadFailureDoesNotSaveClaim() {
         claimEligibility(true);
-        var photo = new MockMultipartFile("file", "bad.exe", "application/octet-stream", new byte[]{1});
+        MockMultipartFile photo = new MockMultipartFile("file", "bad.exe", "application/octet-stream", new byte[]{1});
         when(s3Service.uploadImage(photo)).thenThrow(new IllegalArgumentException("사진 확장자 오류"));
         assertThatThrownBy(() -> cycleService.claimCycle(1L, claimRequest(photo)))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -300,7 +301,7 @@ class CycleServiceTest {
         LocalDateTime createdAt = LocalDateTime.of(2026, 9, 10, 10, 0);
         CycleUsageEntity usage = CycleUsageEntity.builder().cycleUsageId(100L)
                 .userEntity(user).cycleEntity(cycle).build();
-        var claim = CycleClaimEntity.builder().id(10L).cycleUsageEntity(usage)
+        CycleClaimEntity claim = CycleClaimEntity.builder().id(10L).cycleUsageEntity(usage)
                 .claimCategory(ClaimCategory.TIRE).content("타이어 펑크").createdAt(createdAt).build();
         when(cycleRepository.existsById("C1")).thenReturn(true);
         when(cycleClaimRepository.findAllByCycleUsageEntity_CycleEntity_CycleIdOrderByCreatedAtDescIdDesc("C1"))
@@ -326,13 +327,13 @@ class CycleServiceTest {
     @ParameterizedTest
     @EnumSource(ClaimReportCategory.class)
     void reportSavesReporterTargetAndEachSupportedCategory(ClaimReportCategory category) {
-        var claim = CycleClaimEntity.builder().id(10L).build();
+        CycleClaimEntity claim = CycleClaimEntity.builder().id(10L).build();
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(cycleClaimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
         cycleService.reportCycleClaim(1L, 10L, category);
 
-        var captor = ArgumentCaptor.forClass(CycleClaimReportEntity.class);
+        ArgumentCaptor<CycleClaimReportEntity> captor = ArgumentCaptor.forClass(CycleClaimReportEntity.class);
         verify(cycleClaimReportRepository).save(captor.capture());
         assertThat(captor.getValue().getUserEntity()).isSameAs(user);
         assertThat(captor.getValue().getCycleClaimEntity()).isSameAs(claim);

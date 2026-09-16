@@ -29,6 +29,7 @@ public interface CycleClaimRepository extends JpaRepository<CycleClaimEntity, Lo
     })
     List<CycleClaimEntity> findAllByCycleUsageEntity_CycleEntity_CycleIdOrderByCreatedAtDescIdDesc(String cycleId);
 
+    // 필터를 DB에서 적용하고 이용 기록을 함께 가져와 목록 변환 시 추가 조회를 줄인다.
     @Query("""
             SELECT claim
             FROM CycleClaimEntity claim

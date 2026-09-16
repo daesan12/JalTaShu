@@ -14,6 +14,7 @@ import com.s15p21b103.good_tashu.cycle.repository.CycleClaimRepository;
 import com.s15p21b103.good_tashu.cycle.repository.CycleClaimReportRepository;
 import com.s15p21b103.good_tashu.cycle.repository.CycleRepository;
 import com.s15p21b103.good_tashu.cycle.repository.CycleUsageRepository;
+import com.s15p21b103.good_tashu.cycle.repository.CycleUsageRepository.UsageStatistics;
 import com.s15p21b103.good_tashu.cycle.repository.StationRepository;
 import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import com.s15p21b103.good_tashu.user.exception.UserException;
@@ -53,7 +54,7 @@ public class CycleService {
     @Transactional(readOnly = true)
     public CycleStatisticsResponse getStatistics(Long userId) {
         // 전체 GPS JSON을 읽지 않고 DB에서 완료된 이용내역 집계
-        var statistics = cycleUsageRepository.getUsageStatistics(userId);
+        UsageStatistics statistics = cycleUsageRepository.getUsageStatistics(userId);
         return new CycleStatisticsResponse(statistics.getTotalUseCnt(),
                 statistics.getTotalDistance(), statistics.getTotalCycleRidingTime());
     }

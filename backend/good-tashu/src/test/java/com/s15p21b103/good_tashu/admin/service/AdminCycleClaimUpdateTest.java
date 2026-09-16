@@ -1,6 +1,7 @@
 package com.s15p21b103.good_tashu.admin.service;
 
 import com.s15p21b103.good_tashu.admin.dto.req.AdminCycleClaimUpdateRequest;
+import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleClaimUpdateResponse;
 import com.s15p21b103.good_tashu.admin.exception.AdminException;
 import com.s15p21b103.good_tashu.cycle.domain.ClaimStatus;
 import com.s15p21b103.good_tashu.cycle.domain.CycleClaimEntity;
@@ -32,7 +33,7 @@ class AdminCycleClaimUpdateTest {
                 .id(10L).status(ClaimStatus.READY).build();
         when(cycleClaimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        var response = adminCycleService.updateCycleClaim(
+        AdminCycleClaimUpdateResponse response = adminCycleService.updateCycleClaim(
                 10L, new AdminCycleClaimUpdateRequest(ClaimStatus.IN_PROGRESS, "수리 중"));
 
         assertThat(response.claimId()).isEqualTo(10L);

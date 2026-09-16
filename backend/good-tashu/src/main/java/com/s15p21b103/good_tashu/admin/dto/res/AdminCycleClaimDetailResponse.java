@@ -16,6 +16,7 @@ public record AdminCycleClaimDetailResponse(
         String content,
         ClaimStatus statement,
         String adminComment,
+        String photoUrl,
         List<AdminCycleClaimReportResponse> report
 ) {
 }

@@ -1,5 +1,6 @@
 package com.s15p21b103.good_tashu.admin.service;
 
+import com.s15p21b103.good_tashu._util.service.S3Service;
 import com.s15p21b103.good_tashu.admin.dto.req.AdminCycleClaimUpdateRequest;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminHeatmapResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleClaimResponse;
@@ -23,6 +24,7 @@ import com.s15p21b103.good_tashu.admin.dto.res.AdminStationTrendResponse;
 import com.s15p21b103.good_tashu.admin.exception.AdminException;
 import com.s15p21b103.good_tashu.admin.repository.AdminCycleRepository;
 import com.s15p21b103.good_tashu.admin.repository.AdminCycleRepository.CycleStatistics;
+import com.s15p21b103.good_tashu.admin.repository.AdminCycleRepository.StationDetailStats;
 import com.s15p21b103.good_tashu.cycle.repository.StationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
@@ -43,10 +45,12 @@ public class AdminCycleService {
     private final StationRepository stationRepository;
     private final CycleClaimRepository cycleClaimRepository;
     private final CycleClaimReportRepository cycleClaimReportRepository;
+    private final S3Service s3Service;
 
     @Transactional
     public AdminCycleClaimUpdateResponse updateCycleClaim(
             Long claimId, AdminCycleClaimUpdateRequest request) {
+        // 대상과 필수 상태를 검증한 뒤 영속 엔티티의 상태·코멘트를 변경한다.
         if (claimId == null || claimId <= 0) {
             throw new AdminException(INVALID_CLAIM_ID);
         }
@@ -81,6 +85,7 @@ public class AdminCycleService {
             }
         }
 
+        // 생성일이 같을 때도 ID로 순서를 고정한다.
         Sort.Direction direction = Sort.Direction.DESC;
         if (orderFilter.equals("oldest")) {
             direction = Sort.Direction.ASC;
@@ -93,6 +98,7 @@ public class AdminCycleService {
                 .stream()
                 .map(claim -> {
                     CycleUsageEntity usage = claim.getCycleUsageEntity();
+                    // 제보 신고 건수와 관리자 코멘트 존재 여부를 목록에 함께 표시한다.
                     long reportCount = cycleClaimReportRepository
                             .countByCycleClaimEntity_Id(claim.getId());
                     String comment = claim.getAdminComment();
@@ -123,10 +129,16 @@ public class AdminCycleService {
         // 제보와 작성자, 자전거 정보를 함께 조회한다.
         CycleClaimEntity claim = cycleClaimRepository.findById(claimId)
                 .orElseThrow(() -> new AdminException(NOT_EXISTS_CLAIM));
+        // 제보가 참조하는 실제 이용 기록에서 자전거·작성자·대여 시간을 가져온다.
         CycleUsageEntity usage = claim.getCycleUsageEntity();
         String cycleId = usage.getCycleEntity().getCycleId();
         Long userId = usage.getUserEntity().getUserId();
         String nickname = usage.getUserEntity().getNickname();
+
+        String photoUrl = null;
+        if (claim.getPath() != null && !claim.getPath().isBlank()) {
+            photoUrl = s3Service.createDownloadUrl(claim.getPath());
+        }
 
         // 해당 제보를 신고한 사용자 목록을 최신순으로 반환한다.
         List<AdminCycleClaimReportResponse> reports = cycleClaimReportRepository
@@ -144,7 +156,7 @@ public class AdminCycleService {
                 claim.getId(), cycleId, userId, nickname, claim.getCreatedAt(),
                 usage.getCycleUsageId(), usage.getRentalAt(), usage.getReturnAt(),
                 claim.getContent(), claim.getStatus(),
-                claim.getAdminComment(), reports);
+                claim.getAdminComment(), photoUrl, reports);
     }
 
     @Transactional(readOnly = true)
@@ -278,7 +290,7 @@ public class AdminCycleService {
             throw new AdminException(NOT_EXISTS_STATION);
         }
         // 현재 수량과 오늘·24시간 전 기준 통계를 응답 DTO로 변환한다.
-        var stats = adminCycleRepository.findStationDetailStats(stationId);
+        StationDetailStats stats = adminCycleRepository.findStationDetailStats(stationId);
         return new AdminStationDetailResponse(
                 stats.getCurrentBikeCnt(), stats.getTodayRentalCnt(), stats.getTodayReturnCnt(),
                 stats.getCurrentReportCnt(), stats.getYesterdayBikeCnt(), stats.getYesterdayRentalCnt(),

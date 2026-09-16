@@ -145,6 +145,7 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
         Long getReturnCnt();
     }
 
+    // 대여·반납 이벤트를 합쳐 직전 1시간의 대여소별 건수를 집계한다.
     @Query(value = """
             SELECT s.station_id AS stationId, s.longitude AS xPos, s.latitude AS yPos,
                    SUM(events.rent_cnt) AS rentCnt, SUM(events.return_cnt) AS returnCnt
@@ -168,6 +169,7 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
     List<HeatmapRow> findHeatmap(@Param("from") LocalDateTime from,
                                @Param("to") LocalDateTime to);
 
+    // 어제 수량은 현재 수량에서 최근 24시간의 대여·반납 흐름을 역산한다.
     @Query(value = """
             SELECT
                 (SELECT COUNT(*) FROM cycles c
@@ -202,6 +204,7 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
             """, nativeQuery = true)
     StationDetailStats findStationDetailStats(@Param("stationId") String stationId);
 
+    // 오늘을 제외하고 대여·반납 이벤트를 날짜별로 합산한다.
     @Query(value = """
             SELECT DATE_FORMAT(events.event_date, '%Y-%m-%d') AS date,
                    SUM(events.rental_cnt) AS rentalCnt, SUM(events.return_cnt) AS returnCnt
