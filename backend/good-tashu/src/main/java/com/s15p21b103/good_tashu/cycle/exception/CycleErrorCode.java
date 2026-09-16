@@ -16,7 +16,8 @@ public enum CycleErrorCode {
     ALREADY_RENTING(HttpStatus.CONFLICT, "이미 대여 중인 자전거가 있습니다."),
     CYCLE_NOT_RENTING(HttpStatus.BAD_REQUEST, "대여 진행중인 자전거가 아닙니다." ),
     NOT_EXIST_STATION_ID(HttpStatus.NOT_FOUND, "해당 ID의 대여소가 존재하지 않습니다"),
-    CANT_WRITE_CLAIM(HttpStatus.NOT_FOUND, "대여 완료 이후 1일 이내에 작성 가능합니다.");
+    CANT_WRITE_CLAIM(HttpStatus.BAD_REQUEST,
+            "QR 인식 이후 30분 이내 또는 이용 완료 이후 1일 이내에 작성 가능합니다.");
 
     private final HttpStatus status;
     private final String message;

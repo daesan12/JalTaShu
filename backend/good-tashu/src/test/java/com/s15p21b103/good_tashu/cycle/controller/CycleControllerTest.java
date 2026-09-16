@@ -69,17 +69,17 @@ class CycleControllerTest {
 
     @Test
     void multipartClaimBindsAllFourFields() throws Exception {
-        var photo = new MockMultipartFile("file", "photo.jpg", "image/jpeg", new byte[]{1, 2});
+        MockMultipartFile photo = new MockMultipartFile("file", "photo.jpg", "image/jpeg", new byte[]{1, 2});
         when(cycleService.claimCycle(eq(1L), any())).thenReturn(new CycleClaimResponse(10L));
 
         mvc.perform(multipart("/api/cycle/claim").file(photo)
-                        .param("cycleId", "C1").param("claimCategory", "TIRE").param("content", "타이어 펑크"))
+                        .param("usageId", "100").param("claimCategory", "TIRE").param("content", "타이어 펑크"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.claimId").value(10));
 
-        var captor = ArgumentCaptor.forClass(CycleClaimRequest.class);
+        ArgumentCaptor<CycleClaimRequest> captor = ArgumentCaptor.forClass(CycleClaimRequest.class);
         verify(cycleService).claimCycle(eq(1L), captor.capture());
-        assertThat(captor.getValue().cycleId()).isEqualTo("C1");
+        assertThat(captor.getValue().usageId()).isEqualTo(100L);
         assertThat(captor.getValue().claimCategory()).isEqualTo(ClaimCategory.TIRE);
         assertThat(captor.getValue().content()).isEqualTo("타이어 펑크");
         assertThat(captor.getValue().file().getBytes()).containsExactly(1, 2);
@@ -89,16 +89,16 @@ class CycleControllerTest {
     void multipartClaimAllowsMissingPhoto() throws Exception {
         when(cycleService.claimCycle(eq(1L), any())).thenReturn(new CycleClaimResponse(10L));
         mvc.perform(multipart("/api/cycle/claim")
-                        .param("cycleId", "C1").param("claimCategory", "TIRE").param("content", "타이어 펑크"))
+                        .param("usageId", "100").param("claimCategory", "TIRE").param("content", "타이어 펑크"))
                 .andExpect(status().isOk());
-        var captor = ArgumentCaptor.forClass(CycleClaimRequest.class);
+        ArgumentCaptor<CycleClaimRequest> captor = ArgumentCaptor.forClass(CycleClaimRequest.class);
         verify(cycleService).claimCycle(eq(1L), captor.capture());
         assertThat(captor.getValue().file()).isNull();
     }
 
     @Test
     void missingClaimCategoryIsRejectedBeforeServiceCall() throws Exception {
-        mvc.perform(multipart("/api/cycle/claim").param("cycleId", "C1").param("content", "내용"))
+        mvc.perform(multipart("/api/cycle/claim").param("usageId", "100").param("content", "내용"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
         verifyNoInteractions(cycleService);
@@ -171,8 +171,8 @@ class CycleControllerTest {
     void usageListEndpointReturnsUsageList() throws Exception {
         // 이용내역 목록 조회 시 서비스 결과와 사용자 ID 전달을 확인한다.
         LocalDateTime startingDate = LocalDateTime.of(2026, 9, 15, 10, 0);
-        var startingPoint = new CyclePointResponse(new BigDecimal("36.350400"), new BigDecimal("127.384500"));
-        var endPoint = new CyclePointResponse(new BigDecimal("36.351000"), new BigDecimal("127.385200"));
+        CyclePointResponse startingPoint = new CyclePointResponse(new BigDecimal("36.350400"), new BigDecimal("127.384500"));
+        CyclePointResponse endPoint = new CyclePointResponse(new BigDecimal("36.351000"), new BigDecimal("127.385200"));
         when(cycleService.getUsageList(1L)).thenReturn(List.of(
                 new CycleUsageListResponse(12L, startingPoint, endPoint, startingDate, 600, "C1")));
 
@@ -191,10 +191,10 @@ class CycleControllerTest {
     void usageDetailEndpointReturnsDetailedUsage() throws Exception {
         // 이용내역 상세 조회 결과의 경로·거리·평균속도 필드가 JSON으로 반환되는지 확인한다.
         LocalDateTime startingDate = LocalDateTime.of(2026, 9, 15, 10, 0);
-        var pathInfo = new PathInfo(List.of(new PathInfo.PathPoint(
+        PathInfo pathInfo = new PathInfo(List.of(new PathInfo.PathPoint(
                 new BigDecimal("36.350400"), new BigDecimal("127.384500"),
                 new BigDecimal("52.3"), PathInfo.Mode.CYCLE, 1)));
-        var response = new CycleUsageDetailResponse(
+        CycleUsageDetailResponse response = new CycleUsageDetailResponse(
                 600, 3000,
                 new CyclePointResponse(new BigDecimal("36.350400"), new BigDecimal("127.384500")),
                 new CyclePointResponse(new BigDecimal("36.351000"), new BigDecimal("127.385200")),
