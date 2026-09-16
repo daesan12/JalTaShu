@@ -32,6 +32,34 @@
 
   /* etc */
   --color-kakao: #fee500;
+
+  /*
+   * 관리자 웹(/admin) 전용 — 모바일 화면에서는 쓰지 않는다.
+   * Figma는 전체 다크였으나 표를 오래 보는 화면이라 본문은 흰색으로 간다.
+   * 차콜 사이드바 + 화이트 본문. 브랜드 그린은 활성 인디케이터와 상태 표시에만 쓴다.
+   */
+  --color-admin-sidebar: #1c1c1e;
+  --color-admin-sidebar-active: #2c2c2e;
+  --color-admin-sidebar-label: #9a9a9f;
+  --color-admin-indicator: #7cb342;
+  --color-admin-bg: #ffffff;
+  --color-admin-panel: #f4f4f5;
+  --color-admin-line: #e4e4e7;
+  --color-admin-text: #18181b;
+  --color-admin-muted: #71717a;
+
+  --color-admin-primary: #18181b; /* Primary 버튼 바탕 — 값은 text와 같지만 쓰임이 달라 따로 둔다 */
+  --color-admin-primary-hover: #3f3f46;
+
+  /* Admin/Badge 5종을 색 역할 3개로 묶는다: 정상=해결됨(초록), 정지=미해결(빨강) */
+  --color-admin-danger: #dc2626; /* Danger 버튼 바탕 */
+  --color-admin-danger-hover: #b91c1c;
+  --color-admin-danger-bg: #fee2e2; /* 미해결 · 정지 */
+  --color-admin-danger-text: #991b1b;
+  --color-admin-warn-bg: #fef3c7; /* 처리중 */
+  --color-admin-warn-text: #92400e;
+  --color-admin-ok-bg: #e8f0dc; /* 해결됨 */
+  --color-admin-ok-text: #3c6e0e;
 }
 
 /* 안전영역(노치·홈 인디케이터) 유틸 — Capacitor WebView 대비 */

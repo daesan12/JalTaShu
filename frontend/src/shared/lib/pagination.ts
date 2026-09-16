@@ -1,3 +1,8 @@
+/*
+ * 원래 `features/history/lib/pagination.ts`였고 관리자 목록 화면(#54)도 쓰게 되어 `shared/`로 올렸다.
+ * 로직과 테스트는 그대로다.
+ */
+
 /** 페이지 번호 표시용 윈도잉: 1 2 3 … 8 형태 (현재 페이지 주변 + 양 끝, 간격은 말줄임) */
 export const ELLIPSIS = '…' as const;
 export type PageItem = number | typeof ELLIPSIS;

@@ -32,7 +32,7 @@ import { StationSheet, type StationSnap } from '@/features/map/components/Statio
 import { Toast } from '@/features/map/components/Toast';
 import { UpdatedBadge } from '@/features/map/components/UpdatedBadge';
 import { LOCATION_ERROR_TEXT, useCurrentLocation } from '@/features/map/hooks/useCurrentLocation';
-import { useToast } from '@/features/map/hooks/useToast';
+import { useToast } from '@/shared/lib/useToast';
 import { START_POS_FALLBACK } from '@/features/map/lib/mapDefaults';
 import { NOTICES_PATH } from '@/features/map/lib/noticeLink';
 import {
