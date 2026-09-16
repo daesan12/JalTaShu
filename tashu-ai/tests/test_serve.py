@@ -126,12 +126,12 @@ def test_feature_rows_values_match_features_module():
 
 
 def test_feature_rows_weather_publish_delay_and_rain():
-    """17:10 < 17:40 → 16:00 관측 사용. 14:00에 비 → minutes_since_rain = 17:00−14:00 = 180 (현재 버킷 기준)."""
+    """17:10 < 17:40 → 16:00 관측 사용. 14시 관측에 비 → 마지막 강수 버킷 15:30 → 17:00 버킷 = 90 (Spark 정의)."""
     rows = serve.build_feature_rows(NOW, snapshots(), profile(), weather(rain_at="2026-09-16 14:00"))
     cur = rows[rows["bucket_start"] == kst("2026-09-16 17:00")].iloc[0]
-    assert cur["minutes_since_rain"] == 180.0
+    assert cur["minutes_since_rain"] == 90.0
     nxt = rows[rows["bucket_start"] == kst("2026-09-16 17:15")].iloc[0]
-    assert nxt["minutes_since_rain"] == 195.0
+    assert nxt["minutes_since_rain"] == 105.0
     assert nxt["temperature"] == cur["temperature"]  # 다음 버킷도 t까지 발표된 값만 (계약 §6)
 
 

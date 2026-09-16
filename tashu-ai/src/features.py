@@ -97,23 +97,37 @@ def prepare_weather(weather_obs: pd.DataFrame) -> pd.DataFrame:
     return obs
 
 
+def last_rainy_bucket_start(last_rain_obs: pd.Series) -> pd.Series:
+    """강수 관측 R(정시)이 available인 창 [R+40m, R+1h40m)의 마지막 15분 버킷 시작 (예: 08:00 → 09:30).
+
+    minutes_since_rain의 기준점 — Spark 학습 테이블 정의 (8단계 train/serve 일치 검수로 확정, 2026-09-16):
+    관측 시각(R)이 아니라 '발표 기준으로 마지막으로 비였던 버킷'부터 센다. 모델이 이 값으로 학습됐다.
+    """
+    window_end = last_rain_obs + pd.Timedelta(minutes=60 + config.WEATHER_PUBLISH_MINUTE)
+    bucket = pd.Timedelta(minutes=config.BUCKET_MINUTES)
+    last = window_end.dt.floor(f"{config.BUCKET_MINUTES}min")
+    return last.where(last != window_end, last - bucket)  # 창 끝이 정확히 버킷 경계면 그 앞 버킷
+
+
 def align_weather(ts: pd.Series, prepared: pd.DataFrame) -> pd.DataFrame:
     """시점 벡터 ts에 발표 지연 정렬된 날씨 3피처를 붙인다 (ts와 같은 index로 반환).
 
-    minutes_since_rain:
+    minutes_since_rain (Spark train_buckets와 동일 — 8단계 검수 기준):
     - 현재 available 강수 ≥ 1mm/h → 0 (비 오는 중)
-    - 아니면 t − 마지막 강수 관측 시각, 상한 1440 클립
+    - 아니면 t − 마지막 강수가 available이었던 마지막 버킷 시작(last_rainy_bucket_start), 상한 1440 클립
+      (예: 08시 관측 2.7mm → 08:45~09:30 버킷 0, 09:45 → 15, 10:00 → 30)
     - 관측 이력 내 강수가 없으면: 이력이 1440분 이상이면 1440, 아니면 NaN (판단 불가)
-    - 현재 강수값이 NaN이면 NaN ('비 오는 중' 판정 불가 — 결측은 채우지 않는다)
+    - 현재 강수값이 NaN(ffill 한도 초과)이면 '비 아님'으로 보고 경과분을 그대로 센다 (Spark 동일)
     """
     eff = effective_obs_hour(ts)
     rows = prepared.reindex(eff)  # 아카이브 범위 밖 → 전 컬럼 NaN
     # .array: tz-aware dtype 보존 (.to_numpy()는 tz를 벗겨 naive로 만든다 — 절대 규칙 위반)
     temperature = pd.Series(rows["temperature"].array, index=ts.index)
     rainfall = pd.Series(rows["rainfall_1h"].array, index=ts.index)
-    last_rain = pd.Series(rows["last_rain_time"].array, index=ts.index)
+    # 마지막 강수 시각은 격자 끝(마지막 관측) 이후 시점에도 계속 유효 — ffill로 조회 (시작 이전은 NaN)
+    last_rain = pd.Series(prepared["last_rain_time"].reindex(eff, method="ffill").array, index=ts.index)
 
-    minutes = (ts - last_rain).dt.total_seconds() / 60
+    minutes = (ts - last_rainy_bucket_start(last_rain)).dt.total_seconds() / 60
     minutes = minutes.clip(upper=config.MINUTES_SINCE_RAIN_CAP)
 
     archive_start = prepared.index.min()
@@ -123,7 +137,6 @@ def align_weather(ts: pd.Series, prepared: pd.DataFrame) -> pd.DataFrame:
                            config.MINUTES_SINCE_RAIN_CAP)
     minutes = minutes.mask(no_rain_known & (history_min < config.MINUTES_SINCE_RAIN_CAP), np.nan)
     minutes = minutes.mask(rainfall >= config.RAIN_THRESHOLD_MMH, 0.0)
-    minutes = minutes.mask(rainfall.isna(), np.nan)
 
     return pd.DataFrame(
         {"temperature": temperature, "rainfall_1h": rainfall, "minutes_since_rain": minutes}
