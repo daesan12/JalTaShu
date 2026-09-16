@@ -492,7 +492,7 @@ pipeline {
                                   -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
                                   -o ConnectTimeout=10 \
                                   -T \
-                                  "tashu-jenkins@${SERVER_A_DEPLOY_HOST}" \
+                                  "tashu-deploy@${SERVER_A_DEPLOY_HOST}" \
                                   "cleanup-production ${GIT_SHORT_SHA}"
                             '''
                         }
