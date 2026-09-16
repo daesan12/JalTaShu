@@ -79,51 +79,72 @@ export const router = createBrowserRouter(
         {
           // 관리자 화면은 라우터 내장 lazy로 지연 로딩 — 모바일 사용자는 이 청크를 내려받지 않음
           path: '/admin',
-          lazy: async () => {
-            const { AdminLayout } = await import('@/features/admin/AdminLayout');
-            return { Component: AdminLayout };
-          },
           children: [
             {
-              index: true, // 01 히트맵
+              // 10 로그인 — 사이드바 없는 전체 화면이라 AdminLayout 바깥에 둔다
+              path: 'login',
               lazy: async () => {
-                const { AdminHeatmapPage } = await import(
-                  '@/features/admin/pages/AdminHeatmapPage'
-                );
-                return { Component: AdminHeatmapPage };
+                const { AdminLoginPage } = await import('@/features/admin/pages/AdminLoginPage');
+                return { Component: AdminLoginPage };
               },
             },
             {
-              path: 'users', // 04·09 사용자 관리
+              // 아래는 전부 로그인 필요
               lazy: async () => {
-                const { AdminUsersPage } = await import('@/features/admin/pages/AdminUsersPage');
-                return { Component: AdminUsersPage };
+                const { RequireAdminAuth } =
+                  await import('@/features/admin/guards/RequireAdminAuth');
+                return { Component: RequireAdminAuth };
               },
-            },
-            {
-              path: 'bikes', // 05·07 자전거 관리
-              lazy: async () => {
-                const { AdminBikesPage } = await import('@/features/admin/pages/AdminBikesPage');
-                return { Component: AdminBikesPage };
-              },
-            },
-            {
-              path: 'reports', // 03 제보 관리
-              lazy: async () => {
-                const { AdminReportsPage } = await import(
-                  '@/features/admin/pages/AdminReportsPage'
-                );
-                return { Component: AdminReportsPage };
-              },
-            },
-            {
-              path: 'notices', // 06·08 공지사항
-              lazy: async () => {
-                const { AdminNoticesPage } = await import(
-                  '@/features/admin/pages/AdminNoticesPage'
-                );
-                return { Component: AdminNoticesPage };
-              },
+              children: [
+                {
+                  lazy: async () => {
+                    const { AdminLayout } = await import('@/features/admin/AdminLayout');
+                    return { Component: AdminLayout };
+                  },
+                  children: [
+                    {
+                      index: true, // 01 히트맵
+                      lazy: async () => {
+                        const { AdminHeatmapPage } =
+                          await import('@/features/admin/pages/AdminHeatmapPage');
+                        return { Component: AdminHeatmapPage };
+                      },
+                    },
+                    {
+                      path: 'users', // 04·09 사용자 관리
+                      lazy: async () => {
+                        const { AdminUsersPage } =
+                          await import('@/features/admin/pages/AdminUsersPage');
+                        return { Component: AdminUsersPage };
+                      },
+                    },
+                    {
+                      path: 'bikes', // 05·07 자전거 관리
+                      lazy: async () => {
+                        const { AdminBikesPage } =
+                          await import('@/features/admin/pages/AdminBikesPage');
+                        return { Component: AdminBikesPage };
+                      },
+                    },
+                    {
+                      path: 'reports', // 03 제보 관리
+                      lazy: async () => {
+                        const { AdminReportsPage } =
+                          await import('@/features/admin/pages/AdminReportsPage');
+                        return { Component: AdminReportsPage };
+                      },
+                    },
+                    {
+                      path: 'notices', // 06·08 공지사항
+                      lazy: async () => {
+                        const { AdminNoticesPage } =
+                          await import('@/features/admin/pages/AdminNoticesPage');
+                        return { Component: AdminNoticesPage };
+                      },
+                    },
+                  ],
+                },
+              ],
             },
           ],
         },

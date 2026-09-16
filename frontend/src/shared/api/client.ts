@@ -34,7 +34,10 @@ client.interceptors.response.use(undefined, (error: unknown) => {
     error.response?.status === 401 &&
     !error.config?.skipAuthRedirect
   ) {
-    const loginUrl = `${import.meta.env.BASE_URL}login`;
+    // 관리자 화면에서 끊겼으면 모바일 로그인이 아니라 관리자 로그인으로 보낸다
+    const base = import.meta.env.BASE_URL;
+    const inAdmin = window.location.pathname.startsWith(`${base}admin`);
+    const loginUrl = `${base}${inAdmin ? 'admin/login' : 'login'}`;
     // 이미 로그인 화면이면 리다이렉트 루프 방지
     if (window.location.pathname !== loginUrl) {
       window.location.assign(loginUrl);

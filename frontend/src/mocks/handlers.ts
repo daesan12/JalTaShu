@@ -65,6 +65,31 @@ function setAuthState(state: MockAuthState) {
   }
 }
 
+/*
+ * 가짜 관리자 세션 — 이용자 세션과 완전히 별개다.
+ * 백엔드에 관리자 로그인 API가 아직 없어 임시로 둔다. 확정되면 이 블록과 아래 핸들러 3개를 지운다.
+ */
+const ADMIN_AUTH_KEY = 'msw_admin_auth';
+
+/** Figma 로그인 화면에 적힌 아이디가 admin이라 그대로 쓴다 */
+const MOCK_ADMIN = { adminId: 1, id: 'admin', password: 'admin1234' };
+
+function isAdminLoggedIn(): boolean {
+  try {
+    return localStorage.getItem(ADMIN_AUTH_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function setAdminLoggedIn(value: boolean) {
+  try {
+    localStorage.setItem(ADMIN_AUTH_KEY, String(value));
+  } catch {
+    // 저장 불가 환경 무시
+  }
+}
+
 /** 가짜 민원 내역 — 새로고침에도 유지되도록 localStorage 사용 */
 const REPORTS_KEY = 'msw_reports';
 
@@ -740,6 +765,28 @@ export const handlers = [
     await delay(400);
     const state = getAuthState();
     setAuthState({ ...state, loggedIn: true });
+    return HttpResponse.json(ok(null));
+  }),
+
+  http.post('/api/admin/auth/login', async ({ request }) => {
+    await delay(400);
+    const body = (await request.json()) as { id?: string; password?: string };
+    if (body.id !== MOCK_ADMIN.id || body.password !== MOCK_ADMIN.password) {
+      return fail(401, '아이디 또는 비밀번호가 올바르지 않습니다.');
+    }
+    setAdminLoggedIn(true);
+    return HttpResponse.json(ok(null));
+  }),
+
+  http.get('/api/admin/auth/me', async () => {
+    await delay(200);
+    if (!isAdminLoggedIn()) return fail(401, '로그인이 필요합니다.');
+    return HttpResponse.json(ok({ adminId: MOCK_ADMIN.adminId, id: MOCK_ADMIN.id }));
+  }),
+
+  http.post('/api/admin/auth/logout', async () => {
+    await delay(200);
+    setAdminLoggedIn(false);
     return HttpResponse.json(ok(null));
   }),
 
