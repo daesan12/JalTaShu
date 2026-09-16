@@ -6,6 +6,6 @@ public record AdminCycleDetailStatisticsResponse(
         Long usingCnt,
         LocalDateTime recentUsingAt,
         Long unresolvedClaim,
-        LocalDateTime registAt
+        LocalDateTime registeredAt
 ) {
 }

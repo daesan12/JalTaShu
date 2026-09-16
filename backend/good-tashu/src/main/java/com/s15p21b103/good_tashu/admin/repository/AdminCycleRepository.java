@@ -9,9 +9,54 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface AdminCycleRepository extends JpaRepository<CycleEntity, String> {
+    interface CycleHistoryRow {
+        Long getRecordId();
+        LocalDateTime getUsingAt();
+        String getStartingPoint();
+        String getEndPoint();
+        Long getUserId();
+        String getNickname();
+    }
+
+    // 미반납 이력과 대여소·사용자 정보가 없는 이력도 유지한다.
+    @Query(value = """
+            SELECT cu.cycle_usage_id AS recordId, cu.rental_at AS usingAt,
+                   rental_station.name AS startingPoint, return_station.name AS endPoint,
+                   cu.user_id AS userId, u.nickname AS nickname
+            FROM cycle_usages cu
+            LEFT JOIN stations rental_station ON rental_station.station_id = cu.rental_station_id
+            LEFT JOIN stations return_station ON return_station.station_id = cu.return_station_id
+            LEFT JOIN users u ON u.user_id = cu.user_id
+            WHERE cu.cycle_id = :cycleId
+            ORDER BY cu.rental_at DESC, cu.cycle_usage_id DESC
+            """, nativeQuery = true)
+    List<CycleHistoryRow> findCycleHistory(@Param("cycleId") String cycleId);
+
+    interface CycleDetailStatistics {
+        Long getUsingCnt();
+        LocalDateTime getRecentUsingAt();
+        Long getUnresolvedClaim();
+        LocalDateTime getRegisteredAt();
+    }
+
+    // 이용내역과 제보를 별도로 집계해 건수가 중복되지 않도록 한다.
+    @Query(value = """
+            SELECT (SELECT COUNT(*) FROM cycle_usages cu
+                    WHERE cu.cycle_id = c.cycle_id) AS usingCnt,
+                   (SELECT MAX(cu.rental_at) FROM cycle_usages cu
+                    WHERE cu.cycle_id = c.cycle_id) AS recentUsingAt,
+                   (SELECT COUNT(*) FROM cycle_claims cc
+                    WHERE cc.cycle_id = c.cycle_id AND cc.status = 'READY') AS unresolvedClaim,
+                   c.registered_at AS registeredAt
+            FROM cycles c
+            WHERE c.cycle_id = :cycleId
+            """, nativeQuery = true)
+    Optional<CycleDetailStatistics> findCycleDetailStatistics(@Param("cycleId") String cycleId);
+
     interface CycleListRow {
         String getCycleId();
         String getCurrentLocation();

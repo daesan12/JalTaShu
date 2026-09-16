@@ -51,8 +51,7 @@ public class AdminCycleController {
     public ApiResponse<AdminCycleDetailStatisticsResponse> getCycleDetailStatistics(
             @currentAdminId Long adminId,
             @PathVariable(name = "cycleId") String cycleId) {
-        // TODO: 자전거 개별 통계 서비스 연결
-        return ApiResponse.success((AdminCycleDetailStatisticsResponse) null);
+        return ApiResponse.success(adminCycleService.getCycleDetailStatistics(cycleId));
     }
 
     // 자전거 이용 이력 조회
@@ -60,10 +59,10 @@ public class AdminCycleController {
     public ApiResponse<List<AdminCycleHistoryResponse>> getCycleHistory(
             @currentAdminId Long adminId,
             @PathVariable(name = "cycleId") String cycleId) {
-        // TODO: 자전거 이용 이력 조회 서비스 연결
-        return ApiResponse.success(List.of());
+        return ApiResponse.success(adminCycleService.getCycleHistory(cycleId));
     }
 
+    //히트맵 조회
     @GetMapping("/heatmap")
     public ApiResponse<List<AdminHeatmapResponse>> getRentalHeatmap(
             @currentAdminId Long adminId,
@@ -72,6 +71,7 @@ public class AdminCycleController {
         return ApiResponse.success(adminCycleService.getHeatmap(datetime));
     }
 
+    //대여소 상세조회
     @GetMapping("/station/{stationId}")
     public ApiResponse<AdminStationDetailResponse> getStationDetail(
             @currentAdminId Long adminId,

@@ -1,6 +1,9 @@
 package com.s15p21b103.good_tashu.admin.service;
 
 import com.s15p21b103.good_tashu.admin.dto.res.AdminHeatmapResponse;
+import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleHistoryResponse;
+import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleDetailStatisticsResponse;
+import com.s15p21b103.good_tashu.admin.repository.AdminCycleRepository.CycleDetailStatistics;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleListResponse;
 import com.s15p21b103.good_tashu.cycle.domain.CycleStatus;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleStatisticsResponse;
@@ -26,6 +29,37 @@ import static com.s15p21b103.good_tashu.admin.exception.AdminErrorCode.*;
 public class AdminCycleService {
     private final AdminCycleRepository adminCycleRepository;
     private final StationRepository stationRepository;
+
+    @Transactional(readOnly = true)
+    public List<AdminCycleHistoryResponse> getCycleHistory(String cycleId) {
+        // 존재하지 않는 자전거와 이용내역이 없는 자전거를 구분한다.
+        if (cycleId == null || cycleId.isBlank()) {
+            throw new AdminException(INVALID_CYCLE_ID);
+        }
+        if (!adminCycleRepository.existsById(cycleId)) {
+            throw new AdminException(NOT_EXISTS_CYCLE);
+        }
+        // 진행 중인 대여를 포함한 이용 이력을 최신 대여 순으로 반환한다.
+        return adminCycleRepository.findCycleHistory(cycleId).stream()
+                .map(row -> new AdminCycleHistoryResponse(
+                        row.getRecordId(), row.getUsingAt(), row.getStartingPoint(),
+                        row.getEndPoint(), row.getUserId(), row.getNickname()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public AdminCycleDetailStatisticsResponse getCycleDetailStatistics(String cycleId) {
+        if (cycleId == null || cycleId.isBlank()) {
+            throw new AdminException(INVALID_CYCLE_ID);
+        }
+        // 자전거 존재 여부와 개별 통계를 한 번의 조회로 확인한다.
+        CycleDetailStatistics statistics = adminCycleRepository.findCycleDetailStatistics(cycleId)
+                .orElseThrow(() -> new AdminException(NOT_EXISTS_CYCLE));
+        // 이용 횟수는 진행 중인 대여를 포함하며, 제보는 미처리 건만 집계한다.
+        return new AdminCycleDetailStatisticsResponse(
+                statistics.getUsingCnt(), statistics.getRecentUsingAt(),
+                statistics.getUnresolvedClaim(), statistics.getRegisteredAt());
+    }
 
     @Transactional(readOnly = true)
     public List<AdminCycleListResponse> getCycleList(

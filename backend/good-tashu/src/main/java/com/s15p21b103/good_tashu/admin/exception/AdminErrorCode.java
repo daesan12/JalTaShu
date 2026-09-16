@@ -16,7 +16,9 @@ public enum AdminErrorCode {
     INVALID_STATION_ID(HttpStatus.BAD_REQUEST, "대여소 ID를 입력해주세요."),
     NOT_EXISTS_STATION(HttpStatus.NOT_FOUND, "존재하지 않는 대여소입니다."),
     INVALID_TERM(HttpStatus.BAD_REQUEST, "term은 day 또는 week만 가능합니다."),
-    INVALID_CYCLE_STATEMENT(HttpStatus.BAD_REQUEST, "statement는 READY 또는 RENTING만 가능합니다.");
+    INVALID_CYCLE_STATEMENT(HttpStatus.BAD_REQUEST, "statement는 READY 또는 RENTING만 가능합니다."),
+    INVALID_CYCLE_ID(HttpStatus.BAD_REQUEST, "자전거 ID를 입력해주세요."),
+    NOT_EXISTS_CYCLE(HttpStatus.NOT_FOUND, "존재하지 않는 자전거입니다.");
     private final HttpStatus status;
     private final String message;
 }
