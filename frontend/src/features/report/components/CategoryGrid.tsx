@@ -1,8 +1,9 @@
 import type { ReportType } from '@/features/report/api/reports';
 
 /** 17-0~17-3 공용 2×2 민원 카테고리 카드 그리드 */
-const CATEGORIES: { type: ReportType; label: string }[] = [
-  { type: 'broken', label: '고장신고(반납오류 등)' },
+const CATEGORIES: { type: ReportType; label: string; sub?: string }[] = [
+  // 괄호를 제목에 붙이면 좁은 화면(360dp)에서 "등)"만 다음 줄로 꺾여 부가설명 줄로 분리
+  { type: 'broken', label: '고장신고', sub: '반납오류 등' },
   { type: 'abandoned', label: '방치신고' },
   { type: 'inquiry', label: '기타 문의' },
 ];
@@ -16,7 +17,7 @@ interface CategoryGridProps {
 export function CategoryGrid({ selected, onSelect, onMyReports }: CategoryGridProps) {
   return (
     <div className="grid grid-cols-2 gap-3">
-      {CATEGORIES.map(({ type, label }) => {
+      {CATEGORIES.map(({ type, label, sub }) => {
         const isSelected = selected === type;
         return (
           <button
@@ -31,6 +32,13 @@ export function CategoryGrid({ selected, onSelect, onMyReports }: CategoryGridPr
             }`}
           >
             {label}
+            {sub && (
+              <span
+                className={`mt-0.5 block text-xs font-normal ${isSelected ? 'text-primary/80' : 'text-gray-500'}`}
+              >
+                {sub}
+              </span>
+            )}
           </button>
         );
       })}

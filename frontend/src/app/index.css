@@ -92,6 +92,10 @@
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
+    /* 한국어 줄바꿈은 단어(어절) 단위로 — 좁은 화면(360dp)에서 "이용자"가 "이용/자"로
+       꺾이는 것 방지. 공백 없는 긴 문자열(URL 등)은 overflow-wrap이 받아준다 */
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
 
   /* 입력창에서는 텍스트 선택 허용 */
