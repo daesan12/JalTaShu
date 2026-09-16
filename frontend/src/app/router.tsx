@@ -85,10 +85,44 @@ export const router = createBrowserRouter(
           },
           children: [
             {
-              index: true,
+              index: true, // 01 히트맵
               lazy: async () => {
-                const { AdminHomePage } = await import('@/features/admin/pages/AdminHomePage');
-                return { Component: AdminHomePage };
+                const { AdminHeatmapPage } = await import(
+                  '@/features/admin/pages/AdminHeatmapPage'
+                );
+                return { Component: AdminHeatmapPage };
+              },
+            },
+            {
+              path: 'users', // 04·09 사용자 관리
+              lazy: async () => {
+                const { AdminUsersPage } = await import('@/features/admin/pages/AdminUsersPage');
+                return { Component: AdminUsersPage };
+              },
+            },
+            {
+              path: 'bikes', // 05·07 자전거 관리
+              lazy: async () => {
+                const { AdminBikesPage } = await import('@/features/admin/pages/AdminBikesPage');
+                return { Component: AdminBikesPage };
+              },
+            },
+            {
+              path: 'reports', // 03 제보 관리
+              lazy: async () => {
+                const { AdminReportsPage } = await import(
+                  '@/features/admin/pages/AdminReportsPage'
+                );
+                return { Component: AdminReportsPage };
+              },
+            },
+            {
+              path: 'notices', // 06·08 공지사항
+              lazy: async () => {
+                const { AdminNoticesPage } = await import(
+                  '@/features/admin/pages/AdminNoticesPage'
+                );
+                return { Component: AdminNoticesPage };
               },
             },
           ],
