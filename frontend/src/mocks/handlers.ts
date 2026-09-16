@@ -72,7 +72,13 @@ function setAuthState(state: MockAuthState) {
 const ADMIN_AUTH_KEY = 'msw_admin_auth';
 
 /** Figma 로그인 화면에 적힌 아이디가 admin이라 그대로 쓴다 */
-const MOCK_ADMIN = { adminId: 1, id: 'admin', password: 'admin1234' };
+const MOCK_ADMIN = {
+  adminId: 1,
+  id: 'admin',
+  password: 'admin1234',
+  name: '운영관리자',
+  email: 'admin@tashu.kr',
+};
 
 function isAdminLoggedIn(): boolean {
   try {
@@ -781,7 +787,8 @@ export const handlers = [
   http.get('/api/admin/auth/me', async () => {
     await delay(200);
     if (!isAdminLoggedIn()) return fail(401, '로그인이 필요합니다.');
-    return HttpResponse.json(ok({ adminId: MOCK_ADMIN.adminId, id: MOCK_ADMIN.id }));
+    const { password: _password, ...me } = MOCK_ADMIN;
+    return HttpResponse.json(ok(me));
   }),
 
   http.post('/api/admin/auth/logout', async () => {

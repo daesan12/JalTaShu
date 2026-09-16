@@ -4,6 +4,10 @@ export interface AdminMe {
   adminId: number;
   /** 로그인 아이디 (Figma 로그인 화면의 "admin") */
   id: string;
+  /** 사이드바 하단 프로필에 표시 (예: 운영관리자) */
+  name: string;
+  /** 사이드바 하단 프로필에 표시 (예: admin@tashu.kr) */
+  email: string;
 }
 
 /**
@@ -24,4 +28,9 @@ export function getAdminMe(): Promise<AdminMe> {
  */
 export function adminLogin(id: string, password: string): Promise<null> {
   return apiPost<null>('/admin/auth/login', { id, password }, { skipAuthRedirect: true });
+}
+
+/** POST /api/admin/auth/logout — 쿠키를 만료시킨다 */
+export function adminLogout(): Promise<null> {
+  return apiPost<null>('/admin/auth/logout');
 }
