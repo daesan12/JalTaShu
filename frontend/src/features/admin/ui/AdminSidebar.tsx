@@ -8,7 +8,7 @@ const MENUS = [
   { to: '/admin', label: '히트맵', end: true },
   { to: '/admin/users', label: '사용자 관리', end: false },
   { to: '/admin/bikes', label: '자전거 관리', end: false },
-  { to: '/admin/reports', label: '제보 관리', end: false },
+  { to: '/admin/claims', label: '제보 관리', end: false },
   { to: '/admin/notices', label: '공지사항', end: false },
 ];
 

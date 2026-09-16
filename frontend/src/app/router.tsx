@@ -127,11 +127,11 @@ export const router = createBrowserRouter(
                       },
                     },
                     {
-                      path: 'reports', // 03 제보 관리
+                      path: 'claims', // 03 제보 관리 (API 용어가 claim이라 경로도 claims)
                       lazy: async () => {
-                        const { AdminReportsPage } =
-                          await import('@/features/admin/pages/AdminReportsPage');
-                        return { Component: AdminReportsPage };
+                        const { AdminClaimsPage } =
+                          await import('@/features/admin/pages/AdminClaimsPage');
+                        return { Component: AdminClaimsPage };
                       },
                     },
                     {
