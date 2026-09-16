@@ -7,6 +7,6 @@ import java.lang.annotation.*;
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-@AuthenticationPrincipal(expression = "adminId", errorOnInvalidType = true)
+@AuthenticationPrincipal(expression = "T(java.lang.Long).valueOf(subject.substring(6))", errorOnInvalidType = true)
 public @interface currentAdminId {
 }

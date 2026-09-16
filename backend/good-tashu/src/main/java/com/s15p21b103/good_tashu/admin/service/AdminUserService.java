@@ -5,6 +5,7 @@ import com.s15p21b103.good_tashu.admin.repository.AdminUserRepository;
 import com.s15p21b103.good_tashu.admin.repository.AdminRepository;
 import com.s15p21b103.good_tashu.admin.repository.UserBanRecordRepository;
 import com.s15p21b103.good_tashu.admin.domain.UserBanRecordEntity;
+import com.s15p21b103.good_tashu.admin.domain.AdminEntity;
 import com.s15p21b103.good_tashu.admin.dto.req.UserBanRequest;
 import com.s15p21b103.good_tashu.user.repository.UserRepository;
 import com.s15p21b103.good_tashu.admin.exception.AdminException;
@@ -12,6 +13,9 @@ import static com.s15p21b103.good_tashu.admin.exception.AdminErrorCode.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.nio.charset.StandardCharsets;
 
 import java.util.List;
 import java.util.Locale;
@@ -23,6 +27,28 @@ public class AdminUserService {
     private final AdminRepository adminRepository;
     private final UserRepository userRepository;
     private final UserBanRecordRepository userBanRecordRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    //초기화 코드 전용. 이미 등록된 ID는 그대로 유지하며 비밀번호를 재설정하지 않음
+    @Transactional
+    public Long registerAdmin(String id, String rawPassword) {
+        if (id == null || id.isBlank() || id.strip().length() > 20) {
+            throw new AdminException(INVALID_ADMIN_ID);
+        }
+        // BCrypt의 입력 한도는 문자 수가 아닌 UTF-8 바이트 수입니다. 비밀번호는 trim하지 않습니다.
+        if (rawPassword == null || rawPassword.isBlank()
+                || rawPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new AdminException(INVALID_ADMIN_PASSWORD);
+        }
+        String loginId = id.strip();
+        // 있으면 수정하지 않고 그대로 adminId를 반환
+        return adminRepository.findByIdEquals(loginId)
+                .map(AdminEntity::getAdminId)
+                .orElseGet(() -> adminRepository.save(AdminEntity.builder()
+                        .id(loginId)
+                        .password(passwordEncoder.encode(rawPassword))
+                        .build()).getAdminId());
+    }
 
     @Transactional
     public void banUser(Long adminId, Long userId, UserBanRequest request) {

@@ -21,6 +21,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadableBody() {
+        return ResponseEntity.badRequest().body(ApiResponse.error(400, "요청 본문이 없거나 JSON 형식이 올바르지 않습니다."));
+    }
     @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ApiResponse<Void>> handleRequestParameter(Exception e) {
         log.warn("요청 파라미터 오류: {}", e.getClass().getSimpleName());
