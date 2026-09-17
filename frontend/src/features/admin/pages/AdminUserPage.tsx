@@ -13,21 +13,20 @@ import {
   unbanAdminUser,
   type AdminUserDetail,
 } from '@/features/admin/api/adminUsers';
+import { formatDateTime } from '@/features/admin/lib/format';
 import { AdminBadge } from '@/features/admin/ui/AdminBadge';
 import { AdminButton } from '@/features/admin/ui/AdminButton';
+import { AdminDetailState } from '@/features/admin/ui/AdminDetailState';
+import { AdminFieldLabel, AdminTextarea } from '@/features/admin/ui/AdminField';
 import { AdminSelect } from '@/features/admin/ui/AdminFilters';
 import { AdminModal } from '@/features/admin/ui/AdminModal';
+import { AdminStatCard } from '@/features/admin/ui/AdminStatCard';
 import { AdminTable } from '@/features/admin/ui/AdminTable';
+import { AdminTableStatus } from '@/features/admin/ui/AdminTableStatus';
+import { AdminTabBar, AdminTabButton } from '@/features/admin/ui/AdminTabs';
 import { AdminToast } from '@/features/admin/ui/AdminToast';
 
 type DetailTab = 'rides' | 'bans';
-
-/** 이용 기록의 "09.17 14:03" */
-function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 /** 09 사용자 상세 — 기본 정보·통계 + 이용 기록/밴 이력(09-b) 탭 + 정지(09-c)/해제(09-d) */
 export function AdminUserPage() {
@@ -64,17 +63,13 @@ export function AdminUserPage() {
     },
   });
 
-  if (detail.isPending) {
-    return <p className="text-sm text-admin-muted">불러오는 중…</p>;
-  }
-  if (detail.isError) {
+  if (detail.isPending || detail.isError) {
     return (
-      <div className="flex flex-col items-start gap-3">
-        <p className="text-sm text-admin-muted">사용자 정보를 불러오지 못했습니다.</p>
-        <AdminButton variant="secondary" size="sm" onClick={() => void detail.refetch()}>
-          다시 시도
-        </AdminButton>
-      </div>
+      <AdminDetailState
+        isError={detail.isError}
+        errorText="사용자 정보를 불러오지 못했습니다."
+        onRetry={() => void detail.refetch()}
+      />
     );
   }
 
@@ -115,21 +110,21 @@ export function AdminUserPage() {
 
       {/* 이용 통계 3카드 */}
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="누적 이용" value={`${user.totalRides}회`} />
-        <StatCard label="누적 거리" value={`${user.totalDistanceKm.toLocaleString()}km`} />
-        <StatCard label="누적 이용 시간" value={formatMinutes(user.totalDurationMin)} />
+        <AdminStatCard label="누적 이용" value={`${user.totalRides}회`} />
+        <AdminStatCard label="누적 거리" value={`${user.totalDistanceKm.toLocaleString()}km`} />
+        <AdminStatCard label="누적 이용 시간" value={formatMinutes(user.totalDurationMin)} />
       </div>
 
       {/* 탭 (09-b) */}
       <div>
-        <div className="flex gap-1 border-b border-admin-line">
-          <TabButton active={tab === 'rides'} onClick={() => setTab('rides')}>
+        <AdminTabBar>
+          <AdminTabButton active={tab === 'rides'} onClick={() => setTab('rides')}>
             이용 기록 <span className="tabular-nums">{user.rides.length}</span>
-          </TabButton>
-          <TabButton active={tab === 'bans'} onClick={() => setTab('bans')}>
+          </AdminTabButton>
+          <AdminTabButton active={tab === 'bans'} onClick={() => setTab('bans')}>
             밴 이력 <span className="tabular-nums">{banRecords.data?.length ?? 0}</span>
-          </TabButton>
-        </div>
+          </AdminTabButton>
+        </AdminTabBar>
 
         <div className="mt-4 rounded-lg border border-admin-line">
           {tab === 'rides' ? (
@@ -169,20 +164,12 @@ export function AdminUserPage() {
                 </tr>
               </thead>
               <tbody>
-                {banRecords.isPending && (
-                  <tr>
-                    <td colSpan={5} className="text-center text-admin-muted">
-                      불러오는 중…
-                    </td>
-                  </tr>
-                )}
-                {banRecords.data?.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="text-center text-admin-muted">
-                      밴 이력이 없습니다
-                    </td>
-                  </tr>
-                )}
+                <AdminTableStatus
+                  colSpan={5}
+                  isPending={banRecords.isPending}
+                  isEmpty={banRecords.data?.length === 0}
+                  emptyText="밴 이력이 없습니다"
+                />
                 {banRecords.data?.map((record) => (
                   <tr key={record.banId}>
                     <td className="tabular-nums text-admin-muted">
@@ -271,13 +258,14 @@ interface BanModalProps {
 function BanModal({ user, onClose, onBanned }: BanModalProps) {
   const [days, setDays] = useState<number>(7);
   const [comment, setComment] = useState('');
-  // 종료 예정일 미리보기 기준 시각 — 렌더마다 흔들리지 않게 모달 연 시각으로 고정
+  // 종료 시각 기준 — 미리보기와 실제 전송값이 어긋나지 않게 모달 연 시각 하나로 고정
+  // (자정 근처에 모달을 열어 두어도 화면에 보인 날짜 그대로 전송된다)
   const [openedAt] = useState(() => Date.now());
 
   const ban = useMutation({
     mutationFn: () =>
       banAdminUser(user.userId, {
-        scheduledEndAt: new Date(Date.now() + days * 24 * 3600_000).toISOString(),
+        scheduledEndAt: new Date(openedAt + days * 24 * 3600_000).toISOString(),
         comment: comment.trim(),
       }),
     onSuccess: onBanned,
@@ -325,14 +313,9 @@ function BanModal({ user, onClose, onBanned }: BanModalProps) {
           </div>
         </div>
         <div>
-          <div className="mb-1.5 flex items-baseline justify-between">
-            <span className="text-sm font-medium">사유</span>
-            <span className="text-xs text-admin-muted tabular-nums">
-              {comment.length}/{BAN_COMMENT_MAX}
-            </span>
-          </div>
-          <textarea
-            className="min-h-20 w-full resize-y rounded-md border border-admin-line bg-admin-bg px-3 py-2 text-sm text-admin-text placeholder:text-admin-muted focus:border-admin-indicator focus:ring-1 focus:ring-admin-indicator focus:outline-none"
+          <AdminFieldLabel label="사유" count={comment.length} max={BAN_COMMENT_MAX} />
+          <AdminTextarea
+            className="min-h-20"
             placeholder="예: 허위 제보 반복 접수 (3회)"
             value={comment}
             maxLength={BAN_COMMENT_MAX}
@@ -348,40 +331,5 @@ function BanModal({ user, onClose, onBanned }: BanModalProps) {
         )}
       </div>
     </AdminModal>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-admin-panel px-5 py-4">
-      <p className="text-sm text-admin-muted">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-    </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-selected={active}
-      role="tab"
-      onClick={onClick}
-      className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-        active
-          ? 'border-admin-indicator text-admin-text'
-          : 'border-transparent text-admin-muted hover:text-admin-text'
-      }`}
-    >
-      {children}
-    </button>
   );
 }

@@ -12,13 +12,14 @@ import {
 } from '@/features/admin/api/adminClaims';
 import { AdminBadge } from '@/features/admin/ui/AdminBadge';
 import { AdminButton } from '@/features/admin/ui/AdminButton';
+import { AdminFieldLabel, AdminTextarea } from '@/features/admin/ui/AdminField';
 import { AdminFilterBar, AdminSearchInput, AdminSelect } from '@/features/admin/ui/AdminFilters';
 import { AdminModal } from '@/features/admin/ui/AdminModal';
-import { AdminPagination } from '@/features/admin/ui/AdminPagination';
+import { ADMIN_PAGE_SIZE, AdminPagination } from '@/features/admin/ui/AdminPagination';
+import { AdminStatCard } from '@/features/admin/ui/AdminStatCard';
 import { AdminTable } from '@/features/admin/ui/AdminTable';
+import { AdminTableStatus } from '@/features/admin/ui/AdminTableStatus';
 import { AdminToast } from '@/features/admin/ui/AdminToast';
-
-const PAGE_SIZE = 12;
 
 const STATUS_ORDER: ClaimStatus[] = ['OPEN', 'IN_PROGRESS', 'RESOLVED'];
 type SortOrder = 'newest' | 'oldest' | 'reports';
@@ -76,7 +77,7 @@ export function AdminClaimsPage() {
           : b.reportCnt - a.reportCnt || b.createdAt.localeCompare(a.createdAt),
     );
   }, [data, search, status, order]);
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageItems = filtered.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE);
 
   return (
     <div className="flex flex-col gap-4">
@@ -85,12 +86,12 @@ export function AdminClaimsPage() {
       {/* 상태 통계 3카드 */}
       <div className="grid grid-cols-3 gap-4">
         {STATUS_ORDER.map((key) => (
-          <div key={key} className="rounded-lg bg-admin-panel px-5 py-4">
-            <p className="text-sm text-admin-muted">{CLAIM_STATUS_LABEL[key]}</p>
-            <p className={`mt-1 text-2xl font-semibold tabular-nums ${STATUS_COUNT_CLASS[key]}`}>
-              {counts[key]}
-            </p>
-          </div>
+          <AdminStatCard
+            key={key}
+            label={CLAIM_STATUS_LABEL[key]}
+            value={counts[key]}
+            valueClass={STATUS_COUNT_CLASS[key]}
+          />
         ))}
       </div>
 
@@ -121,7 +122,10 @@ export function AdminClaimsPage() {
         </AdminSelect>
         <AdminSelect
           value={order}
-          onChange={(e) => setOrder(e.target.value as SortOrder)}
+          onChange={(e) => {
+            setOrder(e.target.value as SortOrder);
+            setPage(1);
+          }}
           aria-label="정렬"
         >
           <option value="newest">최신순</option>
@@ -145,34 +149,14 @@ export function AdminClaimsPage() {
             </tr>
           </thead>
           <tbody>
-            {isPending && (
-              <tr>
-                <td colSpan={8} className="text-center text-admin-muted">
-                  불러오는 중…
-                </td>
-              </tr>
-            )}
-            {isError && (
-              <tr>
-                <td colSpan={8} className="text-center">
-                  <span className="text-admin-muted">목록을 불러오지 못했습니다. </span>
-                  <button
-                    type="button"
-                    className="text-admin-text underline"
-                    onClick={() => void refetch()}
-                  >
-                    다시 시도
-                  </button>
-                </td>
-              </tr>
-            )}
-            {!isPending && !isError && pageItems.length === 0 && (
-              <tr>
-                <td colSpan={8} className="text-center text-admin-muted">
-                  표시할 제보가 없습니다
-                </td>
-              </tr>
-            )}
+            <AdminTableStatus
+              colSpan={8}
+              isPending={isPending}
+              isError={isError}
+              onRetry={() => void refetch()}
+              isEmpty={pageItems.length === 0}
+              emptyText="표시할 제보가 없습니다"
+            />
             {pageItems.map((claim) => (
               <tr key={claim.claimId} onClick={() => setSelected(claim)}>
                 <td className="tabular-nums text-admin-muted">CL-{claim.claimId}</td>
@@ -197,7 +181,7 @@ export function AdminClaimsPage() {
         </AdminTable>
         <AdminPagination
           page={page}
-          pageSize={PAGE_SIZE}
+          pageSize={ADMIN_PAGE_SIZE}
           totalCount={filtered.length}
           onChange={setPage}
         />
@@ -291,9 +275,9 @@ function ClaimDetailModal({ claim, onClose, onSaved }: ClaimDetailModalProps) {
         </div>
 
         <div>
-          <p className="mb-1.5 text-sm font-medium">처리 내용</p>
-          <textarea
-            className="min-h-24 w-full resize-y rounded-md border border-admin-line bg-admin-bg px-3 py-2 text-sm text-admin-text placeholder:text-admin-muted focus:border-admin-indicator focus:ring-1 focus:ring-admin-indicator focus:outline-none"
+          <AdminFieldLabel label="처리 내용" />
+          <AdminTextarea
+            className="min-h-24"
             placeholder="처리 결과나 조치 내용을 남겨 주세요 (선택)"
             value={content}
             onChange={(e) => setContent(e.target.value)}

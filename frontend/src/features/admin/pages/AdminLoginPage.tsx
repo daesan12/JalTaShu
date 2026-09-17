@@ -4,15 +4,14 @@ import { Navigate, useNavigate } from 'react-router';
 import { adminLogin } from '@/features/admin/api/adminAuth';
 import { ADMIN_ME_QUERY_KEY, useAdminAuth } from '@/features/admin/hooks/useAdminAuth';
 import { AdminButton } from '@/features/admin/ui/AdminButton';
+import { ADMIN_FIELD_FRAME } from '@/features/admin/ui/AdminField';
 import { ApiError } from '@/shared/api/client';
 
 /** Figma 10-a의 문구. 서버가 무슨 말을 하든 자격 증명 실패는 이 문장으로 통일한다 */
 const CREDENTIAL_ERROR = '아이디 또는 비밀번호가 올바르지 않습니다.';
 
-/** 입력칸은 Figma 기준 44px. 테두리·포커스는 AdminFilters의 컨트롤과 같은 토큰을 쓴다 */
-const FIELD =
-  'h-11 w-full rounded-md border border-admin-line bg-admin-bg px-3.5 text-sm text-admin-text ' +
-  'placeholder:text-admin-muted focus:border-admin-indicator focus:ring-1 focus:ring-admin-indicator focus:outline-none';
+/** 입력칸은 Figma 기준 44px. 테두리·포커스는 다른 관리자 입력칸과 같은 껍데기 */
+const FIELD = `h-11 w-full px-3.5 ${ADMIN_FIELD_FRAME}`;
 
 /** 10 관리자 로그인 (오류 상태는 10-a) */
 export function AdminLoginPage() {

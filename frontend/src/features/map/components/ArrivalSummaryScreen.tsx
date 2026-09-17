@@ -3,7 +3,7 @@ import { formatDistance } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/Button';
 import { ElevationChart } from '@/shared/ui/ElevationChart';
 import { buildElevationProfile } from '@/features/map/lib/routeElevation';
-import { formatMinutes } from '@/features/map/lib/routeMetrics';
+import { formatSecondsAsMinutes } from '@/features/map/lib/routeMetrics';
 
 interface ArrivalSummaryScreenProps {
   destinationTitle: string;
@@ -52,7 +52,7 @@ export function ArrivalSummaryScreen({
 
         <h1 className="mt-6 text-center text-2xl font-bold text-gray-900">도착했어요!</h1>
         <p className="mt-2 text-center text-sm text-gray-500">
-          {destinationTitle}까지 {formatMinutes(elapsedSec)} 만에 도착했어요
+          {destinationTitle}까지 {formatSecondsAsMinutes(elapsedSec)} 만에 도착했어요
         </p>
 
         {profile.bars.length > 0 && (
@@ -65,7 +65,7 @@ export function ArrivalSummaryScreen({
           <div className="flex flex-1 flex-col items-center justify-center rounded-2xl bg-gray-50 p-4">
             <p className="text-sm text-gray-500">총 시간</p>
             <p className="tabular-nums mt-2 text-3xl font-bold text-gray-900">
-              {formatMinutes(elapsedSec)}
+              {formatSecondsAsMinutes(elapsedSec)}
             </p>
           </div>
           <div className="flex flex-1 flex-col gap-3">

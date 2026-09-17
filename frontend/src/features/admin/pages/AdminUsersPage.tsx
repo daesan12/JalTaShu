@@ -9,10 +9,9 @@ import {
 } from '@/features/admin/api/adminUsers';
 import { AdminBadge } from '@/features/admin/ui/AdminBadge';
 import { AdminFilterBar, AdminSearchInput, AdminSelect } from '@/features/admin/ui/AdminFilters';
-import { AdminPagination } from '@/features/admin/ui/AdminPagination';
+import { ADMIN_PAGE_SIZE, AdminPagination } from '@/features/admin/ui/AdminPagination';
 import { AdminTable } from '@/features/admin/ui/AdminTable';
-
-const PAGE_SIZE = 12;
+import { AdminTableStatus } from '@/features/admin/ui/AdminTableStatus';
 
 /** 04 사용자 목록 — 상태·정렬은 서버 파라미터(구현 O), 닉네임 검색만 클라 필터 */
 export function AdminUsersPage() {
@@ -33,7 +32,7 @@ export function AdminUsersPage() {
     if (!keyword) return data ?? [];
     return (data ?? []).filter((user) => user.nickname.toLowerCase().includes(keyword));
   }, [data, search]);
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageItems = filtered.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE);
 
   return (
     <div className="flex flex-col gap-4">
@@ -85,34 +84,14 @@ export function AdminUsersPage() {
             </tr>
           </thead>
           <tbody>
-            {isPending && (
-              <tr>
-                <td colSpan={4} className="text-center text-admin-muted">
-                  불러오는 중…
-                </td>
-              </tr>
-            )}
-            {isError && (
-              <tr>
-                <td colSpan={4} className="text-center">
-                  <span className="text-admin-muted">목록을 불러오지 못했습니다. </span>
-                  <button
-                    type="button"
-                    className="text-admin-text underline"
-                    onClick={() => void refetch()}
-                  >
-                    다시 시도
-                  </button>
-                </td>
-              </tr>
-            )}
-            {!isPending && !isError && pageItems.length === 0 && (
-              <tr>
-                <td colSpan={4} className="text-center text-admin-muted">
-                  표시할 사용자가 없습니다
-                </td>
-              </tr>
-            )}
+            <AdminTableStatus
+              colSpan={4}
+              isPending={isPending}
+              isError={isError}
+              onRetry={() => void refetch()}
+              isEmpty={pageItems.length === 0}
+              emptyText="표시할 사용자가 없습니다"
+            />
             {pageItems.map((user) => (
               <tr key={user.userId} onClick={() => navigate(`/admin/users/${user.userId}`)}>
                 <td className="tabular-nums text-admin-muted">{user.userId}</td>
@@ -127,7 +106,7 @@ export function AdminUsersPage() {
         </AdminTable>
         <AdminPagination
           page={page}
-          pageSize={PAGE_SIZE}
+          pageSize={ADMIN_PAGE_SIZE}
           totalCount={filtered.length}
           onChange={setPage}
         />

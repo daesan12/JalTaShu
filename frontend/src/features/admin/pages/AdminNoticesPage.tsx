@@ -12,18 +12,13 @@ import {
   type AdminNotice,
 } from '@/features/admin/api/adminNotices';
 import { AdminButton } from '@/features/admin/ui/AdminButton';
+import { AdminFieldLabel, AdminInput, AdminTextarea } from '@/features/admin/ui/AdminField';
 import { AdminDateRange, AdminFilterBar, AdminSearchInput } from '@/features/admin/ui/AdminFilters';
 import { AdminModal } from '@/features/admin/ui/AdminModal';
-import { AdminPagination } from '@/features/admin/ui/AdminPagination';
+import { ADMIN_PAGE_SIZE, AdminPagination } from '@/features/admin/ui/AdminPagination';
 import { AdminTable } from '@/features/admin/ui/AdminTable';
+import { AdminTableStatus } from '@/features/admin/ui/AdminTableStatus';
 import { AdminToast } from '@/features/admin/ui/AdminToast';
-
-const PAGE_SIZE = 12;
-
-/** 모달 안 입력칸 — AdminFilters의 컨트롤과 같은 결 */
-const FIELD_CLASS =
-  'w-full rounded-md border border-admin-line bg-admin-bg px-3 py-2 text-sm text-admin-text ' +
-  'placeholder:text-admin-muted focus:border-admin-indicator focus:ring-1 focus:ring-admin-indicator focus:outline-none';
 
 /** 06 공지 목록 + 06-a 삭제 확인 + 08 공지 등록 (수정 없음, 이미지 첨부 없음 — Figma 명시) */
 export function AdminNoticesPage() {
@@ -54,7 +49,7 @@ export function AdminNoticesPage() {
       return true;
     });
   }, [data, search, from, to]);
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageItems = filtered.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE);
 
   const remove = useMutation({
     mutationFn: (notice: AdminNotice) => deleteAdminNotice(notice.noticeId),
@@ -108,34 +103,14 @@ export function AdminNoticesPage() {
             </tr>
           </thead>
           <tbody>
-            {isPending && (
-              <tr>
-                <td colSpan={4} className="text-center text-admin-muted">
-                  불러오는 중…
-                </td>
-              </tr>
-            )}
-            {isError && (
-              <tr>
-                <td colSpan={4} className="text-center">
-                  <span className="text-admin-muted">목록을 불러오지 못했습니다. </span>
-                  <button
-                    type="button"
-                    className="text-admin-text underline"
-                    onClick={() => void refetch()}
-                  >
-                    다시 시도
-                  </button>
-                </td>
-              </tr>
-            )}
-            {!isPending && !isError && pageItems.length === 0 && (
-              <tr>
-                <td colSpan={4} className="text-center text-admin-muted">
-                  표시할 공지가 없습니다
-                </td>
-              </tr>
-            )}
+            <AdminTableStatus
+              colSpan={4}
+              isPending={isPending}
+              isError={isError}
+              onRetry={() => void refetch()}
+              isEmpty={pageItems.length === 0}
+              emptyText="표시할 공지가 없습니다"
+            />
             {pageItems.map((notice) => (
               <tr key={notice.noticeId} onClick={() => setDetail(notice)}>
                 <td className="tabular-nums text-admin-muted">{notice.noticeId}</td>
@@ -159,7 +134,7 @@ export function AdminNoticesPage() {
         </AdminTable>
         <AdminPagination
           page={page}
-          pageSize={PAGE_SIZE}
+          pageSize={ADMIN_PAGE_SIZE}
           totalCount={filtered.length}
           onChange={setPage}
         />
@@ -274,9 +249,8 @@ function ComposeNoticeModal({ onClose, onCreated }: ComposeNoticeModalProps) {
     >
       <div className="flex flex-col gap-4">
         <div>
-          <FieldLabel label="제목" count={title.length} max={NOTICE_TITLE_MAX} />
-          <input
-            className={FIELD_CLASS}
+          <AdminFieldLabel label="제목" count={title.length} max={NOTICE_TITLE_MAX} />
+          <AdminInput
             placeholder="공지 제목을 입력해 주세요"
             value={title}
             maxLength={NOTICE_TITLE_MAX}
@@ -284,9 +258,9 @@ function ComposeNoticeModal({ onClose, onCreated }: ComposeNoticeModalProps) {
           />
         </div>
         <div>
-          <FieldLabel label="내용" count={content.length} max={NOTICE_CONTENT_MAX} />
-          <textarea
-            className={`${FIELD_CLASS} min-h-56 resize-y`}
+          <AdminFieldLabel label="내용" count={content.length} max={NOTICE_CONTENT_MAX} />
+          <AdminTextarea
+            className="min-h-56"
             placeholder="공지 내용을 입력해 주세요"
             value={content}
             maxLength={NOTICE_CONTENT_MAX}
@@ -303,16 +277,5 @@ function ComposeNoticeModal({ onClose, onCreated }: ComposeNoticeModalProps) {
         )}
       </div>
     </AdminModal>
-  );
-}
-
-function FieldLabel({ label, count, max }: { label: string; count: number; max: number }) {
-  return (
-    <div className="mb-1.5 flex items-baseline justify-between">
-      <span className="text-sm font-medium">{label}</span>
-      <span className="text-xs text-admin-muted tabular-nums">
-        {count}/{max}
-      </span>
-    </div>
   );
 }
