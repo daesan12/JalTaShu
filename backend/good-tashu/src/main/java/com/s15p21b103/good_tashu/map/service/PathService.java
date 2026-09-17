@@ -5,6 +5,8 @@ import com.s15p21b103.good_tashu.cycle.repository.StationRepository;
 import com.s15p21b103.good_tashu.map.client.OsrmClient;
 import com.s15p21b103.good_tashu.map.client.dto.OsrmResponse;
 import com.s15p21b103.good_tashu.map.client.dto.RouteCoordinate;
+import com.s15p21b103.good_tashu.map.domain.RouteType;
+import com.s15p21b103.good_tashu.map.domain.TravelStatus;
 import com.s15p21b103.good_tashu.map.dto.res.PathResponseDto;
 import com.s15p21b103.good_tashu.map.exception.MapException;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -112,6 +114,51 @@ public class PathService {
                             List.of(access, toLeg(TravelMode.BICYCLE, uphill.join()), egress))));
         }
         throw new MapException(PATH_NOT_FOUND);
+    }
+
+    // 이미 선택한 정류소를 유지하며 아직 이동하지 않은 구간만 재탐색한다.
+    public PathResponseDto buildReRouteResponse(BigDecimal startLat, BigDecimal startLng,
+                                                BigDecimal endLat, BigDecimal endLng,
+                                                String startStationId, String endStationId,
+                                                TravelStatus travelStatus, RouteType routeType) {
+        var start = coordinate(startLat, startLng);
+        var end = coordinate(endLat, endLng);
+        if (travelStatus == null || routeType == null) throw new MapException(INVALID_REROUTE_REQUEST);
+
+        if (routeType == RouteType.WALK || travelStatus == TravelStatus.WALK2) {
+            var walk = toLeg(TravelMode.WALK, osrm.route(FOOT, start, end));
+            return new PathResponseDto(List.of(combine(RouteType.WALK, null, null, List.of(walk))));
+        }
+
+        if (endStationId == null || endStationId.isBlank()
+                || (travelStatus == TravelStatus.WALK1 && (startStationId == null || startStationId.isBlank()))) {
+            throw new MapException(INVALID_REROUTE_REQUEST);
+        }
+        StationEntity destination = requireStation(endStationId);
+        StationEntity origin = travelStatus == TravelStatus.WALK1 ? requireStation(startStationId) : null;
+        var bikeStart = origin == null ? start : stationCoordinate(origin);
+        var bikeEnd = stationCoordinate(destination);
+        var profile = routeType == RouteType.UPHILL ? UPHILL : BIKE;
+
+        var access = origin == null ? null : async(() -> osrm.route(FOOT, start, bikeStart));
+        var bike = async(() -> osrm.route(profile, bikeStart, bikeEnd));
+        var egress = async(() -> osrm.route(FOOT, bikeEnd, end));
+        if (access == null) awaitAll(bike, egress);
+        else awaitAll(access, bike, egress);
+
+        var legs = new ArrayList<Leg>();
+        if (access != null) legs.add(toLeg(TravelMode.WALK, access.join()));
+        legs.add(toLeg(TravelMode.BICYCLE, bike.join()));
+        legs.add(toLeg(TravelMode.WALK, egress.join()));
+        return new PathResponseDto(List.of(combine(routeType,
+                origin == null ? null : stationDto(origin), stationDto(destination), List.copyOf(legs))));
+    }
+
+    private StationEntity requireStation(String stationId) {
+        return stationRepository.findById(stationId)
+                .filter(s -> s.getLatitude() != null && s.getLongitude() != null)
+                .filter(s -> stationCoordinate(s).isValid())
+                .orElseThrow(() -> new MapException(PATH_STATION_NOT_FOUND));
     }
 
     private List<StationEntity> nearest(RouteCoordinate point, List<StationEntity> candidates) {

@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum MapErrorCode {
+    INVALID_REROUTE_REQUEST(HttpStatus.BAD_REQUEST, "현재 상태, 탐색 유형 또는 이동에 필요한 정류소 ID가 올바르지 않습니다."),
     INVALID_PATH_COORDINATES(HttpStatus.BAD_REQUEST, "출발지 또는 도착지 좌표가 올바르지 않습니다."),
     PATH_STATION_NOT_FOUND(HttpStatus.NOT_FOUND, "좌표가 있는 대여소를 찾을 수 없습니다."),
     PATH_NOT_FOUND(HttpStatus.NOT_FOUND, "이동 가능한 경로를 찾을 수 없습니다."),
