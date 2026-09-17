@@ -130,10 +130,14 @@ export function MapHomePage() {
     guideActive,
     detailRoute,
     destinationTitle: destination?.title ?? '목적지',
+    destinationPos:
+      destination === null ? null : { xPos: destination.xPos, yPos: destination.yPos },
     totalSec:
       selectedRouteIndex === null ? null : (routeSummaries[selectedRouteIndex]?.totalSec ?? 0),
     location,
     clearJourney: journey.clearDestination,
+    replaceRoutes: journey.replaceRoutes,
+    showToast,
   });
 
   /**
@@ -235,6 +239,8 @@ export function MapHomePage() {
 
   // 11의 "안내 시작" → 12 안내 진행
   function startGuide() {
+    // 브라우저는 사용자가 누르지 않은 상태의 첫 소리를 막는다 — 이 클릭 안에서 권한을 받아 둔다
+    guide.primeVoice();
     // 경로 전체를 보던 축척 그대로면 길이 안 보인다 — 안내를 시작할 때 현재 위치로 확대한다
     setLocationFocusToken((token) => token + 1);
     setSearchParams({ [ROUTES_PARAM]: '1', [DETAIL_PARAM]: '1', [GUIDE_PARAM]: '1' });
@@ -276,9 +282,14 @@ export function MapHomePage() {
       ) : guideActive && guide.guideProgress !== null ? (
         <RouteGuideCard
           progress={guide.guideProgress}
+          nextCue={guide.nextCue}
           isLastLeg={guide.guideProgress.legIndex === guide.guideLegCount - 1}
           legCount={guide.guideLegCount}
           locationUnknown={location.position === null}
+          rerouting={guide.rerouting}
+          voiceOn={guide.voiceOn}
+          voiceSupported={guide.voiceSupported}
+          onToggleVoice={guide.toggleVoice}
         />
       ) : detailActive ? (
         <RouteDetailControls onBack={exitRouteDetail} destinationTitle={destination?.title ?? ''} />

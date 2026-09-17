@@ -54,6 +54,21 @@ export function RouteDetailSheet({
   const legs = useMemo(() => (route === null ? [] : toLegs(route)), [route]);
   const ascentM = useMemo(() => (route === null ? 0 : totalAscent(route)), [route]);
 
+  /** 구간이 어디로 가는 길인지 — 대여소 이름은 응답에서 온다 */
+  function legPlace(index: number): string {
+    const leg = legs[index];
+    if (leg === undefined) return '';
+    const start = route?.startStation?.name;
+    const end = route?.endStation?.name;
+    if (leg.mode === 'BICYCLE') {
+      return start === undefined || end === undefined ? '' : `${start} → ${end}`;
+    }
+    // 자전거 구간 앞이면 대여소로 가는 길, 뒤면 목적지로 가는 길
+    const beforeBike = legs.slice(0, index).every((l) => l.mode !== 'BICYCLE');
+    if (beforeBike) return start === undefined ? '' : `${start}까지`;
+    return '목적지까지';
+  }
+
   return (
     <BottomSheet open={open} snapPoint="half" onClose={onBack} backdrop={false} dismissible={false}>
       {route === null || summary === null ? null : (
@@ -85,6 +100,13 @@ export function RouteDetailSheet({
               {formatArrival(fetchedAt, summary.totalSec)} 도착 예정 · 도보{' '}
               {formatSecondsAsMinutes(summary.walkSec)}
             </p>
+            {/* 어느 대여소를 쓰는지는 응답이 알려준다(startStation·endStation) — 도보 전용 경로면 없다 */}
+            {route.startStation === null || route.endStation === null ? null : (
+              <p className="mt-1.5 text-sm text-gray-700">
+                <span className="font-semibold">{route.startStation.name}</span>에서 빌려{' '}
+                <span className="font-semibold">{route.endStation.name}</span>에 반납해요
+              </p>
+            )}
           </div>
 
           {/* 고도 그래프 */}
@@ -120,6 +142,9 @@ export function RouteDetailSheet({
                       <p className="text-base font-bold text-gray-900 tabular-nums">
                         {formatSecondsAsMinutes(leg.time)} · {formatDistance(leg.distance)}
                       </p>
+                      {legPlace(i) === '' ? null : (
+                        <p className="mt-0.5 truncate text-sm text-gray-500">{legPlace(i)}</p>
+                      )}
                     </div>
                   </li>
                 );

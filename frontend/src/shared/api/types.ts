@@ -97,6 +97,12 @@ export type RouteType = 'BIKE' | 'UPHILL' | 'WALK';
 export type TravelMode = 'WALK' | 'BICYCLE';
 
 /**
+ * 재탐색(`GET /map/re-route`)에 보내는 "지금 어디쯤 가는 중인지".
+ * 도보는 대여소에 가는 길(WALK1)과 반납 뒤 목적지로 가는 길(WALK2)을 구분한다.
+ */
+export type TravelStatus = 'WALK1' | 'BIKE' | 'WALK2';
+
+/**
  * 경로 응답 안의 좌표 — GeoJSON 순서라 **`[경도, 위도]`**다.
  * 이 프로젝트의 다른 API는 `{xPos, yPos}`를 쓰므로 여기만 형태가 다르다.
  * 지도에 찍을 때는 반드시 `osrmToLatLng()`로만 바꾼다(좌표 뒤집힘이 1순위 버그).

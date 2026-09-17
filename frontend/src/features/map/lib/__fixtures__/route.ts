@@ -1,4 +1,12 @@
-import type { RouteCandidate, RouteLeg, RoutePoint, RouteType, TravelMode } from '@/shared/api/types';
+import type {
+  RouteCandidate,
+  RouteLeg,
+  RouteManeuver,
+  RoutePoint,
+  RouteStep,
+  RouteType,
+  TravelMode,
+} from '@/shared/api/types';
 
 /**
  * 경로 테스트용 고정 데이터 (테스트 전용 — 앱 코드에서 import하지 않는다).
@@ -81,4 +89,34 @@ export function makeRoute(options: RouteOptions = {}): RouteCandidate {
     legs,
     expectedBikeCnt: options.expectedBikeCnt,
   };
+}
+
+export function makeManeuver(
+  type: string,
+  modifier: string | null,
+  instruction: string,
+  exit: number | null = null,
+): RouteManeuver {
+  return { type, modifier, exit, location: pointAt(0).location, instruction };
+}
+
+/**
+ * step이 여러 개인 구간 — 회전 안내 테스트용.
+ * 실제 OSRM처럼 step 경계 좌표를 앞뒤 step이 함께 갖는다(`to`가 다음 step의 `from`).
+ */
+export function makeSteppedLeg(
+  mode: TravelMode,
+  steps: { from: number; to: number; maneuver: RouteManeuver }[],
+  distance = 500,
+  time = 300,
+): RouteLeg {
+  const built: RouteStep[] = steps.map(({ from, to, maneuver }) => ({
+    distance: (to - from) * STEP_M,
+    time: (to - from) * 30,
+    roadName: '',
+    travelMode: mode === 'WALK' ? 'walking' : 'cycling',
+    points: Array.from({ length: to - from + 1 }, (_, i) => pointAt(from + i)),
+    behave: maneuver,
+  }));
+  return { mode, distance, time, steps: built };
 }
