@@ -8,7 +8,7 @@ import java.lang.annotation.*;
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 @AuthenticationPrincipal(
-        expression = "userId",
+        expression = "T(java.lang.Long).valueOf(subject)",
         errorOnInvalidType = true
 )
 public @interface currentUserId {
