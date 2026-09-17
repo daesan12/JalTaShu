@@ -31,6 +31,7 @@ PC --SSH tunnel--> 127.0.0.1:8080 on Server B
 | `scripts/configure-gitlab-credential.sh` | GitLab Deploy Token을 화면에 출력하지 않고 JCasC용 Secret 파일 두 개로 저장 |
 | `scripts/configure-ecr-credential.sh` | ECR Push 전용 AWS Access Key를 화면에 출력하지 않고 JCasC용 Secret 파일 두 개로 저장 |
 | `scripts/configure-naver-map-client-id.sh` | staging 프론트 빌드에 사용할 Naver Maps Client ID를 서버 전용 파일로 저장 |
+| `scripts/configure-server-b-ai-deploy-credential.sh` | Server B AI 배포 host와 고정 SSH host key를 준비하고 배포 전용 공개키 위치를 안내 |
 
 ## 왜 built-in executor를 0으로 두는가
 
@@ -51,6 +52,8 @@ Controller에 executor가 있으면 Git repository의 임의 build script가 Con
 ## Secret 읽기 방식
 
 Compose의 file secret은 호스트 파일 권한을 그대로 사용할 수 있다. `generate-secrets.sh`는 전용 `tashu-jenkins` 그룹을 만들고 관리자 비밀번호와 Agent private key를 `0640 root:tashu-jenkins`로 저장한다. Compose는 해당 그룹 GID를 Controller의 supplemental group으로 추가한다. Agent에는 공개키만 환경변수로 전달한다.
+
+Server B AI 배포 SSH key도 Server A key와 분리한다. Jenkins Agent는 Server B의 고정 Ed25519 host key만 신뢰하고, 배포 계정은 강제 명령 하나만 실행한다. AI·Backend의 Redis 계약이 끝나기 전에는 `DEPLOY_AI_SERVING`을 켜지 않는다.
 
 Naver Maps Client ID는 브라우저 JavaScript에 포함되는 공개 식별자이지만 환경마다 값과 허용 주소가 다르므로 Git에 고정하지 않는다. Server B의 `/etc/tashu/jenkins/naver-map-client-id`에 `0640 root:tashu-jenkins`로 저장하고, Jenkins의 `naver-map-client-id` Credential을 통해 staging 프론트 Docker build에만 전달한다. Naver Cloud Console의 허용 주소에는 `https://j15b103.p.ssafy.io`를 등록한다.
 

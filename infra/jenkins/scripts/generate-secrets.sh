@@ -13,6 +13,8 @@ readonly agent_host_public_key="${agent_host_private_key}.pub"
 readonly controller_host_key_file="${secret_dir}/agent-host-key"
 readonly server_a_deploy_private_key="${secret_dir}/server-a-deploy-ed25519"
 readonly server_a_deploy_public_key="${server_a_deploy_private_key}.pub"
+readonly server_b_ai_deploy_private_key="${secret_dir}/server-b-ai-deploy-ed25519"
+readonly server_b_ai_deploy_public_key="${server_b_ai_deploy_private_key}.pub"
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "root 권한으로 실행해야 합니다." >&2
@@ -77,6 +79,18 @@ chown root:"${group_name}" "${server_a_deploy_private_key}"
 chmod 0640 "${server_a_deploy_private_key}"
 chown root:root "${server_a_deploy_public_key}"
 chmod 0644 "${server_a_deploy_public_key}"
+
+if [[ ! -e "${server_b_ai_deploy_private_key}" ]]; then
+  ssh-keygen -q -t ed25519 -N '' -C 'tashu-jenkins-server-b-ai-deploy' -f "${server_b_ai_deploy_private_key}"
+  echo "생성: Server B AI serving 배포 전용 SSH key pair"
+else
+  echo "유지: Server B AI serving 배포 전용 SSH key pair"
+fi
+
+chown root:"${group_name}" "${server_b_ai_deploy_private_key}"
+chmod 0640 "${server_b_ai_deploy_private_key}"
+chown root:root "${server_b_ai_deploy_public_key}"
+chmod 0644 "${server_b_ai_deploy_public_key}"
 
 if [[ ! -S /var/run/docker.sock ]]; then
   echo "/var/run/docker.sock을 찾을 수 없습니다." >&2

@@ -10,6 +10,20 @@ region=${AWS_REGION:-ap-northeast-2}
 credential_file=${TASHU_ECR_CREDENTIAL_FILE:-/etc/tashu/ecr-pull/credentials}
 repositories=(tashu/frontend tashu/backend)
 
+if [[ $# -gt 0 ]]; then
+  repositories=("$@")
+fi
+
+for repository in "${repositories[@]}"; do
+  case ${repository} in
+    tashu/frontend|tashu/backend|tashu/ai) ;;
+    *)
+      echo "허용되지 않은 repository입니다: ${repository}" >&2
+      exit 1
+      ;;
+  esac
+done
+
 if [[ ! -s ${credential_file} ]]; then
   echo "ECR Pull 자격증명 파일이 없습니다: ${credential_file}" >&2
   exit 1
@@ -44,6 +58,8 @@ fi
 
 echo "AWS 인증 주체 확인: ${principal_arn}"
 echo 'ECR 인증 토큰 발급 확인: 성공'
-echo 'ECR image 조회 확인: tashu/frontend, tashu/backend 성공'
+printf 'ECR image 조회 확인:'
+printf ' %s' "${repositories[@]}"
+printf ' 성공\n'
 echo 'S3 전체 bucket 조회 차단 확인: 성공'
 echo 'Secret 값은 출력하지 않았습니다.'
