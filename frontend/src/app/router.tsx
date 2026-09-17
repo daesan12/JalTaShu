@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router';
 import { AndroidBackBridge } from '@/app/AndroidBackBridge';
+import { NotFoundPage, RouteErrorPage } from '@/app/RouteErrorPage';
 import { RequireAuth } from '@/app/guards/RequireAuth';
 import { BareLayout } from '@/app/layouts/BareLayout';
 import { MobileLayout } from '@/app/layouts/MobileLayout';
@@ -35,6 +36,9 @@ export const router = createBrowserRouter(
     {
       // 안드로이드 뒤로가기 처리 — 전 화면 공통이라 최상위에 건다 (웹에서는 no-op)
       element: <AndroidBackBridge />,
+      // 렌더 예외·lazy 청크 로드 실패(배포 직후 구 해시)가 기본 스택 트레이스 화면으로
+      // 노출되지 않게 전역에서 받아낸다
+      errorElement: <RouteErrorPage />,
       children: [
         {
           // 메인 4탭 — 온보딩·로그인·가입을 통과해야 진입 (RequireAuth)
@@ -172,6 +176,8 @@ export const router = createBrowserRouter(
             },
           ],
         },
+        // 등록되지 않은 경로 — 이게 없으면 오타 주소에서 빈 화면만 나온다
+        { path: '*', element: <NotFoundPage /> },
       ],
     },
   ],

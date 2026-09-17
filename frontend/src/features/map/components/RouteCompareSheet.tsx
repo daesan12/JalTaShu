@@ -6,7 +6,7 @@ import { toStationStatus, type StationStatus } from '@/shared/ui/stationStatus';
 import { ROUTE_BADGE } from '@/features/map/lib/routeBadges';
 import {
   formatArrival,
-  formatMinutes,
+  formatSecondsAsMinutes,
   sortSummaries,
   type RouteBadgeKind,
   type RouteSort,
@@ -191,13 +191,13 @@ function RouteCard({ summary, badge, selected, onSelect, onStart }: RouteCardPro
         )}
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-bold tabular-nums text-gray-900">
-            {formatMinutes(summary.totalSec)}
+            {formatSecondsAsMinutes(summary.totalSec)}
           </span>
           <ExpectedBikes count={summary.expectedBikeCnt} className="text-sm" />
         </div>
         <p className="text-sm text-gray-500">
           오르막 <span className="tabular-nums">{summary.ascentM}</span>m · 도보{' '}
-          {formatMinutes(summary.walkSec)}
+          {formatSecondsAsMinutes(summary.walkSec)}
         </p>
         <Button
           full
@@ -230,7 +230,7 @@ function PeekSummary({ summary, badge, fetchedAt, onStart }: PeekSummaryProps) {
       <div className="min-w-0">
         <div className="flex items-baseline gap-2">
           <span className="text-xl font-bold tabular-nums text-gray-900">
-            {formatMinutes(summary.totalSec)}
+            {formatSecondsAsMinutes(summary.totalSec)}
           </span>
           <ExpectedBikes count={summary.expectedBikeCnt} className="text-sm" />
         </div>

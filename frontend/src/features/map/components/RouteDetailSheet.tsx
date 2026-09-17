@@ -11,7 +11,7 @@ import { buildElevationProfile } from '@/features/map/lib/routeElevation';
 import { toLegs } from '@/features/map/lib/routeSegments';
 import {
   formatArrival,
-  formatMinutes,
+  formatSecondsAsMinutes,
   totalAscent,
   type RouteBadgeKind,
   type RouteSummary,
@@ -76,7 +76,7 @@ export function RouteDetailSheet({
             )}
             <div className="mt-1.5 flex items-baseline gap-2">
               <span className="text-2xl font-bold tabular-nums text-gray-900">
-                {formatMinutes(summary.totalSec)}
+                {formatSecondsAsMinutes(summary.totalSec)}
               </span>
               <span
                 className={`text-sm font-semibold ${BIKES_TEXT_CLASS[toStationStatus(summary.expectedBikeCnt)]}`}
@@ -86,7 +86,7 @@ export function RouteDetailSheet({
             </div>
             <p className="mt-0.5 text-sm text-gray-500 tabular-nums">
               {formatArrival(fetchedAt, summary.totalSec)} 도착 예정 · 도보{' '}
-              {formatMinutes(summary.walkSec)}
+              {formatSecondsAsMinutes(summary.walkSec)}
             </p>
           </div>
 
@@ -121,7 +121,7 @@ export function RouteDetailSheet({
                     <div className="min-w-0">
                       <p className="text-sm text-gray-500">{isWalk ? '도보' : '자전거'}</p>
                       <p className="text-base font-bold text-gray-900 tabular-nums">
-                        {formatMinutes(leg.timeSec)} · {formatDistance(leg.distanceM)}
+                        {formatSecondsAsMinutes(leg.timeSec)} · {formatDistance(leg.distanceM)}
                       </p>
                     </div>
                   </li>

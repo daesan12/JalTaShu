@@ -271,13 +271,14 @@ interface BanModalProps {
 function BanModal({ user, onClose, onBanned }: BanModalProps) {
   const [days, setDays] = useState<number>(7);
   const [comment, setComment] = useState('');
-  // 종료 예정일 미리보기 기준 시각 — 렌더마다 흔들리지 않게 모달 연 시각으로 고정
+  // 종료 시각 기준 — 미리보기와 실제 전송값이 어긋나지 않게 모달 연 시각 하나로 고정
+  // (자정 근처에 모달을 열어 두어도 화면에 보인 날짜 그대로 전송된다)
   const [openedAt] = useState(() => Date.now());
 
   const ban = useMutation({
     mutationFn: () =>
       banAdminUser(user.userId, {
-        scheduledEndAt: new Date(Date.now() + days * 24 * 3600_000).toISOString(),
+        scheduledEndAt: new Date(openedAt + days * 24 * 3600_000).toISOString(),
         comment: comment.trim(),
       }),
     onSuccess: onBanned,

@@ -341,7 +341,22 @@ export function MapHomePage() {
       if (compareInUrl) void resolveStartPos().then((start) => refetchRoutes(start, picked));
       else setRouteResult(null);
     }
-    navigate(-2);
+    // 정상 흐름은 검색(1)+선택(1) 두 push를 함께 닫는 -2가 맞지만, 새로고침·딥링크로
+    // 이 상태에 바로 들어오면 히스토리가 부족해 앱 밖으로 나가 버린다 — 그때는 파라미터만 걷어낸다
+    const historyIdx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (historyIdx >= 2) {
+      navigate(-2);
+    } else {
+      setSearchParams(
+        (params) => {
+          params.delete(PICK_PARAM);
+          params.delete(SEARCH_PARAM);
+          params.delete(FIELD_PARAM);
+          return params;
+        },
+        { replace: true },
+      );
+    }
   }
 
   /** 지금 위치, 실패하면 지도 중심(+안내). 출발지가 "현재 위치"로 확정된 경우에만 쓴다 */
