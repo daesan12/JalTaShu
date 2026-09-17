@@ -1,13 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useCallback, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
-import { ApiError } from '@/shared/api/client';
-import type { PlaceSearchResult, Pos, RouteCandidate } from '@/shared/api/types';
+import type { Pos } from '@/shared/api/types';
 import { latLngToPos } from '@/shared/lib/coords';
 import { Button } from '@/shared/ui/Button';
 import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/stations';
-import { NOTICE_POPUPS_QUERY_KEY, getNoticePopups } from '@/features/map/api/noticePopups';
-import { getRoutePaths } from '@/features/map/api/routes';
 import { ArrivalSummaryScreen } from '@/features/map/components/ArrivalSummaryScreen';
 import { CurrentLocationButton } from '@/features/map/components/CurrentLocationButton';
 import { CycleRentSheet } from '@/features/map/components/CycleRentSheet';
@@ -19,86 +16,32 @@ import { NoticeBanner } from '@/features/map/components/NoticeBanner';
 import { NoticePopup } from '@/features/map/components/NoticePopup';
 import { PlaceSearchOverlay } from '@/features/map/components/PlaceSearchOverlay';
 import { RouteCompareControls } from '@/features/map/components/RouteCompareControls';
+import { RouteCompareSheet } from '@/features/map/components/RouteCompareSheet';
 import { RouteDetailControls } from '@/features/map/components/RouteDetailControls';
 import { RouteDetailSheet } from '@/features/map/components/RouteDetailSheet';
 import { RouteGuideCard } from '@/features/map/components/RouteGuideCard';
 import { RouteGuideSheet } from '@/features/map/components/RouteGuideSheet';
-import {
-  RouteCompareSheet,
-  type RouteCompareSnap,
-} from '@/features/map/components/RouteCompareSheet';
 import { SearchBar } from '@/features/map/components/SearchBar';
-import { StationSheet, type StationSnap } from '@/features/map/components/StationSheet';
+import { StationSheet } from '@/features/map/components/StationSheet';
 import { Toast } from '@/features/map/components/Toast';
 import { UpdatedBadge } from '@/features/map/components/UpdatedBadge';
 import { LOCATION_ERROR_TEXT, useCurrentLocation } from '@/features/map/hooks/useCurrentLocation';
+import { useJourneyPlanner } from '@/features/map/hooks/useJourneyPlanner';
+import { useNoticePopup } from '@/features/map/hooks/useNoticePopup';
+import { useRentalSheets } from '@/features/map/hooks/useRentalSheets';
+import { useRouteGuide } from '@/features/map/hooks/useRouteGuide';
 import { useToast } from '@/shared/lib/useToast';
 import { START_POS_FALLBACK } from '@/features/map/lib/mapDefaults';
 import { NOTICES_PATH } from '@/features/map/lib/noticeLink';
 import {
-  hideNoticePopupForWeek,
-  isNoticePopupHidden,
-  markNoticePopupClosed,
-} from '@/features/map/lib/noticePopupHide';
-import { getRouteProgress, hasArrived } from '@/features/map/lib/routeProgress';
-import { toLegs } from '@/features/map/lib/routeSegments';
-import {
-  sortSummaries,
-  summarizeRoutes,
-  type RouteSort,
-} from '@/features/map/lib/routeMetrics';
-
-/**
- * 위치를 못 얻었을 때는 **검색을 열던 시점에 보고 있던 지도 중심**에서 출발하는 경로를 찾는다.
- * - 고정 좌표로 찾으면 사용자가 있지도 않은 곳에서 출발하는 경로가 나온다
- * - 조회 시점의 중심을 쓰면 안 된다. 목적지를 고르면 지도가 그 위로 옮겨져 출발지와 목적지가 같아진다
- * 출발지가 내 위치가 아니라는 것은 반드시 알린다.
- */
-const START_FALLBACK_NOTICE = '현재 위치를 몰라 지도에서 보던 곳에서 출발하는 경로를 찾습니다.';
-
-/**
- * 08 검색 오버레이 열림 상태를 URL 쿼리에 둔다(`/?search=1`).
- * 라우트는 `/` 그대로라 지도가 살아 있고, 안드로이드·브라우저 뒤로가기가 그대로 "검색 닫기"가 된다.
- */
-const SEARCH_PARAM = 'search';
-
-/**
- * 10 경로 비교도 같은 방식. `/?routes=1`이면 비교 중이고 뒤로가기·← 버튼이 곧 "비교 끝내기 → 목적지 확인 시트".
- * 시트는 기본으로 확장(카드 목록)돼 열리고 아래로 끌면 Peek(2026-09-13 만두 결정). 확장↔Peek은 state라
- * 뒤로가기 단계에 끼지 않는다(Figma 10-1의 "확장→Peek 축소" 단계는 뺌).
- * 후보 목록은 state에만 있어 새로고침하면 사라진다 — 목적지(#26)와 같은 결정.
- */
-const ROUTES_PARAM = 'routes';
-
-/**
- * 11 경로 상세도 같은 방식으로 10 위에 한 단계 더 쌓는다(`/?routes=1&detail=1`).
- * 뒤로가기·← 는 비교(10)로 돌아가고, 거기서 한 번 더 뒤로 가면 목적지 확인 시트다.
- */
-const DETAIL_PARAM = 'detail';
-
-/**
- * 12 경로 안내도 같은 방식으로 11 위에 한 단계 더(`?routes=1&detail=1&guide=1`).
- * 안내 종료·뒤로가기는 상세(11)로 돌아간다.
- */
-const GUIDE_PARAM = 'guide';
-
-/**
- * 08 "지도에서 선택"은 검색 위에 한 단계 더(`?search=1&pick=1`).
- * 취소·뒤로가기는 검색으로 돌아가고, 확정하면 검색까지 한 번에 닫는다.
- */
-const PICK_PARAM = 'pick';
-
-/**
- * 08에서 출발지를 고르는 중이면 `?search=1&field=start`(목적지 검색 위에 한 단계 더).
- * "지도에서 선택"까지 들어가면 `?search=1&field=start&pick=1`. 값이 없거나 다르면 목적지 모드다.
- */
-const FIELD_PARAM = 'field';
-const START_FIELD_VALUE = 'start';
-
-/** 지도에서 고른 지점의 이름 — 역지오코딩을 하지 않으므로 주소 대신 이 문구를 쓴다 */
-const PICKED_PLACE_TITLE = '지도에서 선택한 위치';
-/** 바꾸기(↕) 버튼으로 목적지 자리에 들어갈 때 쓰는, 이전 출발 위치의 이름 */
-const SWAPPED_START_TITLE = '출발했던 위치';
+  DETAIL_PARAM,
+  FIELD_PARAM,
+  GUIDE_PARAM,
+  PICK_PARAM,
+  ROUTES_PARAM,
+  SEARCH_PARAM,
+  START_FIELD_VALUE,
+} from '@/features/map/lib/urlParams';
 
 /**
  * 시트가 열리면 하단 버튼을 시트 높이만큼 올린다.
@@ -110,14 +53,11 @@ const LIFT_FOR_STATION_CLASS = '-translate-y-[58px]';
 // mini(200px) 시트 공용 — 목적지 확인 시트·대여 시트가 같은 높이라 값을 같이 쓴다
 const LIFT_FOR_MINI_SHEET_CLASS = '-translate-y-[148px]';
 
-interface RouteResult {
-  /** 서버가 정렬·필터 없이 준 후보 전체 */
-  routes: RouteCandidate[];
-  /** 받은 시각(ms). 출발은 "지금"이라 도착 예정 시각의 기준이 된다 */
-  fetchedAt: number;
-}
-
-/** 07 메인 지도 — 네이버 지도 + 대여소 마커 + 오버레이 UI */
+/**
+ * 07 메인 지도 — 네이버 지도 + 대여소 마커 + 오버레이 UI.
+ * 상태는 기능별 훅(useJourneyPlanner·useRouteGuide·useRentalSheets·useNoticePopup)이 들고,
+ * 이 컴포넌트는 URL 단계 플래그를 파생해 훅과 화면을 잇는 조립만 한다.
+ */
 export function MapHomePage() {
   const { message, showToast } = useToast();
   const navigate = useNavigate();
@@ -130,35 +70,13 @@ export function MapHomePage() {
   const guideInUrl = searchParams.get(GUIDE_PARAM) === '1';
   const pickInUrl = searchParams.get(PICK_PARAM) === '1';
   const startFieldInUrl = searchParams.get(FIELD_PARAM) === START_FIELD_VALUE;
-  const [compareSnap, setCompareSnap] = useState<RouteCompareSnap>('half');
-  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
-  const [stationSnap, setStationSnap] = useState<StationSnap>('peek');
-  const [destination, setDestination] = useState<PlaceSearchResult | null>(null);
-  const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
-  const [routeSort, setRouteSort] = useState<RouteSort[]>(['bikes']);
-  const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null);
+
   // 현재위치 버튼을 누른 횟수 — 같은 자리에서 다시 눌러도 지도가 그 위치로 돌아오게 하는 신호
   const [locationFocusToken, setLocationFocusToken] = useState(0);
-  const [rentSheetOpen, setRentSheetOpen] = useState(false);
-  const [returnSheetOpen, setReturnSheetOpen] = useState(false);
-  // 대여소 시트를 닫은 뒤에도 반납 시트가 어느 대여소인지 알아야 해서 따로 기억해 둔다
-  const [returnStationId, setReturnStationId] = useState<string | null>(null);
-  // 출발지를 직접 골랐을 때만 값이 있다. null이면 항상 현재 위치가 출발지다
-  const [customStart, setCustomStart] = useState<PlaceSearchResult | null>(null);
-  // 12 안내 중 실제 도착(30m 이내)하면 채워지는 전체 화면 요약 — null이면 안 보인다
-  const [arrivalSummary, setArrivalSummary] = useState<{
-    destinationTitle: string;
-    elapsedSec: number;
-    totalDistanceM: number;
-    bikeDistanceM: number;
-    route: RouteCandidate;
-  } | null>(null);
   const location = useCurrentLocation();
+
   // 읽기만 하므로 state가 아니라 ref에 둔다(지도를 옮길 때마다 화면을 다시 그릴 이유가 없다)
   const mapRef = useRef<naver.maps.Map | null>(null);
-  // 12 안내 시작 시각(도착 요약의 소요 시간 계산용)과 도착 처리 중복 방지 플래그 — 렌더에 쓰지 않아 ref로 둔다
-  const guideStartAtRef = useRef<number | null>(null);
-  const arrivalHandledRef = useRef(false);
   const handleMapReady = useCallback((map: naver.maps.Map | null) => {
     mapRef.current = map;
   }, []);
@@ -177,90 +95,46 @@ export function MapHomePage() {
     return viewedCenterRef.current ?? START_POS_FALLBACK;
   }
 
-  // 한 번 닫으면 앱을 다시 켜기 전까지 뜨지 않는다. "7일간 보지 않기"는 저장소로 더 오래 막는다.
-  // 닫힘 기억은 모듈(noticePopupHide)에 있고, 이 state는 화면을 다시 그리는 용도다
-  const [popupClosed, setPopupClosed] = useState(isNoticePopupHidden);
-
-  function closePopup() {
-    markNoticePopupClosed();
-    setPopupClosed(true);
-  }
-
   // 마커와 갱신 배지가 같은 목록을 쓴다
   const { data: stations } = useQuery({
     queryKey: BIKE_STATIONS_QUERY_KEY,
     queryFn: getBikeStations,
   });
   const updatedAt = stations?.[0]?.updatedAt;
-  // 목록이 갱신돼 선택한 대여소가 사라지면 시트도 닫힌다
-  const selectedStation = stations?.find((s) => s.stationId === selectedStationId) ?? null;
 
-  // 이미 숨긴 상태면 요청 자체를 하지 않는다
-  const { data: popupNotices } = useQuery({
-    queryKey: NOTICE_POPUPS_QUERY_KEY,
-    queryFn: getNoticePopups,
-    enabled: !popupClosed,
+  const popup = useNoticePopup();
+  const rental = useRentalSheets(stations);
+  const journey = useJourneyPlanner({ location, showToast, viewedCenterAsStart });
+  const { destination, routeResult, routeSummaries, selectedRouteIndex } = journey;
+
+  // 시트는 한 번에 하나만: 대여소를 탭하면 대여소 시트가 우선하고, 검색 중에는 전부 숨긴다.
+  // 경로 후보가 있고 URL이 비교 중이면 목적지 확인 시트 대신 비교 시트·경로선·범례가 뜬다
+  // 선택 모드에서는 지도만 보여준다 — 시트·검색바·버튼이 모두 비켜야 지도를 움직일 수 있다
+  const pickActive = pickInUrl && searchInUrl;
+  const stationSheetOpen = rental.selectedStation !== null && !pickActive;
+  const compareActive = routeResult !== null && compareInUrl && !searchOpen && !pickActive;
+  // 11 상세는 비교 위에 한 단계 더 쌓인 상태다
+  const detailActive = compareActive && detailInUrl;
+  const detailRoute =
+    detailActive && selectedRouteIndex !== null
+      ? (routeResult?.routes[selectedRouteIndex] ?? null)
+      : null;
+  // 12 안내는 상세 위에 한 단계 더 쌓인 상태다
+  const guideActive = detailActive && guideInUrl && detailRoute !== null;
+  const compareSheetOpen = compareActive && !stationSheetOpen && !detailActive;
+  const detailSheetOpen = detailActive && !stationSheetOpen && !guideActive;
+  const destinationSheetOpen =
+    destination !== null && !stationSheetOpen && !searchOpen && !compareActive && !pickActive;
+
+  const guide = useRouteGuide({
+    guideActive,
+    detailRoute,
+    destinationTitle: destination?.title ?? '목적지',
+    totalSec:
+      selectedRouteIndex === null ? null : (routeSummaries[selectedRouteIndex]?.totalSec ?? 0),
+    location,
+    clearJourney: journey.clearDestination,
   });
-
-  // 후보 요약은 후보가 바뀔 때만 다시 계산한다. 후보 종류 라벨은 서버가 준 `type`을 그대로 쓴다
-  const routeSummaries = useMemo(
-    () => (routeResult === null ? [] : summarizeRoutes(routeResult.routes)),
-    [routeResult],
-  );
-
-  const routeSearch = useMutation({
-    mutationFn: getRoutePaths,
-    onSuccess: (routes) => {
-      setRouteResult({ routes, fetchedAt: Date.now() });
-      // 새 후보는 항상 카드 목록이 펼쳐진 상태로 보여준다
-      setCompareSnap('half');
-      // 기본 선택은 현재 칩 기준 1순위
-      setSelectedRouteIndex(sortSummaries(summarizeRoutes(routes), routeSort)[0]?.index ?? null);
-      // 다시 조회(이미 비교 중)일 때는 히스토리를 더 쌓지 않는다
-      if (!compareInUrl) setSearchParams({ [ROUTES_PARAM]: '1' });
-    },
-    onError: (error) => {
-      showToast(
-        error instanceof ApiError ? error.message : '경로를 찾지 못했습니다. 다시 시도해 주세요.',
-      );
-    },
-  });
-
-  function closeForWeek() {
-    hideNoticePopupForWeek();
-    closePopup();
-  }
-
-  // 대여소를 고르면 항상 요약부터 보여준다 — 확장 상태가 다음 대여소로 따라오면 안 된다.
-  // 시트는 한 번에 하나라 대여·반납 시트가 열려 있었으면 같이 닫는다
-  function selectStation(stationId: string | null) {
-    setStationSnap('peek');
-    setSelectedStationId(stationId);
-    if (stationId !== null) {
-      setRentSheetOpen(false);
-      setReturnSheetOpen(false);
-    }
-  }
-
-  // 대여소·반납 시트가 열려 있으면 먼저 닫는다(시트는 한 번에 하나)
-  function openRentSheet() {
-    setSelectedStationId(null);
-    setReturnSheetOpen(false);
-    setRentSheetOpen(true);
-  }
-
-  /**
-   * 대여소 시트의 "반납하기" — 지금 열려 있는 대여소를 반납 대여소로 삼는다.
-   * 대여소 시트를 닫으면서 그 대여소 id는 따로 기억해 둔다 — 시트를 닫은 뒤에도
-   * 반납 번호 입력 시트가 "어느 대여소인지"를 알아야 하기 때문이다.
-   */
-  function openReturnSheet() {
-    if (selectedStation === null) return;
-    setReturnStationId(selectedStation.stationId);
-    setSelectedStationId(null);
-    setRentSheetOpen(false);
-    setReturnSheetOpen(true);
-  }
 
   /**
    * 목적지를 고르는 화면을 연다. 07 검색바에서도, **10 비교 화면의 도착 칸에서도** 이 함수 하나를 쓴다.
@@ -271,23 +145,9 @@ export function MapHomePage() {
     // 목적지를 고르면 지도가 그 위로 옮겨진다 — 사용자가 "지금 보고 있던 곳"은 지금 기록해 둬야 한다
     rememberViewedCenter();
     // 검색 화면이 시트를 덮지 못하므로(시트 z-index가 더 높음) 먼저 닫는다
-    setSelectedStationId(null);
+    rental.closeStationSheet();
     setSearchParams((params) => {
       params.set(SEARCH_PARAM, '1');
-      return params;
-    });
-  }
-
-  // 열 때 히스토리를 하나 쌓았으니 닫기는 뒤로가기와 같다
-  function closeSearch() {
-    navigate(-1);
-  }
-
-  /** 08 "지도에서 선택" — 검색 위에 한 단계 쌓는다. 뒤로가기가 곧 취소다. 기존 field·routes는 그대로 둔다 */
-  function openMapPick() {
-    setSearchParams((params) => {
-      params.set(SEARCH_PARAM, '1');
-      params.set(PICK_PARAM, '1');
       return params;
     });
   }
@@ -304,6 +164,15 @@ export function MapHomePage() {
     });
   }
 
+  /** 08 "지도에서 선택" — 검색 위에 한 단계 쌓는다. 뒤로가기가 곧 취소다. 기존 field·routes는 그대로 둔다 */
+  function openMapPick() {
+    setSearchParams((params) => {
+      params.set(SEARCH_PARAM, '1');
+      params.set(PICK_PARAM, '1');
+      return params;
+    });
+  }
+
   /** 취소 — 검색 화면으로 돌아간다 */
   function cancelMapPick() {
     navigate(-1);
@@ -313,7 +182,6 @@ export function MapHomePage() {
    * 확정 — 지금 지도 중심을 목적지(또는 field='start'면 출발지)로 삼는다.
    * 열면서 쌓은 두 단계(검색·선택)를 함께 닫는다 — 이 화면이 09에서 열렸으면 07로,
    * 10 비교 화면에서 열렸으면(`routes=1`이 계속 남아 있었으므로) 그 화면으로 돌아간다.
-   * 이미 비교 중이었다면 새 값으로 바로 다시 조회한다.
    */
   function confirmMapPick() {
     const center = mapRef.current?.getCenter();
@@ -321,24 +189,7 @@ export function MapHomePage() {
       showToast('지도를 아직 불러오지 못했습니다.');
       return;
     }
-    const { xPos, yPos } = latLngToPos({ lat: center.lat(), lng: center.lng() });
-    // 역지오코딩을 하지 않으므로 주소는 비운다 — 시트는 이름만 보여준다
-    const picked: PlaceSearchResult = {
-      title: PICKED_PLACE_TITLE,
-      address: '',
-      roadAddress: '',
-      xPos,
-      yPos,
-    };
-    if (startFieldInUrl) {
-      setCustomStart(picked);
-      if (compareInUrl && destination !== null) refetchRoutes(picked, destination);
-      else setRouteResult(null);
-    } else {
-      setDestination(picked);
-      if (compareInUrl) void resolveStartPos().then((start) => refetchRoutes(start, picked));
-      else setRouteResult(null);
-    }
+    journey.applyPickedPos(latLngToPos({ lat: center.lat(), lng: center.lng() }), startFieldInUrl);
     // 정상 흐름은 검색(1)+선택(1) 두 push를 함께 닫는 -2가 맞지만, 새로고침·딥링크로
     // 이 상태에 바로 들어오면 히스토리가 부족해 앱 밖으로 나가 버린다 — 그때는 파라미터만 걷어낸다
     const historyIdx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
@@ -357,105 +208,6 @@ export function MapHomePage() {
     }
   }
 
-  /** 지금 위치, 실패하면 지도 중심(+안내). 출발지가 "현재 위치"로 확정된 경우에만 쓴다 */
-  async function resolveCurrentLocationOrFallback(): Promise<Pos> {
-    const start = await location.ensure();
-    if (start.ok) return start.position;
-    showToast(START_FALLBACK_NOTICE);
-    return viewedCenterAsStart();
-  }
-
-  /** 출발지 좌표를 정한다 — 커스텀이 있으면 그대로, 없으면 현재 위치(실패 시 지도 중심 + 안내) */
-  async function resolveStartPos(): Promise<Pos> {
-    if (customStart !== null) return { xPos: customStart.xPos, yPos: customStart.yPos };
-    return resolveCurrentLocationOrFallback();
-  }
-
-  /**
-   * 10 비교 화면에서 출발·목적지를 바로 고쳤을 때 다시 조회한다. `start`·`end`를 항상 이 함수
-   * 호출부가 직접 계산해 넘긴다 — `setCustomStart`/`setDestination` 직후 같은 함수 안에서
-   * state를 다시 읽으면 아직 반영되지 않은 이전 값을 읽게 되기 때문이다(리액트 상태 갱신은 비동기).
-   */
-  function refetchRoutes(start: Pos, end: Pos) {
-    routeSearch.mutate({ start, end });
-  }
-
-  // 고른 장소로 지도가 이동하고 핀·확인 시트가 뜬다(네이버 지도의 장소 확인 단계).
-  // 10 화면에서 고쳤을 때(이미 비교 중)는 이전 후보를 버리는 대신 새 목적지로 바로 다시 조회한다
-  function selectDestination(place: PlaceSearchResult) {
-    setDestination(place);
-    closeSearch();
-    if (compareInUrl) void resolveStartPos().then((start) => refetchRoutes(start, place));
-    else setRouteResult(null);
-  }
-
-  // 목적지를 지우면 처음부터 다시 찾는 것과 같으므로 골라둔 출발지도 함께 되돌린다
-  function clearDestination() {
-    setDestination(null);
-    setRouteResult(null);
-    setCustomStart(null);
-  }
-
-  /**
-   * 출발지 고르는 화면(field='start')에서 장소를 고르면 — 한 단계만 되돌아간다.
-   * 08에서 들어왔으면 목적지 검색 화면으로, 10에서 들어왔으면 비교 화면으로(같은 `navigate(-1)`).
-   * 이미 비교 중이었다면 새 출발지로 바로 다시 조회한다.
-   */
-  function selectStart(place: PlaceSearchResult) {
-    setCustomStart(place);
-    closeSearch();
-    if (compareInUrl && destination !== null) refetchRoutes(place, destination);
-    else setRouteResult(null);
-  }
-
-  /**
-   * "현재 위치 사용" — 골라둔 출발지를 지우고 자동(현재 위치)으로 되돌린다.
-   * `customStart`를 참고하지 않고 곧장 현재 위치를 구한다 — 방금 지운 값이 아직
-   * state에 반영되기 전이라 `resolveStartPos()`를 쓰면 지운 값을 다시 읽게 된다.
-   */
-  function useCurrentLocationAsStart() {
-    setCustomStart(null);
-    closeSearch();
-    if (compareInUrl && destination !== null) {
-      void resolveCurrentLocationOrFallback().then((start) => refetchRoutes(start, destination));
-    } else {
-      setRouteResult(null);
-    }
-  }
-
-  /**
-   * 바꾸기(↕) — 출발지·목적지를 서로 맞바꾼다. 출발지가 아직 "현재 위치"(커스텀 없음)라면
-   * 그 자리를 채우기 위해 지금 위치를 하나의 장소로 확정해 목적지 쪽으로 옮긴다.
-   * 이미 비교 중이었다면 바뀐 조합으로 바로 다시 조회한다.
-   */
-  function swapStartAndDestination() {
-    if (destination === null) {
-      showToast('목적지를 먼저 선택해 주세요.');
-      return;
-    }
-    const newStart = destination;
-    let newDestination: PlaceSearchResult;
-    if (customStart === null) {
-      if (location.position === null) {
-        showToast('현재 위치를 몰라 바꿀 수 없습니다.');
-        return;
-      }
-      newDestination = {
-        title: SWAPPED_START_TITLE,
-        address: '',
-        roadAddress: '',
-        xPos: location.position.xPos,
-        yPos: location.position.yPos,
-      };
-    } else {
-      newDestination = customStart;
-    }
-    setCustomStart(newStart);
-    setDestination(newDestination);
-    if (compareInUrl) refetchRoutes(newStart, newDestination);
-    else setRouteResult(null);
-  }
-
   /** 08 검색 화면의 "현재 위치" 줄·"내 위치" 칩 — 위치만 새로 잡는다(지도는 오버레이에 가려 안 보인다) */
   async function refreshLocation() {
     const result = await location.request();
@@ -472,31 +224,11 @@ export function MapHomePage() {
     setLocationFocusToken((token) => token + 1);
   }
 
-  // "경로 찾기"·"다시 조회" — 출발지를 직접 골랐으면 그 좌표, 아니면 현재 위치(실패 시 지도 중심 + 안내)
-  async function searchRoutes() {
-    if (destination === null) return;
-    const start = await resolveStartPos();
-    refetchRoutes(start, { xPos: destination.xPos, yPos: destination.yPos });
-  }
-
-  // ← 버튼: 비교를 끝내고 목적지 확인 시트로. 열 때 히스토리를 하나 쌓았으니 뒤로가기와 같다
+  // ← 버튼: 비교(10)·상세(11)를 한 단계 닫는다. 열 때 히스토리를 하나 쌓았으니 뒤로가기와 같다
   function exitCompare() {
     navigate(-1);
   }
 
-  // 정렬 칩이 바뀌면 이전 선택을 유지하지 않고 새 기준의 1순위 경로를 선택한다
-  function changeRouteSort(next: RouteSort[]) {
-    setRouteSort(next);
-    setSelectedRouteIndex(sortSummaries(routeSummaries, next)[0]?.index ?? null);
-  }
-
-  // 10의 "바로 안내 시작" → 11 경로 상세. 카드 버튼은 선택과 무관하게 눌릴 수 있어 선택도 함께 맞춘다
-  function openRouteDetail(index: number) {
-    setSelectedRouteIndex(index);
-    setSearchParams({ [ROUTES_PARAM]: '1', [DETAIL_PARAM]: '1' });
-  }
-
-  // 11 ← 버튼: 상세를 닫고 비교(10)로. 열 때 히스토리를 하나 쌓았으니 뒤로가기와 같다
   function exitRouteDetail() {
     navigate(-1);
   }
@@ -508,123 +240,27 @@ export function MapHomePage() {
     setSearchParams({ [ROUTES_PARAM]: '1', [DETAIL_PARAM]: '1', [GUIDE_PARAM]: '1' });
   }
 
-  /**
-   * "안내 종료"를 직접 눌러 끝낼 때 — 실제로 도착한 게 아니라 중간에 그만둔 것이므로 요약 없이
-   * 지도로 나간다. 목적지·경로도 처음부터 다시 찾도록 같이 초기화한다(`clearDestination`).
-   * 자동 도착 감지(아래 useEffect)는 이 함수를 쓰지 않고 전체 화면 요약(`arrivalSummary`)을 띄운다
-   * — 그건 실제 도착이라 다르게 취급한다. 요약 화면의 "닫기"가 이 함수와 똑같이 지도로 나간다
-   * (`closeArrivalSummary`).
-   * 브라우저·하드웨어 뒤로가기는 그대로 한 단계만 닫는다(11로) — 여기서 건드리지 않는다.
-   */
-  function endGuide() {
-    clearDestination();
-    navigate('/');
-  }
-
-  // 도착 요약 화면의 "닫기" — 수동 종료와 같은 동작(지도로 나가고 목적지·경로 초기화)
-  function closeArrivalSummary() {
-    setArrivalSummary(null);
-    clearDestination();
-    navigate('/');
-  }
-
-  // 공지 상세 화면이 아직 없어 연결된 공지 번호와 상관없이 목록으로 보낸다
-  function openNotice() {
-    closePopup();
-    navigate(NOTICES_PATH);
-  }
-
-  // 시트는 한 번에 하나만: 대여소를 탭하면 대여소 시트가 우선하고, 검색 중에는 전부 숨긴다.
-  // 경로 후보가 있고 URL이 비교 중이면 목적지 확인 시트 대신 비교 시트·경로선·범례가 뜬다
-  // 선택 모드에서는 지도만 보여준다 — 시트·검색바·버튼이 모두 비켜야 지도를 움직일 수 있다
-  const pickActive = pickInUrl && searchInUrl;
-  const stationSheetOpen = selectedStation !== null && !pickActive;
-  const compareActive = routeResult !== null && compareInUrl && !searchOpen && !pickActive;
-  // 11 상세는 비교 위에 한 단계 더 쌓인 상태다
-  const detailActive = compareActive && detailInUrl;
-  const detailRoute =
-    detailActive && selectedRouteIndex !== null
-      ? (routeResult?.routes[selectedRouteIndex] ?? null)
-      : null;
-  // 12 안내는 상세 위에 한 단계 더 쌓인 상태다
-  const guideActive = detailActive && guideInUrl && detailRoute !== null;
-  const compareSheetOpen = compareActive && !stationSheetOpen && !detailActive;
-  const detailSheetOpen = detailActive && !stationSheetOpen && !guideActive;
-  const destinationSheetOpen =
-    destination !== null && !stationSheetOpen && !searchOpen && !compareActive && !pickActive;
-
-  // 안내 중에는 위치를 계속 받는다. 평소에는 배터리 때문에 켜지 않는다
-  const watchLocation = location.watch;
-  useEffect(() => {
-    if (!guideActive) return;
-    return watchLocation();
-  }, [guideActive, watchLocation]);
-
-  const guideProgress = useMemo(
-    () => (detailRoute === null ? null : getRouteProgress(detailRoute, location.position)),
-    [detailRoute, location.position],
-  );
-  const guideLegCount = useMemo(
-    () => (detailRoute === null ? 0 : toLegs(detailRoute).length),
-    [detailRoute],
-  );
-
-  // 목적지 근처(30m 이내)에 오면 안내를 자동으로 끝내고 전체 화면 요약을 띄운다.
-  // "안내 종료" 버튼으로 직접 끝낼 때는 요약을 보여주지 않는다 — 도착이 아니라 중단이라서다
-  useEffect(() => {
-    if (!guideActive) {
-      guideStartAtRef.current = null;
-      arrivalHandledRef.current = false;
-      return;
-    }
-    guideStartAtRef.current ??= Date.now();
-    if (
-      arrivalHandledRef.current ||
-      detailRoute === null ||
-      !hasArrived(detailRoute, location.position)
-    )
-      return;
-    arrivalHandledRef.current = true;
-    // 실제 GPS 궤적이 아니라 안내 중이던 경로의 거리다(원시 좌표를 쌓지 않는다)
-    const guideLegs = toLegs(detailRoute);
-    const totalDistanceM = guideLegs.reduce((sum, leg) => sum + leg.distance, 0);
-    const bikeDistanceM = guideLegs.reduce(
-      (sum, leg) => sum + (leg.mode === 'BICYCLE' ? leg.distance : 0),
-      0,
-    );
-    setArrivalSummary({
-      destinationTitle: destination?.title ?? '목적지',
-      elapsedSec: (Date.now() - guideStartAtRef.current) / 1000,
-      totalDistanceM,
-      bikeDistanceM,
-      route: detailRoute,
-    });
-  }, [guideActive, detailRoute, location.position, destination]);
-
-  // 남은 시간은 남은 거리 비율로 총 소요 시간을 줄여 잡는다(구간별 속도 차이는 무시)
-  const guideRemainingSec =
-    guideProgress === null || selectedRouteIndex === null
-      ? 0
-      : Math.round((routeSummaries[selectedRouteIndex]?.totalSec ?? 0) * (1 - guideProgress.ratio));
   // 대여·반납 시트도 목적지 시트와 같은 mini(200px) 높이라 같은 값만큼 띄운다
   const liftClass = stationSheetOpen
     ? LIFT_FOR_STATION_CLASS
-    : destinationSheetOpen || rentSheetOpen || returnSheetOpen
+    : destinationSheetOpen || rental.rentSheetOpen || rental.returnSheetOpen
       ? LIFT_FOR_MINI_SHEET_CLASS
       : '';
   // "대여하기"는 아무것도 열려 있지 않은 맨 처음 지도에서만 필요하다 — 대여소를 보거나 목적지를
   // 확정하려는 중이면 이미 다른 화면으로 넘어간 것이라 굳이 보여줄 이유가 없다
   const showRentButton =
-    !stationSheetOpen && !destinationSheetOpen && !searchOpen && !rentSheetOpen && !returnSheetOpen;
-  // 출발지 표시 문구 — 08 검색 화면과 10 비교 화면 상단 바가 같이 쓴다
-  const startLabel = customStart?.title ?? (location.loading ? '현재 위치 확인 중…' : '현재 위치');
+    !stationSheetOpen &&
+    !destinationSheetOpen &&
+    !searchOpen &&
+    !rental.rentSheetOpen &&
+    !rental.returnSheetOpen;
 
   return (
     <div className="relative h-full overflow-hidden">
       <MapView
         stations={stations}
-        selectedStationId={selectedStationId}
-        onSelectStation={selectStation}
+        selectedStationId={rental.selectedStationId}
+        onSelectStation={rental.selectStation}
         destination={destination}
         routes={compareActive ? routeResult.routes : null}
         selectedRouteIndex={selectedRouteIndex}
@@ -637,11 +273,11 @@ export function MapHomePage() {
 
       {pickActive ? (
         <MapPickLayer onCancel={cancelMapPick} onConfirm={confirmMapPick} />
-      ) : guideActive && guideProgress !== null ? (
+      ) : guideActive && guide.guideProgress !== null ? (
         <RouteGuideCard
-          progress={guideProgress}
-          isLastLeg={guideProgress.legIndex === guideLegCount - 1}
-          legCount={guideLegCount}
+          progress={guide.guideProgress}
+          isLastLeg={guide.guideProgress.legIndex === guide.guideLegCount - 1}
+          legCount={guide.guideLegCount}
           locationUnknown={location.position === null}
         />
       ) : detailActive ? (
@@ -649,13 +285,13 @@ export function MapHomePage() {
       ) : compareActive ? (
         <RouteCompareControls
           onBack={exitCompare}
-          onRefresh={searchRoutes}
-          refreshing={routeSearch.isPending}
-          startLabel={startLabel}
+          onRefresh={journey.searchRoutes}
+          refreshing={journey.searchPending}
+          startLabel={journey.startLabel}
           destinationLabel={destination?.title ?? ''}
           onEditStart={openStartSearch}
           onEditDestination={openSearch}
-          onSwap={swapStartAndDestination}
+          onSwap={journey.swapStartAndDestination}
         />
       ) : (
         /* 상단 — 검색바, 공지 배너, 갱신 배지 */
@@ -677,7 +313,7 @@ export function MapHomePage() {
         >
           <CurrentLocationButton onClick={focusCurrentLocation} loading={location.loading} />
           {showRentButton ? (
-            <Button full onClick={openRentSheet}>
+            <Button full onClick={rental.openRentSheet}>
               대여하기
             </Button>
           ) : null}
@@ -685,45 +321,45 @@ export function MapHomePage() {
       )}
 
       <StationSheet
-        station={selectedStation}
-        snap={stationSnap}
-        onSnapChange={setStationSnap}
-        onClose={() => selectStation(null)}
-        onReturn={openReturnSheet}
+        station={rental.selectedStation}
+        snap={rental.stationSnap}
+        onSnapChange={rental.setStationSnap}
+        onClose={() => rental.selectStation(null)}
+        onReturn={rental.openReturnSheet}
       />
 
       <CycleRentSheet
-        open={rentSheetOpen}
-        onClose={() => setRentSheetOpen(false)}
+        open={rental.rentSheetOpen}
+        onClose={rental.closeRentSheet}
         onRented={() => showToast('대여가 완료됐습니다. 안전하게 이용해 주세요.')}
       />
 
       <CycleReturnSheet
-        open={returnSheetOpen}
-        stationId={returnStationId}
-        onClose={() => setReturnSheetOpen(false)}
+        open={rental.returnSheetOpen}
+        stationId={rental.returnStationId}
+        onClose={rental.closeReturnSheet}
         onReturned={() => showToast('반납이 완료됐습니다.')}
       />
 
       <DestinationSheet
         destination={destinationSheetOpen ? destination : null}
-        searching={routeSearch.isPending}
-        onSearchRoutes={searchRoutes}
-        onClose={clearDestination}
+        searching={journey.searchPending}
+        onSearchRoutes={journey.searchRoutes}
+        onClose={journey.clearDestination}
       />
 
       {routeResult === null ? null : (
         <RouteCompareSheet
           open={compareSheetOpen}
-          snap={compareSnap}
-          onSnapChange={setCompareSnap}
+          snap={journey.compareSnap}
+          onSnapChange={journey.setCompareSnap}
           summaries={routeSummaries}
           fetchedAt={routeResult.fetchedAt}
-          sort={routeSort}
-          onSortChange={changeRouteSort}
+          sort={journey.routeSort}
+          onSortChange={journey.changeRouteSort}
           selectedIndex={selectedRouteIndex}
-          onSelect={setSelectedRouteIndex}
-          onStart={openRouteDetail}
+          onSelect={journey.setSelectedRouteIndex}
+          onStart={journey.openRouteDetail}
         />
       )}
 
@@ -740,14 +376,14 @@ export function MapHomePage() {
         />
       )}
 
-      {pickActive ? (
-        <MapPickLayer onCancel={cancelMapPick} onConfirm={confirmMapPick} />
-      ) : guideActive && guideProgress !== null ? (
+      {/* 안내 시트 — pickActive와는 파생상 동시에 참일 수 없어 분기가 필요 없다
+          (MapPickLayer는 위 상단 오버레이 자리에서 한 번만 마운트한다) */}
+      {guideActive && guide.guideProgress !== null ? (
         <RouteGuideSheet
           open
-          progress={guideProgress}
-          remainingSec={guideRemainingSec}
-          onEnd={endGuide}
+          progress={guide.guideProgress}
+          remainingSec={guide.guideRemainingSec}
+          onEnd={guide.endGuide}
         />
       ) : null}
 
@@ -757,39 +393,39 @@ export function MapHomePage() {
           // field가 바뀌면 입력 중이던 검색어·결과를 새로 시작해야 하므로 컴포넌트를 새로 만든다
           key={startFieldInUrl ? 'start' : 'destination'}
           field={startFieldInUrl ? 'start' : 'destination'}
-          onClose={closeSearch}
-          onSelect={startFieldInUrl ? selectStart : selectDestination}
+          onClose={journey.closeSearch}
+          onSelect={startFieldInUrl ? journey.selectStart : journey.selectDestination}
           currentLocation={location.position}
           onRefreshLocation={refreshLocation}
           locationLoading={location.loading}
           onPickOnMap={openMapPick}
           showToast={showToast}
-          startLabel={startLabel}
+          startLabel={journey.startLabel}
           onEditStart={openStartSearch}
-          onSwap={swapStartAndDestination}
-          onUseCurrentLocationAsStart={useCurrentLocationAsStart}
+          onSwap={journey.swapStartAndDestination}
+          onUseCurrentLocationAsStart={journey.resetStartToCurrentLocation}
         />
       ) : null}
 
       {message && <Toast message={message} />}
 
-      {!popupClosed && popupNotices && popupNotices.length > 0 && (
+      {!popup.closed && popup.notices && popup.notices.length > 0 && (
         <NoticePopup
-          notices={popupNotices}
-          onClose={closePopup}
-          onHideForWeek={closeForWeek}
-          onOpenNotice={openNotice}
+          notices={popup.notices}
+          onClose={popup.close}
+          onHideForWeek={popup.closeForWeek}
+          onOpenNotice={popup.openNotice}
         />
       )}
 
-      {arrivalSummary ? (
+      {guide.arrivalSummary ? (
         <ArrivalSummaryScreen
-          destinationTitle={arrivalSummary.destinationTitle}
-          elapsedSec={arrivalSummary.elapsedSec}
-          totalDistanceM={arrivalSummary.totalDistanceM}
-          bikeDistanceM={arrivalSummary.bikeDistanceM}
-          route={arrivalSummary.route}
-          onClose={closeArrivalSummary}
+          destinationTitle={guide.arrivalSummary.destinationTitle}
+          elapsedSec={guide.arrivalSummary.elapsedSec}
+          totalDistanceM={guide.arrivalSummary.totalDistanceM}
+          bikeDistanceM={guide.arrivalSummary.bikeDistanceM}
+          route={guide.arrivalSummary.route}
+          onClose={guide.closeArrivalSummary}
         />
       ) : null}
     </div>
