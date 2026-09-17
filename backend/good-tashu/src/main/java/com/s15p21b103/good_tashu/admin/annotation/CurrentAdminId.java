@@ -8,5 +8,5 @@ import java.lang.annotation.*;
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 @AuthenticationPrincipal(expression = "T(java.lang.Long).valueOf(subject.substring(6))", errorOnInvalidType = true)
-public @interface currentAdminId {
+public @interface CurrentAdminId {
 }
