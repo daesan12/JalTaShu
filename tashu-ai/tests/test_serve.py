@@ -185,7 +185,10 @@ def test_compute_predictions_clips_bikes_and_skips_missing_s():
     preds = serve.compute_predictions(NOW, rates, pd.Series({"ST0001": 2}))  # ST0002는 s 없음 → 제외
     assert set(preds["station_id"]) == {"ST0001"}
     assert (preds["bikes"] >= 0).all() and preds["bikes"].max() == 0.0
-    assert (preds["prob_out"] > 0.99).all()
+    # 1분 지평은 λ_total이 작아 0.99를 못 넘는 게 정상 — 지평별 단조 증가 + 5분 이상 임계로 검증
+    ordered = preds.sort_values("horizon_min")["prob_out"]
+    assert (ordered.diff().dropna() >= 0).all()
+    assert (preds.loc[preds["horizon_min"] >= 5, "prob_out"] > 0.99).all()
 
 
 def test_compute_predictions_requires_next_bucket():
