@@ -118,6 +118,16 @@ export function useJourneyPlanner({ location, showToast, viewedCenterAsStart }: 
     else setRouteResult(null);
   }
 
+  /**
+   * 재탐색(12)으로 받은 경로로 갈아끼운다.
+   * 안내 중이라 고를 여지가 없으므로 첫 후보를 그대로 쓴다 — 서버가 "지금 상황"에 맞춰 준 것이다.
+   */
+  function replaceRoutes(routes: RouteCandidate[]) {
+    if (routes.length === 0) return;
+    setRouteResult({ routes, fetchedAt: Date.now() });
+    setSelectedRouteIndex(0);
+  }
+
   // 목적지를 지우면 처음부터 다시 찾는 것과 같으므로 골라둔 출발지도 함께 되돌린다
   function clearDestination() {
     setDestination(null);
@@ -253,5 +263,6 @@ export function useJourneyPlanner({ location, showToast, viewedCenterAsStart }: 
     searchRoutes,
     changeRouteSort,
     openRouteDetail,
+    replaceRoutes,
   };
 }

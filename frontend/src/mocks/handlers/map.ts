@@ -405,6 +405,26 @@ export const mapHandlers = [
     return HttpResponse.json(ok(body));
   }),
 
+  /**
+   * 재탐색 — 안내 중 경로를 벗어났을 때. 실서버는 지금 상황(어느 구간·어느 대여소·경로 종류)을
+   * 유지한 채 다시 계산해 준다. 목업은 새 출발지로 같은 종류의 후보 하나만 돌려준다.
+   */
+  http.get('/api/map/re-route', async ({ request }) => {
+    await delay(1200);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const q = new URL(request.url).searchParams;
+    const start: Pos = { xPos: Number(q.get('startLng')), yPos: Number(q.get('startLat')) };
+    const end: Pos = { xPos: Number(q.get('endLng')), yPos: Number(q.get('endLat')) };
+    if (![start.xPos, start.yPos, end.xPos, end.yPos].every(Number.isFinite)) {
+      return fail(400, '출발지와 목적지 좌표가 필요합니다.');
+    }
+    const routeType = q.get('routeType');
+    const routes = buildMockRoutes(start, end).filter((route) => route.type === routeType);
+    const body: PathResponse = { routes: routes.length > 0 ? routes : buildMockRoutes(start, end) };
+    return HttpResponse.json(ok(body));
+  }),
+
   http.get('/api/map/recent', async ({ request }) => {
     await delay(200);
     const authFail = requireAuth();

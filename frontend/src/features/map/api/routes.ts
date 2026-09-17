@@ -1,5 +1,11 @@
 import { apiGet } from '@/shared/api/client';
-import type { PathResponse, Pos, RouteCandidate } from '@/shared/api/types';
+import type {
+  PathResponse,
+  Pos,
+  RouteCandidate,
+  RouteType,
+  TravelStatus,
+} from '@/shared/api/types';
 
 /**
  * 백엔드 `GET /map/path` — 출발·목적지만 보내고 **경로 후보를 전부** 받는다(방법 B).
@@ -21,6 +27,44 @@ export async function getRoutePaths({ start, end }: RoutePathRequest): Promise<R
       startLng: start.xPos,
       endLat: end.yPos,
       endLng: end.xPos,
+    },
+  });
+  return res.routes;
+}
+
+/**
+ * 백엔드 `GET /map/re-route` — 안내 중 경로를 벗어났을 때 다시 계산한다.
+ *
+ * `/map/path`와 달리 **지금 상황을 같이 보낸다.** 이미 자전거를 빌렸는데 서버가 다른 대여소를
+ * 고르면 안 되기 때문에, 쓰기로 한 대여소와 지금 어느 구간인지, 고른 경로 종류를 함께 넘긴다.
+ */
+export interface ReRoutePathRequest extends RoutePathRequest {
+  /** 쓰기로 한 대여·반납 대여소. 도보 전용 경로였으면 없다 */
+  startStationId: string | null;
+  endStationId: string | null;
+  travelStatus: TravelStatus;
+  routeType: RouteType;
+}
+
+export async function getReRoutePaths({
+  start,
+  end,
+  startStationId,
+  endStationId,
+  travelStatus,
+  routeType,
+}: ReRoutePathRequest): Promise<RouteCandidate[]> {
+  const res = await apiGet<PathResponse>('/map/re-route', {
+    params: {
+      startLat: start.yPos,
+      startLng: start.xPos,
+      endLat: end.yPos,
+      endLng: end.xPos,
+      // 서버가 optional로 받는 값이라 없으면 아예 보내지 않는다
+      ...(startStationId === null ? {} : { startStationId }),
+      ...(endStationId === null ? {} : { endStationId }),
+      travelStatus,
+      routeType,
     },
   });
   return res.routes;
