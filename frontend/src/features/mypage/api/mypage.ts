@@ -1,15 +1,10 @@
 import { apiGet } from '@/shared/api/client';
+import type { UsageStats } from '@/features/history/api/rides';
 
-/** 24 프로필 이용 통계 — 백엔드 API 미정, msw 목업 기준 임시 스키마 (확정 시 이 파일만 수정) */
-export interface MyStats {
-  /** 이번 달 이동 횟수 */
-  monthlyRides: number;
-  /** 이번 달 이동 거리 (km) */
-  distanceKm: number;
-  /** 이번 달 이동 시간 (분) */
-  durationMin: number;
-}
-
-export function getMyStats(): Promise<MyStats> {
-  return apiGet<MyStats>('/users/me/stats');
+/**
+ * 24 프로필 이용 통계 — 백엔드에 "이번 달" 통계가 없어(전달 목록)
+ * 이동 기록과 같은 누적 통계(GET /cycle/statics)를 쓴다.
+ */
+export function getMyStats(): Promise<UsageStats> {
+  return apiGet<UsageStats>('/cycle/statics');
 }

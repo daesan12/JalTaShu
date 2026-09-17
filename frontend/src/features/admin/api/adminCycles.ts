@@ -2,62 +2,57 @@ import { apiGet } from '@/shared/api/client';
 import type { AdminClaim } from '@/features/admin/api/adminClaims';
 
 /**
- * 05·07 자전거 관리 — 목록·이용 이력·통계는 API 명세 구현 O(응답 형태 임시),
- * 자전거별 제보는 구현 X라 목업 기준. 401은 관리자 가드가 처리(skipAuthRedirect).
+ * 05·07 자전거 관리 — 백엔드 실구현(AdminCycleController) 스키마.
+ * 401은 관리자 가드가 처리(skipAuthRedirect).
  */
 
-/** 서버 enum — 한글 라벨은 화면에서 (AdminBadge 규칙) */
-export type CycleStatus = 'ACTIVE' | 'SUSPENDED';
+/** 서버 enum(CycleStatus 실측) — 정지 개념은 없고 대기중/대여중뿐이다 */
+export type CycleStatus = 'READY' | 'RENTING';
 
-export const CYCLE_STATUS_LABEL: Record<CycleStatus, '정상' | '정지'> = {
-  ACTIVE: '정상',
-  SUSPENDED: '정지',
+export const CYCLE_STATUS_LABEL: Record<CycleStatus, '대기중' | '대여중'> = {
+  READY: '대기중',
+  RENTING: '대여중',
 };
 
+/** 목록 한 대 (AdminCycleListResponse 실측) */
 export interface AdminCycleSummary {
   cycleId: string;
-  /** 배치 대여소 — 대여 중(이동 중)이면 null */
-  stationId: string | null;
-  stationName: string | null;
+  /** 현재 위치(대여소명) — 대여 중이면 비어 있을 수 있다 */
+  currentLocation: string | null;
   statement: CycleStatus;
-  /** 미해결 제보 수 */
-  openClaimCnt: number;
-  lastUsedAt: string;
+  recentUsingAt: string | null;
+  /** 달린 제보 수 */
+  claimCnt: number;
 }
 
-/** GET /admin/cycle/statics — 목록 상단 통계 카드 */
+/** GET /admin/cycle/statics — 목록 상단 통계 카드 (AdminCycleStatisticsResponse 실측) */
 export interface AdminCycleStatics {
-  totalCnt: number;
-  activeCnt: number;
-  suspendedCnt: number;
-  /** 미해결 제보가 달린 자전거 수 */
-  claimedCnt: number;
+  totalCycleCnt: number;
+  rentCycleCnt: number;
+  waitCycleCnt: number;
+  /** 제보가 달린 자전거 수 */
+  claimCycleCnt: number;
 }
 
-/** 이용 이력 한 건 */
-export interface AdminCycleRide {
-  rideId: number;
-  startAt: string;
-  endAt: string;
-  fromStation: string;
-  toStation: string;
-  durationMin: number;
-  distanceKm: number;
+/** 이용 이력 한 건 (AdminCycleHistoryResponse 실측) — 거리·시간은 응답에 없다 */
+export interface AdminCycleHistory {
+  recordId: number;
+  usingAt: string;
+  startingPoint: string;
+  endPoint: string;
+  userId: number;
+  nickname: string;
 }
 
-/** GET /admin/cycle/{cycleId} — 기본 정보 + 이용 이력 */
-export interface AdminCycleDetail extends AdminCycleSummary {
-  rides: AdminCycleRide[];
-}
-
-/** GET /admin/cycle/{cycleId}/statics — 자전거 누적 통계 */
+/** GET /admin/cycle/{cycleId}/statics (AdminCycleDetailStatisticsResponse 실측) */
 export interface AdminCycleOwnStatics {
-  totalRides: number;
-  totalDistanceKm: number;
-  totalDurationMin: number;
+  usingCnt: number;
+  recentUsingAt: string | null;
+  unresolvedClaim: number;
+  registeredAt: string;
 }
 
-/** 명세 필터(cycle·stationName·statement·hasClaim)는 목업이라 전체를 받아 클라에서 거른다 */
+/** 서버 필터(cycle·stationName·statement·hasClaim)가 있지만 화면은 클라 필터를 유지한다 */
 export function getAdminCycles(): Promise<AdminCycleSummary[]> {
   return apiGet<AdminCycleSummary[]>('/admin/cycle/list', { skipAuthRedirect: true });
 }
@@ -66,8 +61,9 @@ export function getAdminCycleStatics(): Promise<AdminCycleStatics> {
   return apiGet<AdminCycleStatics>('/admin/cycle/statics', { skipAuthRedirect: true });
 }
 
-export function getAdminCycle(cycleId: string): Promise<AdminCycleDetail> {
-  return apiGet<AdminCycleDetail>(`/admin/cycle/${encodeURIComponent(cycleId)}`, {
+/** GET /admin/cycle/{cycleId} — 이용 이력 리스트만 온다 (기본 정보는 목록 응답에서 찾는다) */
+export function getAdminCycleHistory(cycleId: string): Promise<AdminCycleHistory[]> {
+  return apiGet<AdminCycleHistory[]>(`/admin/cycle/${encodeURIComponent(cycleId)}`, {
     skipAuthRedirect: true,
   });
 }

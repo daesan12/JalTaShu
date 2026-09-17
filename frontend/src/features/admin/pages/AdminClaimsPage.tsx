@@ -4,7 +4,9 @@ import { ApiError } from '@/shared/api/client';
 import { formatDate } from '@/shared/lib/format';
 import { useToast } from '@/shared/lib/useToast';
 import {
+  CLAIM_CATEGORY_LABEL,
   CLAIM_STATUS_LABEL,
+  getAdminClaimDetail,
   getAdminClaims,
   updateAdminClaim,
   type AdminClaim,
@@ -21,14 +23,14 @@ import { AdminTable } from '@/features/admin/ui/AdminTable';
 import { AdminTableStatus } from '@/features/admin/ui/AdminTableStatus';
 import { AdminToast } from '@/features/admin/ui/AdminToast';
 
-const STATUS_ORDER: ClaimStatus[] = ['OPEN', 'IN_PROGRESS', 'RESOLVED'];
+const STATUS_ORDER: ClaimStatus[] = ['READY', 'IN_PROGRESS', 'COMPLETED'];
 type SortOrder = 'newest' | 'oldest' | 'reports';
 
 /** 상태 통계 카드의 숫자 색 — 배지와 같은 역할 색 */
 const STATUS_COUNT_CLASS: Record<ClaimStatus, string> = {
-  OPEN: 'text-admin-danger-text',
+  READY: 'text-admin-danger-text',
   IN_PROGRESS: 'text-admin-warn-text',
-  RESOLVED: 'text-admin-ok-text',
+  COMPLETED: 'text-admin-ok-text',
 };
 
 /**
@@ -50,16 +52,16 @@ export function AdminClaimsPage() {
   });
 
   const counts = useMemo(() => {
-    const base: Record<ClaimStatus, number> = { OPEN: 0, IN_PROGRESS: 0, RESOLVED: 0 };
-    for (const claim of data ?? []) base[claim.statement] += 1;
+    const base: Record<ClaimStatus, number> = { READY: 0, IN_PROGRESS: 0, COMPLETED: 0 };
+    for (const claim of data ?? []) base[claim.status] += 1;
     return base;
   }, [data]);
 
-  // 필터·정렬은 클라이언트에서 — 명세 파라미터(nickname·cycleId·order·status)는 연동 시 서버로 교체
+  // 필터·정렬은 클라이언트에서 — 검색 한 칸이 닉네임·자전거 ID를 함께 봐서 서버 필터와 1:1이 아니다
   const filtered = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     const list = (data ?? []).filter((claim) => {
-      if (status !== 'all' && claim.statement !== status) return false;
+      if (status !== 'all' && claim.status !== status) return false;
       if (
         keyword &&
         !claim.nickname.toLowerCase().includes(keyword) &&
@@ -74,7 +76,7 @@ export function AdminClaimsPage() {
         ? b.createdAt.localeCompare(a.createdAt)
         : order === 'oldest'
           ? a.createdAt.localeCompare(b.createdAt)
-          : b.reportCnt - a.reportCnt || b.createdAt.localeCompare(a.createdAt),
+          : b.cycleReportNum - a.cycleReportNum || b.createdAt.localeCompare(a.createdAt),
     );
   }, [data, search, status, order]);
   const pageItems = filtered.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE);
@@ -161,18 +163,18 @@ export function AdminClaimsPage() {
               <tr key={claim.claimId} onClick={() => setSelected(claim)}>
                 <td className="tabular-nums text-admin-muted">CL-{claim.claimId}</td>
                 <td className="tabular-nums">{claim.cycleId}</td>
-                <td>{claim.tag}</td>
+                <td>{CLAIM_CATEGORY_LABEL[claim.category]}</td>
                 <td className="truncate">{claim.content}</td>
                 <td className="truncate">{claim.nickname}</td>
                 <td
                   className={`text-right tabular-nums ${
-                    claim.reportCnt >= 3 ? 'font-medium text-admin-danger-text' : ''
+                    claim.cycleReportNum >= 3 ? 'font-medium text-admin-danger-text' : ''
                   }`}
                 >
-                  {claim.reportCnt}
+                  {claim.cycleReportNum}
                 </td>
                 <td>
-                  <AdminBadge state={CLAIM_STATUS_LABEL[claim.statement]} />
+                  <AdminBadge state={CLAIM_STATUS_LABEL[claim.status]} />
                 </td>
                 <td className="tabular-nums text-admin-muted">{formatDate(claim.createdAt)}</td>
               </tr>
@@ -210,16 +212,27 @@ interface ClaimDetailModalProps {
   onSaved: () => void;
 }
 
-/** 03-a 제보 상세 + 상태 변경. 저장하면 03-b 토스트는 부모가 띄운다 */
+/**
+ * 03-a 제보 상세 + 상태 변경. 저장하면 03-b 토스트는 부모가 띄운다.
+ * 처리 내용·사진은 목록 응답에 없어(hasComment만 옴) 상세 API를 따로 조회한다.
+ */
 function ClaimDetailModal({ claim, onClose, onSaved }: ClaimDetailModalProps) {
   const queryClient = useQueryClient();
-  const [statement, setStatement] = useState<ClaimStatus>(claim.statement);
-  const [content, setContent] = useState(claim.adminContent ?? '');
+  const [statement, setStatement] = useState<ClaimStatus>(claim.status);
+  // 기존 처리 내용은 상세 응답에만 있다 — 사용자가 고치기 전(null)에는 상세 값을 그대로 보여준다
+  const [edited, setEdited] = useState<string | null>(null);
+
+  const detail = useQuery({
+    queryKey: ['adminClaimDetail', claim.claimId],
+    queryFn: () => getAdminClaimDetail(claim.claimId),
+  });
+  const content = edited ?? detail.data?.adminComment ?? '';
 
   const save = useMutation({
     mutationFn: () => updateAdminClaim(claim.claimId, { statement, content: content.trim() }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminClaims'] });
+      void queryClient.invalidateQueries({ queryKey: ['adminClaimDetail', claim.claimId] });
       onSaved();
     },
   });
@@ -235,7 +248,7 @@ function ClaimDetailModal({ claim, onClose, onSaved }: ClaimDetailModalProps) {
           <AdminButton variant="secondary" onClick={onClose}>
             취소
           </AdminButton>
-          <AdminButton disabled={save.isPending} onClick={() => save.mutate()}>
+          <AdminButton disabled={save.isPending || detail.isPending} onClick={() => save.mutate()}>
             {save.isPending ? '저장 중…' : '저장'}
           </AdminButton>
         </>
@@ -245,18 +258,27 @@ function ClaimDetailModal({ claim, onClose, onSaved }: ClaimDetailModalProps) {
         <dl className="grid grid-cols-4 gap-x-4 gap-y-2 text-sm">
           <InfoItem label="자전거" value={claim.cycleId} />
           <InfoItem label="제보자" value={claim.nickname} />
-          <InfoItem label="부위" value={claim.tag} />
+          <InfoItem label="부위" value={CLAIM_CATEGORY_LABEL[claim.category]} />
           <InfoItem label="작성일" value={formatDate(claim.createdAt)} />
         </dl>
 
         <div className="rounded-md bg-admin-panel px-4 py-3">
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{claim.content}</p>
-          {claim.reportCnt > 0 && (
+          {claim.cycleReportNum > 0 && (
             <p className="mt-2 text-xs text-admin-danger-text">
-              허위 제보 신고 {claim.reportCnt}건
+              허위 제보 신고 {claim.cycleReportNum}건
             </p>
           )}
         </div>
+
+        {detail.isPending && <p className="text-sm text-admin-muted">상세를 불러오는 중…</p>}
+        {detail.data?.photoUrl && (
+          <img
+            src={detail.data.photoUrl}
+            alt="제보 사진"
+            className="max-h-64 w-fit rounded-md border border-admin-line object-contain"
+          />
+        )}
 
         <div className="grid grid-cols-[8rem_1fr] items-center gap-3">
           <span className="text-sm font-medium">처리 상태</span>
@@ -280,7 +302,8 @@ function ClaimDetailModal({ claim, onClose, onSaved }: ClaimDetailModalProps) {
             className="min-h-24"
             placeholder="처리 결과나 조치 내용을 남겨 주세요 (선택)"
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            maxLength={255}
+            onChange={(e) => setEdited(e.target.value)}
           />
         </div>
 

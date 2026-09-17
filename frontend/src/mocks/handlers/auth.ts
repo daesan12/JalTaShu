@@ -31,14 +31,6 @@ export const authHandlers = [
     return HttpResponse.json(ok({ nickname: state.nickname }));
   }),
 
-  // ── 프로필 (24 — 백엔드 API 미정, 임시 스키마) ─────────────────────
-  http.get('/api/users/me/stats', async () => {
-    await delay(300);
-    const authFail = requireAuth();
-    if (authFail) return authFail;
-    return HttpResponse.json(ok({ monthlyRides: 12, distanceKm: 38.2, durationMin: 84 }));
-  }),
-
   http.put('/api/users/me', async ({ request }) => {
     await delay(400);
     const authFail = requireAuth();
@@ -102,6 +94,9 @@ export const authHandlers = [
     }
 
     setAuthState({ loggedIn: true, nickname });
-    return HttpResponse.json({ code: 200, message: '가입에 성공했습니다.', data: null });
+    // 백엔드는 가입 완료 시 새 access token을 돌려준다 (권한 버전 갱신)
+    return HttpResponse.json(
+      ok({ accessToken: 'msw-access-token', tokenType: 'Bearer', expiresIn: 1800 }),
+    );
   }),
 ];

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Navigate, useNavigate } from 'react-router';
 import { adminLogin } from '@/features/admin/api/adminAuth';
-import { ADMIN_ME_QUERY_KEY, useAdminAuth } from '@/features/admin/hooks/useAdminAuth';
+import { ADMIN_SESSION_QUERY_KEY, useAdminAuth } from '@/features/admin/hooks/useAdminAuth';
 import { AdminButton } from '@/features/admin/ui/AdminButton';
 import { ADMIN_FIELD_FRAME } from '@/features/admin/ui/AdminField';
 import { ApiError } from '@/shared/api/client';
@@ -33,7 +33,8 @@ export function AdminLoginPage() {
     setSubmitting(true);
     try {
       await adminLogin(id, password);
-      await queryClient.invalidateQueries({ queryKey: ADMIN_ME_QUERY_KEY });
+      // 방금 로그인해 세션이 확실하므로 refresh를 다시 치지 않고 바로 반영한다
+      queryClient.setQueryData(ADMIN_SESSION_QUERY_KEY, true);
       navigate('/admin', { replace: true });
     } catch (err) {
       // 401은 자격 증명 실패, 그 밖(네트워크 등)은 원래 메시지를 그대로 보여준다

@@ -54,10 +54,17 @@ export function MyPage() {
 
         {/* 이용 통계 */}
         <div className="mt-6 grid grid-cols-3 gap-3">
+          {/* 백엔드에 월간 통계가 없어 누적 통계를 보여준다 (거리 m·시간 초 단위 실측) */}
           {[
-            { label: '이번 달 이동', value: stats ? `${stats.monthlyRides}회` : '–' },
-            { label: '이동 거리', value: stats ? `${stats.distanceKm}km` : '–' },
-            { label: '이동 시간', value: stats ? `${stats.durationMin}분` : '–' },
+            { label: '누적 이동', value: stats ? `${stats.totalUseCnt}회` : '–' },
+            {
+              label: '이동 거리',
+              value: stats ? `${(stats.totalDistance / 1000).toFixed(1)}km` : '–',
+            },
+            {
+              label: '자전거 시간',
+              value: stats ? `${Math.round(stats.totalCycleRidingTime / 60)}분` : '–',
+            },
           ].map((item) => (
             <div key={item.label} className="rounded-2xl bg-background px-3 py-5 text-center">
               <p className="text-sm text-gray-500">{item.label}</p>

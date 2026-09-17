@@ -1,12 +1,13 @@
 import { apiGet } from '@/shared/api/client';
 
 /**
- * GET /admin/heatmap?date= 응답 한 점 — 시간대 × 대여소.
- * API 명세상 구현 O. 인수인계 문서의 필드 그대로이나 실제 응답과 대조 필요(연동 단계).
+ * GET /admin/heatmap?datetime= 응답 한 점 (AdminHeatmapResponse 실측).
+ * 서버는 **기준 시각 직전 1시간**을 대여소별로 집계해 준다 — 하루치가 아니다.
+ * 시간 슬라이더·재생은 시간대마다 이 API를 다시 부른다(react-query 캐시로 재생을 매끄럽게).
  */
 export interface HeatmapPoint {
-  /** 시간대 (0~23시) */
-  time: number;
+  /** 조회 기준 시각 (ISO 8601) — 요청한 datetime이 그대로 온다 */
+  time: string;
   stationId: string;
   /** 경도 */
   xPos: number;
@@ -17,12 +18,12 @@ export interface HeatmapPoint {
 }
 
 /**
- * 하루치 전체(시간 24 × 대여소)를 한 번에 받는다.
- * 슬라이더·재생은 프론트에서 time으로 필터링 — 시간대마다 재요청하면 재생이 끊긴다.
+ * date(YYYY-MM-DD)와 hour(0~23)로 "그 시각 정각 기준 직전 1시간" 스냅샷을 받는다.
  * 401은 RequireAdminAuth 가드가 처리하므로 전역(모바일 로그인) 리다이렉트에서 제외한다.
  */
-export function getAdminHeatmap(date: string): Promise<HeatmapPoint[]> {
-  return apiGet<HeatmapPoint[]>(`/admin/heatmap?date=${encodeURIComponent(date)}`, {
+export function getAdminHeatmap(date: string, hour: number): Promise<HeatmapPoint[]> {
+  const datetime = `${date}T${String(hour).padStart(2, '0')}:00:00`;
+  return apiGet<HeatmapPoint[]>(`/admin/heatmap?datetime=${encodeURIComponent(datetime)}`, {
     skipAuthRedirect: true,
   });
 }
