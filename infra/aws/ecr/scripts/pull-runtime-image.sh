@@ -7,7 +7,7 @@ if [[ ${EUID} -ne 0 ]]; then
 fi
 
 if [[ $# -ne 2 ]]; then
-  echo "사용법: $0 <tashu/frontend|tashu/backend> <COMMIT_SHA_TAG>" >&2
+  echo "사용법: $0 <tashu/frontend|tashu/backend|tashu/ai> <COMMIT_SHA_TAG>" >&2
   exit 1
 fi
 
@@ -17,9 +17,9 @@ region=${AWS_REGION:-ap-northeast-2}
 credential_file=${TASHU_ECR_CREDENTIAL_FILE:-/etc/tashu/ecr-pull/credentials}
 
 case ${repository} in
-  tashu/frontend|tashu/backend) ;;
+  tashu/frontend|tashu/backend|tashu/ai) ;;
   *)
-    echo '허용되지 않은 repository입니다. tashu/frontend 또는 tashu/backend를 사용하세요.' >&2
+    echo '허용되지 않은 repository입니다. tashu/frontend, tashu/backend 또는 tashu/ai를 사용하세요.' >&2
     exit 1
     ;;
 esac
