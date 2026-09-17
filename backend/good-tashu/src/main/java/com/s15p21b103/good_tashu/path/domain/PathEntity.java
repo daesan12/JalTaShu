@@ -15,7 +15,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
 @AllArgsConstructor
-@Table(name = "paths")
+@Table(name = "paths", uniqueConstraints = @UniqueConstraint(
+        name = "uk_paths_cycle_usage_id", columnNames = "cycle_usage_id"))
 public class PathEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -31,7 +32,7 @@ public class PathEntity {
     private PathInfo pathInfo;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "cycle_usage_id", unique = true)
+    @JoinColumn(name = "cycle_usage_id")
     private CycleUsageEntity cycleUsage;
 
     @Column(name = "created_at")

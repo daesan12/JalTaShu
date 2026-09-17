@@ -6,8 +6,6 @@ import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.jpa.repository.Lock;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -47,8 +45,6 @@ public interface CycleUsageRepository extends JpaRepository<CycleUsageEntity, Lo
             CycleEntity cycleEntity
     );
 
-    // 경로 저장 요청을 이용내역 단위로 직렬화한다. 호출자는 쓰기 트랜잭션을 사용해야 한다.
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<CycleUsageEntity> findFirstByUserEntity_UserIdAndReturnAtIsNotNullOrderByReturnAtDescCycleUsageIdDesc(
             Long userId
     );

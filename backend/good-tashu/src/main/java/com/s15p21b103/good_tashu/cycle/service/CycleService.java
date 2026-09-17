@@ -267,7 +267,7 @@ public class CycleService {
         CycleUsageEntity cycleUsage = cycleUsageRepository.findFirstByUserEntity_UserIdAndReturnAtIsNotNullOrderByReturnAtDescCycleUsageIdDesc(userId)
                 .orElseThrow(() -> new CycleException(NOT_EXIST_USAGE));
 
-        if (pathRepository.findForUpdateByCycleUsage_CycleUsageId(cycleUsage.getCycleUsageId()).isPresent()) {
+        if (pathRepository.findByCycleUsage_CycleUsageId(cycleUsage.getCycleUsageId()).isPresent()) {
             throw new CycleException(PATH_ALREADY_EXISTS);
         }
 
