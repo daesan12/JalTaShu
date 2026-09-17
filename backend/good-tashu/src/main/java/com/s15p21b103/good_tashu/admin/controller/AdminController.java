@@ -88,6 +88,8 @@ public class AdminController {
         adminUserService.banUser(adminId, userId, request);
         return ApiResponse.success("사용자 밴이 등록되었습니다.");
     }
+    //TODO: 사용자 밴 기록 확인 구현
+    //사용자 밴 기록 확인
 
     //사용자 밴 해제
     @PostMapping("/user/{userId}/un-ban")
