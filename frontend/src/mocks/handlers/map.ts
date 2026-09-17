@@ -186,79 +186,176 @@ function distanceMeters(a: Pos, b: Pos): number {
   return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
 }
 
-/** 출발→도착을 잇는 곡선. bend가 클수록 가운데가 옆으로 많이 휜다(−: 왼쪽, +: 오른쪽) */
-function curvedPath(start: Pos, end: Pos, bend: number, points: number): Pos[] {
-  const dx = end.xPos - start.xPos;
-  const dy = end.yPos - start.yPos;
-  return Array.from({ length: points }, (_, i) => {
-    const t = i / (points - 1);
-    const bulge = Math.sin(Math.PI * t) * bend;
-    return {
-      xPos: start.xPos + dx * t - dy * bulge,
-      yPos: start.yPos + dy * t + dx * bulge,
-    };
-  });
+/**
+ * 도시 도로처럼 **가로·세로로 꺾어 가는** 경로를 만든다.
+ *
+ * 예전 목업은 출발·도착을 잇는 매끈한 사인 곡선이었는데, 그러면 실제 OSRM 경로와 모양이 전혀
+ * 달라서 회전 지점 표시나 회전 안내를 화면에서 확인할 수 없다. 꺾이는 지점을 실제로 만들고,
+ * 그 지점의 회전 방향까지 함께 돌려준다.
+ */
+interface MockGeometry {
+  points: Pos[];
+  /** 좌표 인덱스 → 그 지점에서 꺾는 방향(`left`·`right`) */
+  corners: Map<number, string>;
+}
+
+/** 세 점이 이루는 꺾임 방향 — 외적 부호로 좌/우를 가른다 */
+function turnModifier(prev: Pos, corner: Pos, next: Pos): string {
+  const cross =
+    (corner.xPos - prev.xPos) * (next.yPos - corner.yPos) -
+    (corner.yPos - prev.yPos) * (next.xPos - corner.xPos);
+  return cross > 0 ? 'left' : 'right';
 }
 
 /**
- * 목업 회전 안내 — 서버가 step마다 한국어 문장까지 만들어 준다(`instruction`).
- * 화면은 다음 이슈에서 붙이지만, 그때 쓸 수 있게 여기서 형태를 맞춰 둔다.
+ * 목업 규모 — 실제 도심 5km 경로에 가깝게 맞춘다.
+ *
+ * 회전 4번·좌표 22개짜리 장난감으로는 "회전 점이 빽빽하지 않은가" 같은 판단을 할 수 없다.
+ * 모양은 실제 대전 도로와 다르지만 **개수와 밀도**가 비슷하면 화면을 깎는 데는 충분하다.
  */
-const MOCK_MANEUVERS = [
-  { type: 'depart', modifier: null, exit: null, instruction: '출발하세요' },
-  { type: 'turn', modifier: 'right', exit: null, instruction: '우회전하세요' },
-  { type: 'turn', modifier: 'slight left', exit: null, instruction: '왼쪽으로 완만하게 이동하세요' },
-  {
-    type: 'roundabout',
-    modifier: 'right',
-    exit: 2,
-    instruction: '회전교차로에서 2번째 출구로 나가세요',
-  },
-  { type: 'arrive', modifier: null, exit: null, instruction: '구간 목적지에 도착했습니다' },
-] as const;
+/** 가로·세로 각각 몇 번 움직이는지 — 회전 횟수는 이 값의 약 2배가 된다 */
+const RUNS_PER_AXIS = 9;
+/** 한 구간(직선 주행)을 몇 개의 좌표로 쪼갤지 */
+const POINTS_PER_RUN = 12;
+
+/**
+ * 구간 길이를 들쭉날쭉하게 만드는 값(0.5~1.5). 실제 도로는 한 블록 길이가 제각각이다.
+ * `Math.random()`을 쓰지 않는 이유 — 같은 요청에 같은 경로가 나와야 화면을 비교하며 깎을 수 있다.
+ */
+function jitter(seed: number, index: number): number {
+  const value = Math.sin((index + 1) * 12.9898 + seed * 78.233) * 43758.5453;
+  return 0.5 + (value - Math.floor(value));
+}
+
+/** 합이 1이 되도록 비율을 맞춘다 — 그래야 마지막 좌표가 도착지에 정확히 닿는다 */
+function normalized(seed: number): number[] {
+  const raw = Array.from({ length: RUNS_PER_AXIS }, (_, i) => jitter(seed, i));
+  const total = raw.reduce((sum, value) => sum + value, 0);
+  return raw.map((value) => value / total);
+}
+
+function gridPath(start: Pos, end: Pos, detour: number): MockGeometry {
+  const dx = end.xPos - start.xPos;
+  const dy = end.yPos - start.yPos;
+  const xShare = normalized(detour);
+  const yShare = normalized(detour + 1);
+
+  // 가로 → 세로를 번갈아 밟는 계단 모양
+  const waypoints: Pos[] = [start];
+  let cursor = start;
+  for (let i = 0; i < RUNS_PER_AXIS; i++) {
+    cursor = { xPos: cursor.xPos + dx * xShare[i], yPos: cursor.yPos };
+    waypoints.push(cursor);
+    cursor = { xPos: cursor.xPos, yPos: cursor.yPos + dy * yShare[i] };
+    waypoints.push(cursor);
+  }
+  // 비율을 더해 가며 생긴 오차가 남지 않도록 마지막은 도착지로 맞춘다
+  waypoints[waypoints.length - 1] = end;
+
+  // 후보마다 다른 길로 가도록 가운데를 옆으로 부풀린다. 양 끝에서는 0이라 출발·도착은 그대로다
+  const bulged = waypoints.map((point, i) => {
+    const t = i / (waypoints.length - 1);
+    return { xPos: point.xPos, yPos: point.yPos + dx * detour * Math.sin(Math.PI * t) };
+  });
+
+  const points: Pos[] = [bulged[0]];
+  const corners = new Map<number, string>();
+  for (let i = 1; i < bulged.length; i++) {
+    const from = bulged[i - 1];
+    const to = bulged[i];
+    for (let step = 1; step <= POINTS_PER_RUN; step++) {
+      points.push({
+        xPos: from.xPos + ((to.xPos - from.xPos) * step) / POINTS_PER_RUN,
+        yPos: from.yPos + ((to.yPos - from.yPos) * step) / POINTS_PER_RUN,
+      });
+    }
+    // 마지막 waypoint(도착)에서는 더 꺾지 않는다
+    if (i < bulged.length - 1) {
+      corners.set(points.length - 1, turnModifier(from, to, bulged[i + 1]));
+    }
+  }
+  return { points, corners };
+}
+
+/** 백엔드 `PathService.instruction()`과 같은 문장을 만든다 — 프론트는 이걸 그대로 읽는다 */
+function mockInstruction(type: string, modifier: string | null): string {
+  if (type === 'depart') return '출발하세요';
+  if (type === 'arrive') return '구간 목적지에 도착했습니다';
+  switch (modifier) {
+    case 'left':
+      return '좌회전하세요';
+    case 'right':
+      return '우회전하세요';
+    case 'slight left':
+      return '왼쪽으로 완만하게 이동하세요';
+    case 'slight right':
+      return '오른쪽으로 완만하게 이동하세요';
+    default:
+      return '직진하세요';
+  }
+}
+
+function mockManeuver(type: string, modifier: string | null, at: RoutePoint): RouteStep['behave'] {
+  return { type, modifier, exit: null, location: at.location, instruction: mockInstruction(type, modifier) };
+}
 
 /** 좌표 → 서버 응답의 GeoJSON 좌표 `[경도, 위도]` */
 function toGeo({ xPos, yPos }: Pos): [number, number] {
   return [xPos, yPos];
 }
 
-/** 경로 한 토막을 step들로 자른다 — step 경계 좌표는 앞뒤가 함께 갖는다(서버와 같은 모양) */
-function toSteps(points: RoutePoint[], mode: TravelMode, speed: number): RouteStep[] {
-  const chunks = Math.min(3, Math.max(1, points.length - 1));
-  const size = Math.ceil((points.length - 1) / chunks);
+function pointDistance(a: RoutePoint, b: RoutePoint): number {
+  return distanceMeters(
+    { xPos: a.location[0], yPos: a.location[1] },
+    { xPos: b.location[0], yPos: b.location[1] },
+  );
+}
+
+/**
+ * 구간 하나를 step으로 나눈다 — **꺾이는 지점에서 끊는다**(실제 OSRM과 같은 규칙).
+ * step 경계 좌표는 앞뒤 step이 함께 갖고, 구간 끝에는 길이 0인 `arrive` step을 붙인다.
+ */
+function toLeg(
+  points: RoutePoint[],
+  corners: Map<number, string>,
+  from: number,
+  to: number,
+  mode: TravelMode,
+): RouteLeg {
+  const speed = mode === 'WALK' ? WALK_M_PER_SEC : BIKE_M_PER_SEC;
+  const cuts = [from];
+  for (let i = from + 1; i < to; i++) {
+    if (corners.has(i)) cuts.push(i);
+  }
+  cuts.push(to);
+
   const steps: RouteStep[] = [];
-  for (let i = 0; i < chunks; i++) {
-    const slice = points.slice(i * size, Math.min(points.length, (i + 1) * size + 1));
-    if (slice.length < 2) continue;
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const a = cuts[i];
+    const b = cuts[i + 1];
+    const slice = points.slice(a, b + 1);
     let distance = 0;
-    for (let j = 1; j < slice.length; j++) {
-      distance += distanceMeters(
-        { xPos: slice[j - 1].location[0], yPos: slice[j - 1].location[1] },
-        { xPos: slice[j].location[0], yPos: slice[j].location[1] },
-      );
-    }
-    const action = MOCK_MANEUVERS[(i + steps.length) % MOCK_MANEUVERS.length];
+    for (let j = 1; j < slice.length; j++) distance += pointDistance(slice[j - 1], slice[j]);
+    const modifier = corners.get(a) ?? null;
     steps.push({
       distance: Math.round(distance),
       time: Math.round(distance / speed),
       roadName: mode === 'WALK' ? '' : '대덕대로',
       travelMode: mode === 'WALK' ? 'walking' : 'cycling',
       points: slice,
-      behave: {
-        type: action.type,
-        modifier: action.modifier,
-        exit: action.exit,
-        location: slice[0].location,
-        instruction: action.instruction,
-      },
+      behave: mockManeuver(i === 0 ? 'depart' : 'turn', i === 0 ? null : modifier, slice[0]),
     });
   }
-  return steps;
-}
+  // 실제 응답처럼 구간 끝에 길이 0인 도착 step을 둔다
+  steps.push({
+    distance: 0,
+    time: 0,
+    roadName: '',
+    travelMode: mode === 'WALK' ? 'walking' : 'cycling',
+    points: [points[to]],
+    behave: mockManeuver('arrive', null, points[to]),
+  });
 
-function toLeg(points: RoutePoint[], mode: TravelMode): RouteLeg {
-  const speed = mode === 'WALK' ? WALK_M_PER_SEC : BIKE_M_PER_SEC;
-  const steps = toSteps(points, mode, speed);
   return {
     mode,
     distance: steps.reduce((sum, step) => sum + step.distance, 0),
@@ -273,19 +370,23 @@ function toLeg(points: RoutePoint[], mode: TravelMode): RouteLeg {
  * `expectedBikeCnt`는 **일부러 넣지 않는다** — 실제 응답에 아직 없어서, 10의 "확보 우선" 칩이
  * 준비 중으로 막히는 상태를 그대로 확인할 수 있어야 한다.
  */
-const MOCK_ROUTE_VARIANTS: { type: RouteType; bend: number; hill: number }[] = [
-  { type: 'BIKE', bend: 0.05, hill: 72 },
-  { type: 'UPHILL', bend: -0.22, hill: 18 },
+const MOCK_ROUTE_VARIANTS: { type: RouteType; detour: number; hill: number }[] = [
+  { type: 'BIKE', detour: 0.06, hill: 72 },
+  { type: 'UPHILL', detour: -0.18, hill: 18 },
 ];
 
-/** 전체 경로 좌표 개수와 구간 경계 — 앞뒤 구간이 경계 좌표를 함께 갖도록 인덱스를 겹친다 */
-const MOCK_POINT_COUNT = 40;
-const RENT_INDEX = 7;
-const RETURN_INDEX = 32;
+/** 대여·반납 대여소가 놓이는 좌표 인덱스 — 꺾이는 지점(`POINTS_PER_RUN` 배수)에 맞춰 둔다 */
+function stationIndexes(pointCount: number): { rent: number; return: number } {
+  const runs = Math.round((pointCount - 1) / POINTS_PER_RUN);
+  return {
+    rent: Math.max(1, Math.round(runs * 0.15)) * POINTS_PER_RUN,
+    return: Math.min(runs - 1, Math.round(runs * 0.85)) * POINTS_PER_RUN,
+  };
+}
 
 function buildMockRoutes(start: Pos, end: Pos): RouteCandidate[] {
-  return MOCK_ROUTE_VARIANTS.map(({ type, bend, hill }) => {
-    const path = curvedPath(start, end, bend, MOCK_POINT_COUNT);
+  return MOCK_ROUTE_VARIANTS.map(({ type, detour, hill }) => {
+    const { points: path, corners } = gridPath(start, end, detour);
     const points: RoutePoint[] = path.map((pos, i) => ({
       location: toGeo(pos),
       // 가운데가 hill만큼 솟는 언덕 하나
@@ -296,15 +397,16 @@ function buildMockRoutes(start: Pos, end: Pos): RouteCandidate[] {
       name,
       location: points[index].location,
     });
+    const index = stationIndexes(points.length);
     const legs = [
-      toLeg(points.slice(0, RENT_INDEX + 1), 'WALK'),
-      toLeg(points.slice(RENT_INDEX, RETURN_INDEX + 1), 'BICYCLE'),
-      toLeg(points.slice(RETURN_INDEX), 'WALK'),
+      toLeg(points, corners, 0, index.rent, 'WALK'),
+      toLeg(points, corners, index.rent, index.return, 'BICYCLE'),
+      toLeg(points, corners, index.return, points.length - 1, 'WALK'),
     ];
     return {
       type,
-      startStation: station(RENT_INDEX, '목업 대여 대여소'),
-      endStation: station(RETURN_INDEX, '목업 반납 대여소'),
+      startStation: station(index.rent, '목업 대여 대여소'),
+      endStation: station(index.return, '목업 반납 대여소'),
       totalDistance: legs.reduce((sum, leg) => sum + leg.distance, 0),
       totalTime: legs.reduce((sum, leg) => sum + leg.time, 0),
       legs,
