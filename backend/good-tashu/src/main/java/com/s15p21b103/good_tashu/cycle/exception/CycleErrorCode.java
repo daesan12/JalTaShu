@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 @Getter
 @AllArgsConstructor
 public enum CycleErrorCode {
+    PATH_ALREADY_EXISTS(HttpStatus.CONFLICT, "해당 이용내역의 경로가 이미 저장되어 있습니다."),
     NOT_EXIST_USAGE(HttpStatus.NOT_FOUND, "이용내역을 찾을 수 없습니다."),
     CYCLE_ID_REQUIRED(HttpStatus.BAD_REQUEST, "자전거 ID를 입력해주세요."),
     CLAIM_REPORT_CATEGORY_REQUIRED(HttpStatus.BAD_REQUEST, "신고 카테고리를 선택해주세요."),

@@ -13,7 +13,7 @@ import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageListResponse;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
 import com.s15p21b103.good_tashu.cycle.service.CycleService;
 import com.s15p21b103.good_tashu.path.domain.PathInfo;
-import com.s15p21b103.good_tashu.user.annotation.currentUserId;
+import com.s15p21b103.good_tashu.user.annotation.CurrentUserId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,7 +52,7 @@ class CycleControllerTest {
         HandlerMethodArgumentResolver userResolver = new HandlerMethodArgumentResolver() {
             @Override
             public boolean supportsParameter(MethodParameter parameter) {
-                return parameter.hasParameterAnnotation(currentUserId.class);
+                return parameter.hasParameterAnnotation(CurrentUserId.class);
             }
 
             @Override
@@ -193,7 +193,7 @@ class CycleControllerTest {
         LocalDateTime startingDate = LocalDateTime.of(2026, 9, 15, 10, 0);
         PathInfo pathInfo = new PathInfo(List.of(new PathInfo.PathPoint(
                 new BigDecimal("36.350400"), new BigDecimal("127.384500"),
-                new BigDecimal("52.3"), PathInfo.Mode.CYCLE, 1)));
+                new BigDecimal("52.3"), com.s15p21b103.good_tashu.map.domain.TravelStatus.BIKE, 1)));
         CycleUsageDetailResponse response = new CycleUsageDetailResponse(
                 600, 3000,
                 new CyclePointResponse(new BigDecimal("36.350400"), new BigDecimal("127.384500")),
@@ -207,7 +207,7 @@ class CycleControllerTest {
                 .andExpect(jsonPath("$.data.totalDuration").value(600))
                 .andExpect(jsonPath("$.data.totalDistance").value(3000))
                 .andExpect(jsonPath("$.data.averageCycleRidingSpeed").value(18.0))
-                .andExpect(jsonPath("$.data.pathInfo.road[0].mode").value("CYCLE"))
+                .andExpect(jsonPath("$.data.pathInfo.road[0].travelStatus").value("BIKE"))
                 .andExpect(jsonPath("$.data.pathInfo.road[0].seq").value(1));
 
         verify(cycleService).getUsageDetail(1L, 12L);

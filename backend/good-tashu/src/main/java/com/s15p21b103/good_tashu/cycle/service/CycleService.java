@@ -3,6 +3,7 @@ package com.s15p21b103.good_tashu.cycle.service;
 import com.s15p21b103.good_tashu._util.service.S3Service;
 import com.s15p21b103.good_tashu.cycle.domain.*;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleClaimRequest;
+import com.s15p21b103.good_tashu.cycle.dto.req.CyclePathRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleRentalRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleReturnRequest;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimResponse;
@@ -257,5 +258,29 @@ public class CycleService {
                 .userEntity(userEntity)
                 .claimCategory(claimCategory)
                 .build());
+    }
+
+    @Transactional
+    public void savePathTrace(Long userId, CyclePathRequest request) {
+        UserEntity user = userRepository.findById(userId)
+            .orElseThrow(() -> new UserException(NOT_EXISTS_USER));
+        CycleUsageEntity cycleUsage = cycleUsageRepository.findFirstByUserEntity_UserIdAndReturnAtIsNotNullOrderByReturnAtDescCycleUsageIdDesc(userId)
+                .orElseThrow(() -> new CycleException(NOT_EXIST_USAGE));
+
+        if (pathRepository.findForUpdateByCycleUsage_CycleUsageId(cycleUsage.getCycleUsageId()).isPresent()) {
+            throw new CycleException(PATH_ALREADY_EXISTS);
+        }
+
+        pathRepository.save(
+                PathEntity.builder()
+                        .user(user)
+                        .pathInfo(request.pathInfo())
+                        .cycleUsage(cycleUsage)
+                        .createdAt(request.createdAt())
+                        .finishedAt(request.finishedAt())
+                        .totalDistance(request.totalDistance())
+                        .bikeDistance(request.bikeDistance())
+                        .build()
+        );
     }
 }

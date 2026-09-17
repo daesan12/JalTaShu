@@ -34,7 +34,6 @@ public class PathEntity {
     @JoinColumn(name = "cycle_usage_id", unique = true)
     private CycleUsageEntity cycleUsage;
 
-    @CreationTimestamp
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

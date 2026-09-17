@@ -5,7 +5,7 @@ import com.s15p21b103.good_tashu.admin.repository.UserBanRecordRepository;
 import com.s15p21b103.good_tashu.cycle.controller.CycleController;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimResponse;
 import com.s15p21b103.good_tashu.cycle.service.CycleService;
-import com.s15p21b103.good_tashu.user.annotation.currentUserId;
+import com.s15p21b103.good_tashu.user.annotation.CurrentUserId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,7 +51,7 @@ class BanUserInterceptorTest {
         HandlerMethodArgumentResolver userResolver = new HandlerMethodArgumentResolver() {
             @Override
             public boolean supportsParameter(MethodParameter parameter) {
-                return parameter.hasParameterAnnotation(currentUserId.class);
+                return parameter.hasParameterAnnotation(CurrentUserId.class);
             }
 
             @Override
