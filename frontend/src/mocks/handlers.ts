@@ -365,6 +365,340 @@ function forecastFor(station: Station): StationForecastPoint[] | undefined {
   });
 }
 
+/**
+ * 관리자 히트맵 하루치 목업 — 시간 24 × 대여소.
+ * 출근(8시)·퇴근(18시) 피크를 주고, 같은 (날짜·대여소·시간)이면 항상 같은 값이 나오게
+ * sin 기반 결정적 노이즈를 쓴다 (재생을 반복해도 화면이 흔들리지 않게).
+ */
+const HEATMAP_HOUR_WEIGHT = [
+  1, 0, 0, 0, 0, 1, 3, 7, 10, 6, 4, 4, 5, 4, 3, 4, 6, 9, 10, 7, 5, 4, 3, 2,
+];
+
+/** 오늘로부터 daysAgo일 전을 YYYY-MM-DD로 (대여소 상세·추이 목업용) */
+function mockDateString(daysAgo: number): string {
+  const d = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** 대여소 상세 목업 주소 — stationIdx 순환 */
+const STATION_ADDRESSES = [
+  '유성구 대학로 87',
+  '유성구 월드컵대로 32',
+  '서구 둔산로 100',
+  '동구 중앙로 215',
+  '유성구 궁동 220',
+  '서구 만년로 68',
+  '유성구 대학로 291',
+  '서구 둔산대로 169',
+];
+
+function buildMockHeatmap(date: string) {
+  const dateSeed = [...date].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  // 날짜별 물량 차이(0.65~1.25배) — 7일 추이 그래프가 실제처럼 오르내리게
+  const dayFactor = 0.65 + ((dateSeed * 7) % 10) * 0.06;
+  return STATIONS.flatMap((station, stationIdx) =>
+    Array.from({ length: 24 }, (_, hour) => {
+      // 0~1 결정적 노이즈. k로 대여/반납이 서로 다른 수열을 갖게 한다
+      const noise = (k: number) =>
+        (Math.sin(dateSeed * 3.7 + stationIdx * 13.1 + hour * 2.3 + k) + 1) / 2;
+      // 대여소마다 규모 차이 (도심 큰 곳, 외곽 작은 곳)
+      const scale = 0.5 + (stationIdx % 4) * 0.4;
+      return {
+        time: hour,
+        stationId: station.stationId,
+        // xPos=경도, yPos=위도 (coords.ts 규약)
+        xPos: station.lng,
+        yPos: station.lat,
+        rentCnt: Math.round(HEATMAP_HOUR_WEIGHT[hour] * scale * dayFactor * (0.5 + noise(0))),
+        returnCnt: Math.round(
+          HEATMAP_HOUR_WEIGHT[(hour + 23) % 24] * scale * dayFactor * (0.5 + noise(9)),
+        ),
+      };
+    }),
+  );
+}
+
+/**
+ * 공지사항 저장소 — 관리자(06·08)가 CRUD하고, 모바일 고객센터 공지 목록도 같은 데이터를 읽는다
+ * (관리자가 등록하면 앱 공지사항에 바로 뜨는 흐름을 목업으로 재현).
+ */
+const ADMIN_NOTICES_KEY = 'msw_admin_notices';
+
+interface MockNotice {
+  noticeId: number;
+  title: string;
+  content: string;
+  createdAt: string;
+}
+
+const NOTICE_SEED_CONTENT =
+  '안녕하세요, 대전광역시 공영자전거 타슈입니다.\n\n자세한 내용은 본문을 확인해 주세요. 이용에 참고 부탁드립니다.\n\n감사합니다.';
+
+function seedNotices(): MockNotice[] {
+  const seeded: MockNotice[] = [
+    { noticeId: 5, title: '임시 폐쇄 대여소 안내 (2026. 9. 10.)', createdAt: '2026-09-10T09:00:00+09:00' },
+    { noticeId: 4, title: '♣2026년 공공 데이터 활용 설문조사 실시', createdAt: '2026-08-25T09:00:00+09:00' },
+    { noticeId: 3, title: '공영자전거 타슈 이용약관 개정 알림', createdAt: '2026-04-10T09:00:00+09:00' },
+    { noticeId: 2, title: '"타슈" 대여 전 안전수칙 확인 후 대여하도록 절차 개선', createdAt: '2025-10-28T09:00:00+09:00' },
+    { noticeId: 1, title: '타슈 대여소에 반드시 반납해주세요!!!', createdAt: '2023-08-02T09:00:00+09:00' },
+  ].map((n) => ({ ...n, content: NOTICE_SEED_CONTENT }));
+  // 관리자 목록 페이지네이션 확인용 — 월별 점검 공지를 채워 2페이지 이상 만든다
+  for (let i = 0; i < 13; i++) {
+    seeded.push({
+      noticeId: 6 + i,
+      title: `대여소 정기 점검 안내 (2025년 ${12 - i}월)`,
+      content: NOTICE_SEED_CONTENT,
+      createdAt: `2025-${String(12 - i).padStart(2, '0')}-03T09:00:00+09:00`,
+    });
+  }
+  return seeded;
+}
+
+function getMockNotices(): MockNotice[] {
+  try {
+    const raw = localStorage.getItem(ADMIN_NOTICES_KEY);
+    if (raw) return JSON.parse(raw) as MockNotice[];
+  } catch {
+    // 파싱 실패 시 시드로 초기화
+  }
+  const seeded = seedNotices();
+  setMockNotices(seeded);
+  return seeded;
+}
+
+function setMockNotices(notices: MockNotice[]) {
+  try {
+    localStorage.setItem(ADMIN_NOTICES_KEY, JSON.stringify(notices));
+  } catch {
+    // 저장 불가 환경 무시
+  }
+}
+
+/** 관리자 제보(claim) 저장소 — API 3종 전부 백엔드 미구현이라 목업으로 CRUD한다 */
+const ADMIN_CLAIMS_KEY = 'msw_admin_claims';
+
+type MockClaimStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+
+interface MockClaim {
+  claimId: number;
+  cycleId: string;
+  nickname: string;
+  tag: string;
+  content: string;
+  statement: MockClaimStatus;
+  adminContent: string | null;
+  reportCnt: number;
+  createdAt: string;
+}
+
+const CLAIM_SEEDS: { tag: string; content: string }[] = [
+  { tag: '브레이크', content: '브레이크가 잘 안 잡혀요. 내리막에서 위험합니다.' },
+  { tag: '타이어', content: '앞바퀴 공기압이 거의 없어요.' },
+  { tag: '체인', content: '체인이 자꾸 빠집니다. 두 번이나 다시 끼웠어요.' },
+  { tag: '안장', content: '안장 높이 조절 레버가 고장났어요.' },
+  { tag: '프레임', content: '프레임에 금이 간 것 같아요. 확인 부탁드립니다.' },
+  { tag: '반납 오류', content: '반납했는데 앱에서 계속 대여 중으로 나와요.' },
+  { tag: '기타', content: 'QR 코드 스티커가 훼손돼서 스캔이 안 됩니다.' },
+];
+const CLAIM_NICKNAMES = ['달리는거북', '바퀴요정', '자전거덕후', '탄방동주민', '출근라이더'];
+
+function seedClaims(): MockClaim[] {
+  const statuses: MockClaimStatus[] = [
+    'OPEN', 'OPEN', 'IN_PROGRESS', 'OPEN', 'RESOLVED', 'OPEN', 'IN_PROGRESS', 'RESOLVED',
+  ];
+  return Array.from({ length: 26 }, (_, i) => {
+    const seed = CLAIM_SEEDS[i % CLAIM_SEEDS.length];
+    const statement = statuses[i % statuses.length];
+    return {
+      claimId: 26 - i,
+      cycleId: `DJ-1${String((i * 7) % 90).padStart(4, '0')}`,
+      nickname: CLAIM_NICKNAMES[i % CLAIM_NICKNAMES.length],
+      tag: seed.tag,
+      content: seed.content,
+      statement,
+      adminContent: statement === 'RESOLVED' ? '점검 완료 후 재배치했습니다.' : null,
+      reportCnt: (i * 3) % 6,
+      // 최신 제보가 위로 오게 약 하루 간격으로 과거로 펼친다
+      createdAt: new Date(Date.now() - (i * 26 + 3) * 3600_000).toISOString(),
+    };
+  });
+}
+
+function getMockClaims(): MockClaim[] {
+  try {
+    const raw = localStorage.getItem(ADMIN_CLAIMS_KEY);
+    if (raw) return JSON.parse(raw) as MockClaim[];
+  } catch {
+    // 파싱 실패 시 시드로 초기화
+  }
+  const seeded = seedClaims();
+  setMockClaims(seeded);
+  return seeded;
+}
+
+function setMockClaims(claims: MockClaim[]) {
+  try {
+    localStorage.setItem(ADMIN_CLAIMS_KEY, JSON.stringify(claims));
+  } catch {
+    // 저장 불가 환경 무시
+  }
+}
+
+/**
+ * 관리자 자전거 목업 — CRUD가 없어 저장소 없이 결정적으로 생성한다.
+ * 자전거 ID 체계(DJ-1XXXX)는 제보 시드와 같아 자전거 상세의 제보 탭이
+ * 제보 관리(msw_admin_claims)와 같은 데이터를 보게 된다.
+ */
+const CYCLE_COUNT = 90;
+
+function mockCycleId(index: number): string {
+  return `DJ-1${String(index).padStart(4, '0')}`;
+}
+
+function mockCycleSummary(index: number) {
+  const cycleId = mockCycleId(index);
+  // 일부는 대여(이동) 중이라 배치 대여소가 없다
+  const station = index % 9 === 4 ? null : STATIONS[index % STATIONS.length];
+  const openClaimCnt = getMockClaims().filter(
+    (c) => c.cycleId === cycleId && c.statement === 'OPEN',
+  ).length;
+  return {
+    cycleId,
+    stationId: station?.stationId ?? null,
+    stationName: station?.name ?? null,
+    statement: index % 9 === 2 ? 'SUSPENDED' : 'ACTIVE',
+    openClaimCnt,
+    lastUsedAt: new Date(Date.now() - ((index * 97) % 5000) * 60_000).toISOString(),
+  };
+}
+
+function mockCycleRides(index: number) {
+  return Array.from({ length: 10 }, (_, j) => {
+    const durationMin = 8 + ((index + j * 5) % 35);
+    const end = Date.now() - (j * 13 + index) * 3600_000;
+    return {
+      rideId: index * 100 + j,
+      startAt: new Date(end - durationMin * 60_000).toISOString(),
+      endAt: new Date(end).toISOString(),
+      fromStation: STATIONS[(index + j) % STATIONS.length].name,
+      toStation: STATIONS[(index + j * 3 + 1) % STATIONS.length].name,
+      durationMin,
+      distanceKm: Number((durationMin * 0.21).toFixed(1)),
+    };
+  });
+}
+
+/**
+ * 관리자 사용자 목업 — 사용자 30명은 결정적으로 생성하고,
+ * 밴 기록만 저장소(user_ban_records 흉내)에 둔다. 상태(NORMAL/BANNED)는
+ * 백엔드처럼 "유효한 밴 기록이 있는가"에서 파생한다.
+ */
+const ADMIN_USER_BANS_KEY = 'msw_admin_user_bans';
+const ADMIN_USER_COUNT = 30;
+
+interface MockBanRecord {
+  banId: number;
+  userId: number;
+  startedAt: string;
+  scheduledEndAt: string;
+  releasedAt: string | null;
+  comment: string | null;
+  adminName: string;
+}
+
+const USER_NICKNAME_POOL = [
+  '달리는거북', '바퀴요정', '자전거덕후', '탄방동주민', '출근라이더',
+  '둔산질주', '갑천산책러', '유성불주먹', '주말라이더', '한밭바람',
+];
+
+function mockUserNickname(userId: number): string {
+  const base = USER_NICKNAME_POOL[userId % USER_NICKNAME_POOL.length];
+  return userId <= USER_NICKNAME_POOL.length ? base : `${base}${userId}`;
+}
+
+function seedUserBans(): MockBanRecord[] {
+  const day = 24 * 3600_000;
+  return [
+    // 진행 중인 제재 — 목록에서 BANNED로 보이게
+    {
+      banId: 2,
+      userId: 7,
+      startedAt: new Date(Date.now() - 2 * day).toISOString(),
+      scheduledEndAt: new Date(Date.now() + 5 * day).toISOString(),
+      releasedAt: null,
+      comment: '허위 제보 반복 접수 (3회)',
+      adminName: '운영관리자',
+    },
+    // 해제된 과거 제재 — 밴 이력 탭에서 이력 예시로
+    {
+      banId: 1,
+      userId: 7,
+      startedAt: new Date(Date.now() - 40 * day).toISOString(),
+      scheduledEndAt: new Date(Date.now() - 33 * day).toISOString(),
+      releasedAt: new Date(Date.now() - 35 * day).toISOString(),
+      comment: '방치 신고 허위 작성',
+      adminName: '운영관리자',
+    },
+  ];
+}
+
+function getMockUserBans(): MockBanRecord[] {
+  try {
+    const raw = localStorage.getItem(ADMIN_USER_BANS_KEY);
+    if (raw) return JSON.parse(raw) as MockBanRecord[];
+  } catch {
+    // 파싱 실패 시 시드로 초기화
+  }
+  const seeded = seedUserBans();
+  setMockUserBans(seeded);
+  return seeded;
+}
+
+function setMockUserBans(records: MockBanRecord[]) {
+  try {
+    localStorage.setItem(ADMIN_USER_BANS_KEY, JSON.stringify(records));
+  } catch {
+    // 저장 불가 환경 무시
+  }
+}
+
+/** 백엔드 findFirstBy…ReleasedAtIsNullAndScheduledEndAtAfter(now)와 같은 판정 */
+function activeBanOf(userId: number): MockBanRecord | null {
+  const now = Date.now();
+  return (
+    getMockUserBans().find(
+      (b) =>
+        b.userId === userId && b.releasedAt === null && new Date(b.scheduledEndAt).getTime() > now,
+    ) ?? null
+  );
+}
+
+function mockUserSummary(userId: number) {
+  return {
+    userId,
+    nickname: mockUserNickname(userId),
+    recentUsingAt: new Date(Date.now() - ((userId * 131) % 4000) * 60_000).toISOString(),
+    userStatement: activeBanOf(userId) ? 'BANNED' : 'NORMAL',
+  };
+}
+
+function mockUserRides(userId: number) {
+  return Array.from({ length: 8 }, (_, j) => {
+    const durationMin = 7 + ((userId + j * 7) % 38);
+    const end = Date.now() - (j * 31 + userId * 3) * 3600_000;
+    return {
+      rideId: userId * 1000 + j,
+      startAt: new Date(end - durationMin * 60_000).toISOString(),
+      endAt: new Date(end).toISOString(),
+      fromStation: STATIONS[(userId + j) % STATIONS.length].name,
+      toStation: STATIONS[(userId + j * 5 + 2) % STATIONS.length].name,
+      durationMin,
+      distanceKm: Number((durationMin * 0.19).toFixed(1)),
+    };
+  });
+}
+
 /** 08 장소 검색 목업 — 네이버 지역검색 응답을 백엔드가 정리한 형태(xPos=경도, yPos=위도) */
 const PLACES: PlaceSearchResult[] = [
   {
@@ -658,23 +992,19 @@ export const handlers = [
   }),
 
   // ── 공지사항 (고객센터 — 백엔드 API 미정, 임시 스키마) ──────────────
+  // 관리자 공지 저장소를 그대로 읽는다 — 관리자가 등록/삭제하면 여기에도 반영
   http.get('/api/notices', async () => {
     await delay(300);
     const authFail = requireAuth();
     if (authFail) return authFail;
-    return HttpResponse.json(
-      ok([
-        { id: 5, title: '임시 폐쇄 대여소 안내 (2026. 9. 10.)', date: '2026/09/10' },
-        { id: 4, title: '♣2026년 공공 데이터 활용 설문조사 실시', date: '2026/08/25' },
-        { id: 3, title: '공영자전거 타슈 이용약관 개정 알림', date: '2026/04/10' },
-        {
-          id: 2,
-          title: '"타슈" 대여 전 안전수칙 확인 후 대여하도록 절차 개선',
-          date: '2025/10/28',
-        },
-        { id: 1, title: '타슈 대여소에 반드시 반납해주세요!!!', date: '2023/08/02' },
-      ]),
-    );
+    const notices = [...getMockNotices()]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((n) => ({
+        id: n.noticeId,
+        title: n.title,
+        date: n.createdAt.slice(0, 10).replaceAll('-', '/'),
+      }));
+    return HttpResponse.json(ok(notices));
   }),
 
   // ── Open API 신청 (자전거 정보 — 백엔드 API 미정, 임시 스키마) ──────
@@ -795,6 +1125,295 @@ export const handlers = [
     await delay(200);
     setAdminLoggedIn(false);
     return HttpResponse.json(ok(null));
+  }),
+
+  // ── 관리자 히트맵 (01 — API 명세 구현 O, 응답 형태는 인수인계 문서 기준 임시) ──
+  http.get('/api/admin/heatmap', async ({ request }) => {
+    await delay(400);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const date = new URL(request.url).searchParams.get('date') ?? '';
+    return HttpResponse.json(ok(buildMockHeatmap(date)));
+  }),
+
+  // ── 관리자 대여소 상세 (02 — 구현 O, 응답 형태 임시) ──────────────────
+  // ⚠ trend가 아래 :stationId에 잡히지 않도록 반드시 먼저 등록한다
+  http.get('/api/admin/station/trend', async ({ request }) => {
+    await delay(350);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const stationId = new URL(request.url).searchParams.get('stationId') ?? '';
+    if (!STATIONS.some((s) => s.stationId === stationId)) {
+      return fail(404, '존재하지 않는 대여소입니다.');
+    }
+    // 오늘 포함 최근 7일 — 히트맵과 같은 생성기를 써서 두 화면의 숫자가 맞는다
+    const points = Array.from({ length: 7 }, (_, i) => {
+      const date = mockDateString(6 - i);
+      const day = buildMockHeatmap(date).filter((p) => p.stationId === stationId);
+      return {
+        date,
+        rentalCnt: day.reduce((sum, p) => sum + p.rentCnt, 0),
+        returnCnt: day.reduce((sum, p) => sum + p.returnCnt, 0),
+      };
+    });
+    return HttpResponse.json(ok(points));
+  }),
+
+  // ── 관리자 제보 관리 (03 — API 전부 미구현, 목업 기준) ─────────────────
+  http.get('/api/admin/cycle/claim', async () => {
+    await delay(350);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const claims = [...getMockClaims()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return HttpResponse.json(ok(claims));
+  }),
+
+  http.patch('/api/admin/cycle/claim/:claimId', async ({ params, request }) => {
+    await delay(400);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const body = (await request.json()) as { statement?: MockClaimStatus; content?: string };
+    if (!body.statement) return fail(400, '변경할 상태를 선택해 주세요.');
+    const claims = getMockClaims();
+    const claim = claims.find((c) => c.claimId === Number(params.claimId));
+    if (!claim) return fail(404, '존재하지 않는 제보입니다.');
+    claim.statement = body.statement;
+    claim.adminContent = body.content?.trim() || null;
+    setMockClaims(claims);
+    return HttpResponse.json(ok(claim));
+  }),
+
+  // ── 관리자 사용자 관리 (04·09 — 목록·밴·해제 구현 O(실측 스키마), 상세·이력 미구현) ──
+  http.get('/api/admin/user/list', async ({ request }) => {
+    await delay(400);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const url = new URL(request.url);
+    const statement = url.searchParams.get('statement') ?? '';
+    const order = url.searchParams.get('order') ?? 'newest';
+    let users = Array.from({ length: ADMIN_USER_COUNT }, (_, i) => mockUserSummary(i + 1));
+    if (statement) users = users.filter((u) => u.userStatement === statement);
+    users.sort((a, b) =>
+      order === 'oldest'
+        ? a.recentUsingAt.localeCompare(b.recentUsingAt)
+        : b.recentUsingAt.localeCompare(a.recentUsingAt),
+    );
+    return HttpResponse.json(ok(users));
+  }),
+
+  http.post('/api/admin/user/:userId/ban', async ({ params, request }) => {
+    await delay(400);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const userId = Number(params.userId);
+    if (userId < 1 || userId > ADMIN_USER_COUNT) return fail(404, '존재하지 않는 사용자입니다.');
+    const body = (await request.json()) as { scheduledEndAt?: string; comment?: string };
+    // 백엔드 @NotNull @Future 검증과 동일
+    if (!body.scheduledEndAt || new Date(body.scheduledEndAt).getTime() <= Date.now()) {
+      return fail(400, '제재 종료 시각은 미래여야 합니다.');
+    }
+    if ((body.comment ?? '').length > 100) return fail(400, '사유는 100자 이내여야 합니다.');
+    if (activeBanOf(userId)) return fail(409, '이미 제재 중인 사용자입니다.');
+    const records = getMockUserBans();
+    records.unshift({
+      banId: Math.max(0, ...records.map((r) => r.banId)) + 1,
+      userId,
+      startedAt: new Date().toISOString(),
+      scheduledEndAt: body.scheduledEndAt,
+      releasedAt: null,
+      comment: body.comment?.trim() || null,
+      adminName: MOCK_ADMIN.name,
+    });
+    setMockUserBans(records);
+    return HttpResponse.json(ok(null));
+  }),
+
+  http.post('/api/admin/user/:userId/un-ban', async ({ params }) => {
+    await delay(400);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const userId = Number(params.userId);
+    if (userId < 1 || userId > ADMIN_USER_COUNT) return fail(404, '존재하지 않는 사용자입니다.');
+    // 백엔드 releaseActiveBan처럼 유효한 제재에 해제 시각만 기록
+    const records = getMockUserBans();
+    const active = records.find(
+      (b) =>
+        b.userId === userId &&
+        b.releasedAt === null &&
+        new Date(b.scheduledEndAt).getTime() > Date.now(),
+    );
+    if (active) active.releasedAt = new Date().toISOString();
+    setMockUserBans(records);
+    return HttpResponse.json(ok(null));
+  }),
+
+  http.get('/api/admin/user/:userId/ban-records', async ({ params }) => {
+    await delay(300);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const userId = Number(params.userId);
+    const records = getMockUserBans()
+      .filter((b) => b.userId === userId)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    return HttpResponse.json(ok(records));
+  }),
+
+  http.get('/api/admin/user/:userId', async ({ params }) => {
+    await delay(350);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const userId = Number(params.userId);
+    if (Number.isNaN(userId) || userId < 1 || userId > ADMIN_USER_COUNT) {
+      return fail(404, '존재하지 않는 사용자입니다.');
+    }
+    const active = activeBanOf(userId);
+    return HttpResponse.json(
+      ok({
+        ...mockUserSummary(userId),
+        joinedAt: new Date(Date.now() - (200 + userId * 9) * 24 * 3600_000).toISOString(),
+        activeBan: active
+          ? { scheduledEndAt: active.scheduledEndAt, comment: active.comment }
+          : null,
+        totalRides: 12 + ((userId * 11) % 120),
+        totalDistanceKm: Number((30 + ((userId * 17) % 260)).toFixed(1)),
+        totalDurationMin: 240 + ((userId * 53) % 1800),
+        rides: mockUserRides(userId),
+      }),
+    );
+  }),
+
+  // ── 관리자 자전거 관리 (05·07 — 제보 탭 외 구현 O, 응답 형태 임시) ─────
+  // ⚠ 고정 경로(list·statics)는 아래 :cycleId 핸들러들보다 먼저 등록한다
+  http.get('/api/admin/cycle/list', async () => {
+    await delay(400);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const cycles = Array.from({ length: CYCLE_COUNT }, (_, i) => mockCycleSummary(i));
+    return HttpResponse.json(ok(cycles));
+  }),
+
+  http.get('/api/admin/cycle/statics', async () => {
+    await delay(300);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const cycles = Array.from({ length: CYCLE_COUNT }, (_, i) => mockCycleSummary(i));
+    return HttpResponse.json(
+      ok({
+        totalCnt: cycles.length,
+        activeCnt: cycles.filter((c) => c.statement === 'ACTIVE').length,
+        suspendedCnt: cycles.filter((c) => c.statement === 'SUSPENDED').length,
+        claimedCnt: cycles.filter((c) => c.openClaimCnt > 0).length,
+      }),
+    );
+  }),
+
+  http.get('/api/admin/cycle/:cycleId/statics', async ({ params }) => {
+    await delay(250);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const index = Number(String(params.cycleId).slice(-4));
+    if (Number.isNaN(index) || index >= CYCLE_COUNT) return fail(404, '존재하지 않는 자전거입니다.');
+    return HttpResponse.json(
+      ok({
+        totalRides: 40 + ((index * 7) % 160),
+        totalDistanceKm: Number((80 + ((index * 13) % 300) + index / 10).toFixed(1)),
+        totalDurationMin: 600 + ((index * 41) % 2400),
+      }),
+    );
+  }),
+
+  http.get('/api/admin/cycle/:cycleId/claim', async ({ params }) => {
+    await delay(300);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const cycleId = String(params.cycleId);
+    const claims = getMockClaims()
+      .filter((c) => c.cycleId === cycleId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return HttpResponse.json(ok(claims));
+  }),
+
+  http.get('/api/admin/cycle/:cycleId', async ({ params }) => {
+    await delay(350);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const cycleId = String(params.cycleId);
+    const index = Number(cycleId.slice(-4));
+    if (!/^DJ-1\d{4}$/.test(cycleId) || Number.isNaN(index) || index >= CYCLE_COUNT) {
+      return fail(404, '존재하지 않는 자전거입니다.');
+    }
+    return HttpResponse.json(ok({ ...mockCycleSummary(index), rides: mockCycleRides(index) }));
+  }),
+
+  // ── 관리자 공지사항 (06·08 — 목록·상세는 구현 O, 등록·삭제는 구현 X라 목업 기준) ──
+  http.get('/api/notice/list', async () => {
+    await delay(300);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const notices = [...getMockNotices()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return HttpResponse.json(ok(notices));
+  }),
+
+  http.get('/api/notice/:noticeId', async ({ params }) => {
+    await delay(250);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const notice = getMockNotices().find((n) => n.noticeId === Number(params.noticeId));
+    if (!notice) return fail(404, '존재하지 않는 공지입니다.');
+    return HttpResponse.json(ok(notice));
+  }),
+
+  http.post('/api/admin/notice', async ({ request }) => {
+    await delay(400);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const body = (await request.json()) as { title?: string; content?: string };
+    const title = body.title?.trim() ?? '';
+    const content = body.content?.trim() ?? '';
+    if (!title || !content) return fail(400, '제목과 내용을 입력해 주세요.');
+    if (title.length > 60 || content.length > 2000) {
+      return fail(400, '제목 60자, 내용 2000자를 넘을 수 없습니다.');
+    }
+    const notices = getMockNotices();
+    const notice: MockNotice = {
+      noticeId: Math.max(0, ...notices.map((n) => n.noticeId)) + 1,
+      title,
+      content,
+      createdAt: new Date().toISOString(),
+    };
+    notices.unshift(notice);
+    setMockNotices(notices);
+    return HttpResponse.json(ok(notice));
+  }),
+
+  http.delete('/api/admin/notice/:noticeId', async ({ params }) => {
+    await delay(400);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const notices = getMockNotices();
+    const noticeId = Number(params.noticeId);
+    if (!notices.some((n) => n.noticeId === noticeId)) {
+      return fail(404, '존재하지 않는 공지입니다.');
+    }
+    setMockNotices(notices.filter((n) => n.noticeId !== noticeId));
+    return HttpResponse.json(ok(null));
+  }),
+
+  http.get('/api/admin/station/:stationId', async ({ params }) => {
+    await delay(350);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const station = STATIONS.find((s) => s.stationId === String(params.stationId));
+    if (!station) return fail(404, '존재하지 않는 대여소입니다.');
+
+    const stationIdx = STATIONS.indexOf(station);
+    const sumDay = (date: string, key: 'rentCnt' | 'returnCnt') =>
+      buildMockHeatmap(date)
+        .filter((p) => p.stationId === station.stationId)
+        .reduce((sum, p) => sum + p[key], 0);
+    const today = mockDateString(0);
+    const yesterday = mockDateString(1);
+
+    return HttpResponse.json(
+      ok({
+        stationId: station.stationId,
+        name: station.name,
+        address: `대전광역시 ${STATION_ADDRESSES[stationIdx % STATION_ADDRESSES.length]}`,
+        rackCnt: 10 + (stationIdx % 3) * 5,
+        cycleCnt: station.currentBikes,
+        todayRentCnt: sumDay(today, 'rentCnt'),
+        yesterdayRentCnt: sumDay(yesterday, 'rentCnt'),
+        todayReturnCnt: sumDay(today, 'returnCnt'),
+        yesterdayReturnCnt: sumDay(yesterday, 'returnCnt'),
+        cycles: Array.from({ length: station.currentBikes }, (_, i) => ({
+          cycleId: `DJ-1${String(stationIdx)}${String(i).padStart(3, '0')}`,
+          // 데모용: 세 번째 자전거는 정지 상태로 보여준다
+          statement: i === 2 ? '정지' : '정상',
+          lastUsedAt: new Date(Date.now() - (i * 47 + stationIdx * 13) * 60_000).toISOString(),
+        })),
+      }),
+    );
   }),
 
   http.post('/api/auth/sign-up', async ({ request }) => {

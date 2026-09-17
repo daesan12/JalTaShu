@@ -31,6 +31,11 @@ export function AdminSelect({
   );
 }
 
+/** 단일 날짜 선택 (01 히트맵의 조회 날짜) */
+export function AdminDateInput({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input type="date" className={`${CONTROL} ${className}`} {...props} />;
+}
+
 interface AdminDateRangeProps {
   from: string;
   to: string;
