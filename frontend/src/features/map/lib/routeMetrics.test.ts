@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RoutePath } from '@/shared/api/types';
 import {
   assignBadges,
-  formatMinutes,
+  formatSecondsAsMinutes,
   sortSummaries,
   summarizeRoute,
   totalAscent,
@@ -112,10 +112,10 @@ describe('assignBadges', () => {
   });
 });
 
-describe('formatMinutes', () => {
+describe('formatSecondsAsMinutes', () => {
   it('반올림하고 1분 미만은 1분', () => {
-    expect(formatMinutes(1260)).toBe('21분');
-    expect(formatMinutes(1290)).toBe('22분');
-    expect(formatMinutes(10)).toBe('1분');
+    expect(formatSecondsAsMinutes(1260)).toBe('21분');
+    expect(formatSecondsAsMinutes(1290)).toBe('22분');
+    expect(formatSecondsAsMinutes(10)).toBe('1분');
   });
 });

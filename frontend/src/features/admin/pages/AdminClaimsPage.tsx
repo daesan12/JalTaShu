@@ -121,7 +121,10 @@ export function AdminClaimsPage() {
         </AdminSelect>
         <AdminSelect
           value={order}
-          onChange={(e) => setOrder(e.target.value as SortOrder)}
+          onChange={(e) => {
+            setOrder(e.target.value as SortOrder);
+            setPage(1);
+          }}
           aria-label="정렬"
         >
           <option value="newest">최신순</option>

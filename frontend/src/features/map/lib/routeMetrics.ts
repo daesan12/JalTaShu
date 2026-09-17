@@ -107,7 +107,7 @@ export function assignBadges(summaries: RouteSummary[]): (RouteBadgeKind | null)
 }
 
 /** 초 → "21분". 1분 미만도 1분으로 보여준다 */
-export function formatMinutes(sec: number): string {
+export function formatSecondsAsMinutes(sec: number): string {
   return `${Math.max(1, Math.round(sec / 60))}분`;
 }
 
