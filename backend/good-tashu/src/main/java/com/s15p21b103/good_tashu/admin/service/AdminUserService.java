@@ -114,7 +114,8 @@ public class AdminUserService {
         // 조회 결과를 관리자 화면용 응답 DTO로 변환
         return adminUserRepository.findUserSummaries(normalizedStatement, normalizedOrder).stream()
                 .map(user -> new AdminUserListResponse(
-                        user.getUserId(), user.getRecentUsingAt(), user.getUserStatement()))
+                        user.getUserId(), user.getNickname(),
+                        user.getRecentUsingAt(), user.getUserStatement()))
                 .toList();
     }
     //유저상태 파라미터 검증
