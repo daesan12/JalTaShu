@@ -40,8 +40,9 @@ interface RouteGuideCardProps {
 /**
  * 12 경로 안내 — 지금 해야 할 일 카드.
  *
- * 백엔드 경로 응답에 회전 지점이 없어 "몇 m 앞 우회전"은 만들 수 없다.
- * 구간(도보 → 자전거 → 도보) 단위로 "무엇을 하는 중인지"와 그 구간이 얼마나 남았는지만 보여준다.
+ * 구간(도보 → 자전거 → 도보) 단위로 "무엇을 하는 중인지"와 그 구간이 얼마나 남았는지를 보여준다.
+ * 회전 단위 안내("몇 m 앞 우회전")는 서버가 `steps[].behave`로 주기 시작했고, 이 카드 위에
+ * 얹는 것은 다음 이슈다.
  */
 export function RouteGuideCard({
   progress,
@@ -49,7 +50,7 @@ export function RouteGuideCard({
   legCount,
   locationUnknown,
 }: RouteGuideCardProps) {
-  const walking = progress.leg?.behave === 'WALK';
+  const walking = progress.leg?.mode === 'WALK';
   return (
     <div className="pt-safe pointer-events-none absolute inset-x-0 top-0 z-10 p-4">
       <div className="pointer-events-auto rounded-2xl bg-surface p-4 shadow-lg">

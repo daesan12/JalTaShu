@@ -1,4 +1,4 @@
-import type { RoutePath } from '@/shared/api/types';
+import type { RouteCandidate } from '@/shared/api/types';
 import { formatDistance } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/Button';
 import { ElevationChart } from '@/shared/ui/ElevationChart';
@@ -11,7 +11,7 @@ interface ArrivalSummaryScreenProps {
   elapsedSec: number;
   totalDistanceM: number;
   bikeDistanceM: number;
-  route: RoutePath;
+  route: RouteCandidate;
   onClose: () => void;
 }
 

@@ -1,13 +1,12 @@
 import { useEffect, useRef } from 'react';
-import type { RoutePath } from '@/shared/api/types';
-import { posToLatLng } from '@/shared/lib/coords';
+import type { RouteCandidate } from '@/shared/api/types';
 import { fitPathAboveSheet } from '@/features/map/lib/mapFit';
-import { mutedRouteStrokeColor, routeStrokeColor } from '@/features/map/lib/routeBadges';
-import type { RouteBadgeKind } from '@/features/map/lib/routeMetrics';
+import { routeLatLngs } from '@/features/map/lib/routeSegments';
+import { mutedRouteStrokeColor, routeStrokeColor } from '@/features/map/lib/routeTypeStyle';
 
 /**
- * 선택한 경로만 뱃지 색으로 굵게, 나머지는 회색으로 가늘고 옅게.
- * 4개를 전부 색으로 그리면 겹치는 구간에서 어느 것이 선택인지 안 보여 회색으로 대비를 준다
+ * 선택한 경로만 종류 색으로 굵게, 나머지는 회색으로 가늘고 옅게.
+ * 전부 색으로 그리면 겹치는 구간에서 어느 것이 선택인지 안 보여 회색으로 대비를 준다
  */
 interface StrokeStyle {
   strokeWeight: number;
@@ -28,17 +27,15 @@ function applyStyle(line: naver.maps.Polyline, style: StrokeStyle, color: string
 interface RoutePolylinesProps {
   map: naver.maps.Map;
   /** null이면 선을 모두 지운다 */
-  routes: RoutePath[] | null;
-  /** 원본 인덱스 순 뱃지 — 경로선 색을 뱃지와 같게 맞춘다 */
-  badges: (RouteBadgeKind | null)[];
+  routes: RouteCandidate[] | null;
   selectedIndex: number | null;
 }
 
 /**
- * 10 경로 비교 — 후보 전부를 뱃지 색으로 그린다(Figma 10). 도보/자전거 2색 구간 표시는 11에서.
+ * 10 경로 비교 — 후보 전부를 그린다(Figma 10). 도보/자전거 2색 구간 표시는 11에서.
  * 인스턴스는 ref에 두고 후보 목록이 바뀔 때만 다시 만든다. 선택 변경은 스타일만 바꾼다.
  */
-export function RoutePolylines({ map, routes, badges, selectedIndex }: RoutePolylinesProps) {
+export function RoutePolylines({ map, routes, selectedIndex }: RoutePolylinesProps) {
   const linesRef = useRef<naver.maps.Polyline[]>([]);
 
   useEffect(() => {
@@ -51,10 +48,7 @@ export function RoutePolylines({ map, routes, badges, selectedIndex }: RoutePoly
     // 후보 전체 좌표 — 새 후보가 오면 출발·도착이 한 화면에 들어오게 맞춘다
     const allPoints: naver.maps.LatLng[] = [];
     for (const route of routes) {
-      const path = route.location.map((pos) => {
-        const { lat, lng } = posToLatLng(pos);
-        return new LatLng(lat, lng);
-      });
+      const path = routeLatLngs(route).map(({ lat, lng }) => new LatLng(lat, lng));
       allPoints.push(...path);
       lines.push(
         new Polyline({
@@ -77,13 +71,14 @@ export function RoutePolylines({ map, routes, badges, selectedIndex }: RoutePoly
   useEffect(() => {
     const muted = mutedRouteStrokeColor();
     linesRef.current.forEach((line, index) => {
-      if (index === selectedIndex) {
-        applyStyle(line, SELECTED_STYLE, routeStrokeColor(badges[index] ?? null));
+      const type = routes?.[index]?.type;
+      if (index === selectedIndex && type !== undefined) {
+        applyStyle(line, SELECTED_STYLE, routeStrokeColor(type));
       } else {
         applyStyle(line, OTHER_STYLE, muted);
       }
     });
-  }, [selectedIndex, routes, badges]);
+  }, [selectedIndex, routes]);
 
   // 지도가 바뀌거나 사라질 때 선 정리
   useEffect(() => {

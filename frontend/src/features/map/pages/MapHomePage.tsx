@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ApiError } from '@/shared/api/client';
-import type { PlaceSearchResult, Pos, RoutePath } from '@/shared/api/types';
+import type { PlaceSearchResult, Pos, RouteCandidate } from '@/shared/api/types';
 import { latLngToPos } from '@/shared/lib/coords';
 import { Button } from '@/shared/ui/Button';
 import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/stations';
@@ -43,7 +43,6 @@ import {
 import { getRouteProgress, hasArrived } from '@/features/map/lib/routeProgress';
 import { toLegs } from '@/features/map/lib/routeSegments';
 import {
-  assignBadges,
   sortSummaries,
   summarizeRoutes,
   type RouteSort,
@@ -113,7 +112,7 @@ const LIFT_FOR_MINI_SHEET_CLASS = '-translate-y-[148px]';
 
 interface RouteResult {
   /** 서버가 정렬·필터 없이 준 후보 전체 */
-  routes: RoutePath[];
+  routes: RouteCandidate[];
   /** 받은 시각(ms). 출발은 "지금"이라 도착 예정 시각의 기준이 된다 */
   fetchedAt: number;
 }
@@ -152,7 +151,7 @@ export function MapHomePage() {
     elapsedSec: number;
     totalDistanceM: number;
     bikeDistanceM: number;
-    route: RoutePath;
+    route: RouteCandidate;
   } | null>(null);
   const location = useCurrentLocation();
   // 읽기만 하므로 state가 아니라 ref에 둔다(지도를 옮길 때마다 화면을 다시 그릴 이유가 없다)
@@ -203,12 +202,11 @@ export function MapHomePage() {
     enabled: !popupClosed,
   });
 
-  // 후보 요약·뱃지는 후보가 바뀔 때만 다시 계산한다. 뱃지는 응답에 없고 후보끼리 비교해 프론트가 붙인다
+  // 후보 요약은 후보가 바뀔 때만 다시 계산한다. 후보 종류 라벨은 서버가 준 `type`을 그대로 쓴다
   const routeSummaries = useMemo(
     () => (routeResult === null ? [] : summarizeRoutes(routeResult.routes)),
     [routeResult],
   );
-  const routeBadges = useMemo(() => assignBadges(routeSummaries), [routeSummaries]);
 
   const routeSearch = useMutation({
     mutationFn: getRoutePaths,
@@ -587,9 +585,11 @@ export function MapHomePage() {
     )
       return;
     arrivalHandledRef.current = true;
-    const totalDistanceM = detailRoute.distance.reduce((sum, m) => sum + m, 0);
-    const bikeDistanceM = detailRoute.distance.reduce(
-      (sum, m, i) => sum + (detailRoute.behave[i] === 'BIKE' ? m : 0),
+    // 실제 GPS 궤적이 아니라 안내 중이던 경로의 거리다(원시 좌표를 쌓지 않는다)
+    const guideLegs = toLegs(detailRoute);
+    const totalDistanceM = guideLegs.reduce((sum, leg) => sum + leg.distance, 0);
+    const bikeDistanceM = guideLegs.reduce(
+      (sum, leg) => sum + (leg.mode === 'BICYCLE' ? leg.distance : 0),
       0,
     );
     setArrivalSummary({
@@ -627,7 +627,6 @@ export function MapHomePage() {
         onSelectStation={selectStation}
         destination={destination}
         routes={compareActive ? routeResult.routes : null}
-        routeBadges={routeBadges}
         selectedRouteIndex={selectedRouteIndex}
         detailRoute={detailRoute}
         currentLocation={location.position}
@@ -719,7 +718,6 @@ export function MapHomePage() {
           snap={compareSnap}
           onSnapChange={setCompareSnap}
           summaries={routeSummaries}
-          badges={routeBadges}
           fetchedAt={routeResult.fetchedAt}
           sort={routeSort}
           onSortChange={changeRouteSort}
@@ -736,7 +734,6 @@ export function MapHomePage() {
           summary={
             selectedRouteIndex === null ? null : (routeSummaries[selectedRouteIndex] ?? null)
           }
-          badge={selectedRouteIndex === null ? null : (routeBadges[selectedRouteIndex] ?? null)}
           fetchedAt={routeResult.fetchedAt}
           onStart={startGuide}
           onBack={exitRouteDetail}

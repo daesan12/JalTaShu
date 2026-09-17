@@ -1,24 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import type { RoutePath } from '@/shared/api/types';
 import { buildElevationProfile, classifyGrade } from '@/features/map/lib/routeElevation';
+import { makeLeg, makeRoute } from '@/features/map/lib/__fixtures__/route';
 
 /**
- * 위도 36.35에서 경도 0.001도 ≈ 89.6m. 고도 지점을 경도로만 벌려 거리를 만든다.
- * `altitude[]`는 `location[]`과 길이가 달라도 되므로 여기서는 location을 비워 둔다.
+ * 위도 36.35에서 경도 0.001도 ≈ 89.6m. 좌표를 경도로만 벌려 거리를 만든다.
+ * 실응답은 고도가 **좌표마다** 붙어 오므로, 좌표 하나에 고도 하나를 준다.
  */
-function routeWithAltitudes(altitudes: number[]): RoutePath {
-  return {
-    distance: [1000],
-    time: [300],
-    behave: ['BIKE'],
-    location: [],
-    altitude: altitudes.map((altitude, i) => ({
-      xPos: 127 + i * 0.001,
-      yPos: 36.35,
-      altitude,
-    })),
-    expectedBikeCnt: 3,
-  };
+function routeWithAltitudes(altitudes: number[]) {
+  return makeRoute({
+    legs: [makeLeg('BICYCLE', 0, altitudes.length - 1, 1000, 300, altitudes)],
+  });
 }
 
 describe('classifyGrade', () => {
@@ -35,7 +26,7 @@ describe('classifyGrade', () => {
 });
 
 describe('buildElevationProfile', () => {
-  it('고도 지점이 2개 미만이면 빈 결과', () => {
+  it('좌표가 2개 미만이면 빈 결과', () => {
     expect(buildElevationProfile(routeWithAltitudes([50]))).toEqual({ bars: [], maxGradePct: 0 });
   });
 
@@ -53,7 +44,7 @@ describe('buildElevationProfile', () => {
   });
 
   it('꾸준히 오르면 뒤쪽 막대가 더 높고 경사 등급이 붙는다', () => {
-    // 지점 간 89.6m마다 9m씩 오름 → 약 10%
+    // 좌표 간 89.6m마다 9m씩 오름 → 약 10%
     const climbing = Array.from({ length: 40 }, (_, i) => 50 + i * 9);
     const profile = buildElevationProfile(routeWithAltitudes(climbing));
     expect(profile.bars[0].value).toBeLessThan(profile.bars.at(-1)!.value);
@@ -72,5 +63,12 @@ describe('buildElevationProfile', () => {
     const hill = Array.from({ length: 40 }, (_, i) => 50 + Math.sin((Math.PI * i) / 39) * 60);
     const profile = buildElevationProfile(routeWithAltitudes(hill));
     expect(profile.bars.every((bar) => bar.value >= 0 && bar.value <= 1)).toBe(true);
+  });
+
+  it('구간이 여러 개여도 경로 전체를 하나로 이어 본다 — 경계 좌표를 두 번 세지 않는다', () => {
+    // 기본 경로(좌표 11개, 구간 3개)가 평지면 전 구간이 flat이어야 한다
+    const profile = buildElevationProfile(makeRoute());
+    expect(profile.bars).toHaveLength(24);
+    expect(profile.maxGradePct).toBe(0);
   });
 });

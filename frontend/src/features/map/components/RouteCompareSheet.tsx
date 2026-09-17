@@ -1,14 +1,14 @@
 import { useMemo } from 'react';
+import type { RouteType } from '@/shared/api/types';
 import { BottomSheet, type SnapPoint } from '@/shared/ui/BottomSheet';
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
 import { toStationStatus, type StationStatus } from '@/shared/ui/stationStatus';
-import { ROUTE_BADGE } from '@/features/map/lib/routeBadges';
+import { ROUTE_TYPE_STYLE } from '@/features/map/lib/routeTypeStyle';
 import {
   formatArrival,
   formatSecondsAsMinutes,
   sortSummaries,
-  type RouteBadgeKind,
   type RouteSort,
   type RouteSummary,
 } from '@/features/map/lib/routeMetrics';
@@ -21,6 +21,9 @@ const SORT_LABEL: Record<RouteSort, string> = {
   flat: '오르막 적게',
 };
 const SORT_ORDER: RouteSort[] = ['bikes', 'flat'];
+
+/** 예상 대수가 아직 응답에 없을 때, 그 값에 기대는 칩에 붙는 안내 */
+const BIKES_PENDING_NOTICE = '확보 우선은 예상 대수 준비 중이에요. 곧 켜집니다.';
 
 /** "도착 시 N대" 색 — 대여소 마커·뱃지와 같은 여유/보통/부족 판정을 쓴다 */
 const BIKES_TEXT_CLASS: Record<StationStatus, string> = {
@@ -37,8 +40,6 @@ interface RouteCompareSheetProps {
   onSnapChange: (snap: RouteCompareSnap) => void;
   /** 원본 인덱스 순 요약. 정렬은 시트 안에서 한다 */
   summaries: RouteSummary[];
-  /** 원본 인덱스 순 뱃지 */
-  badges: (RouteBadgeKind | null)[];
   /** 후보를 받은 시각 — 도착 예정 시각 계산용 */
   fetchedAt: number;
   /** 켜져 있는 정렬 칩들 (0~2개, SORT_ORDER 순서 유지) */
@@ -46,20 +47,21 @@ interface RouteCompareSheetProps {
   onSortChange: (sort: RouteSort[]) => void;
   selectedIndex: number | null;
   onSelect: (index: number) => void;
-  /** "바로 안내 시작" — 11 경로 상세는 후속 이슈라 지금은 안내만 띄운다 */
   onStart: (index: number) => void;
 }
 
 /**
- * 10 경로 비교·선택 시트. 후보 전체를 칩 기준으로 정렬해 카드로 보여주고, 카드를 탭하면 그 경로를 선택한다.
+ * 10 경로 비교·선택 시트. 후보를 칩 기준으로 정렬해 카드로 보여주고, 카드를 탭하면 그 경로를 선택한다.
  * 기본은 확장 상태, 아래로 끌면 Peek. Peek 이하로는 닫히지 않고(`dismissible`) 닫기는 페이지의 뒤로가기·← 버튼.
+ *
+ * 후보는 서버가 종류(`type`)를 붙여 주므로 그 라벨을 그대로 쓴다 — 후보가 2개뿐이라 숫자를 비교해
+ * 순위를 매기던 강점 뱃지는 없앴다(2026-09-17).
  */
 export function RouteCompareSheet({
   open,
   snap,
   onSnapChange,
   summaries,
-  badges,
   fetchedAt,
   sort,
   onSortChange,
@@ -69,6 +71,8 @@ export function RouteCompareSheet({
 }: RouteCompareSheetProps) {
   const sorted = useMemo(() => sortSummaries(summaries, sort), [summaries, sort]);
   const selected = selectedIndex === null ? null : (summaries[selectedIndex] ?? null);
+  // 예상 대수가 하나도 안 오면(예측 모델 대기) 그 값으로 줄 세우는 칩은 아직 쓸 수 없다
+  const bikesReady = summaries.some((s) => s.expectedBikeCnt !== undefined);
 
   /** 칩 하나를 켜고 끈다 — 우선순위가 예측 가능하도록 결과는 항상 SORT_ORDER 순서 */
   function toggleSort(kind: RouteSort) {
@@ -95,7 +99,6 @@ export function RouteCompareSheet({
         selected === null ? null : (
           <PeekSummary
             summary={selected}
-            badge={badges[selected.index] ?? null}
             fetchedAt={fetchedAt}
             onStart={() => onStart(selected.index)}
           />
@@ -107,22 +110,32 @@ export function RouteCompareSheet({
               추천 경로 <span className="tabular-nums">{summaries.length}</span>개
             </p>
             <div className="flex gap-1.5">
-              {SORT_ORDER.map((kind) => (
-                <Chip key={kind} selected={sort.includes(kind)} onClick={() => toggleSort(kind)}>
-                  {SORT_LABEL[kind]}
-                </Chip>
-              ))}
+              {SORT_ORDER.map((kind) => {
+                const pending = kind === 'bikes' && !bikesReady;
+                return (
+                  <Chip
+                    key={kind}
+                    selected={sort.includes(kind)}
+                    disabled={pending}
+                    className={pending ? 'opacity-50' : ''}
+                    onClick={() => toggleSort(kind)}
+                  >
+                    {SORT_LABEL[kind]}
+                  </Chip>
+                );
+              })}
             </div>
           </div>
           <p className="text-xs text-gray-500">
-            예상 대수 = 내가 도착하는 시점에 남아 있을 자전거 대수
+            {bikesReady
+              ? '예상 대수 = 내가 도착하는 시점에 남아 있을 자전거 대수'
+              : BIKES_PENDING_NOTICE}
           </p>
           <ul className="flex flex-col gap-2.5">
             {sorted.map((summary) => (
               <RouteCard
                 key={summary.index}
                 summary={summary}
-                badge={badges[summary.index] ?? null}
                 selected={summary.index === selectedIndex}
                 onSelect={() => onSelect(summary.index)}
                 onStart={() => onStart(summary.index)}
@@ -135,8 +148,9 @@ export function RouteCompareSheet({
   );
 }
 
-function BadgePill({ badge }: { badge: RouteBadgeKind }) {
-  const { label, dotClass, pillClass } = ROUTE_BADGE[badge];
+/** 후보 종류 라벨 — 서버가 준 `type` 그대로 */
+function TypePill({ type }: { type: RouteType }) {
+  const { label, dotClass, pillClass } = ROUTE_TYPE_STYLE[type];
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold ${pillClass}`}
@@ -147,7 +161,9 @@ function BadgePill({ badge }: { badge: RouteBadgeKind }) {
   );
 }
 
-function ExpectedBikes({ count, className = '' }: { count: number; className?: string }) {
+/** 예상 대수는 아직 안 올 수 있다 — 없으면 아무것도 그리지 않는다 */
+function ExpectedBikes({ count, className = '' }: { count?: number; className?: string }) {
+  if (count === undefined) return null;
   return (
     <span className={`font-semibold ${BIKES_TEXT_CLASS[toStationStatus(count)]} ${className}`}>
       도착 시 <span className="tabular-nums">{count}</span>대
@@ -157,14 +173,13 @@ function ExpectedBikes({ count, className = '' }: { count: number; className?: s
 
 interface RouteCardProps {
   summary: RouteSummary;
-  badge: RouteBadgeKind | null;
   selected: boolean;
   onSelect: () => void;
   onStart: () => void;
 }
 
 /** 후보 한 장. 카드 어디를 눌러도 선택되고, 버튼은 선택한 경로로 안내를 시작한다 */
-function RouteCard({ summary, badge, selected, onSelect, onStart }: RouteCardProps) {
+function RouteCard({ summary, selected, onSelect, onStart }: RouteCardProps) {
   return (
     <li>
       <div
@@ -184,11 +199,9 @@ function RouteCard({ summary, badge, selected, onSelect, onStart }: RouteCardPro
             : 'border-gray-200 bg-surface active:bg-gray-50'
         }`}
       >
-        {badge === null ? null : (
-          <div>
-            <BadgePill badge={badge} />
-          </div>
-        )}
+        <div>
+          <TypePill type={summary.type} />
+        </div>
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-bold tabular-nums text-gray-900">
             {formatSecondsAsMinutes(summary.totalSec)}
@@ -217,14 +230,12 @@ function RouteCard({ summary, badge, selected, onSelect, onStart }: RouteCardPro
 
 interface PeekSummaryProps {
   summary: RouteSummary;
-  badge: RouteBadgeKind | null;
   fetchedAt: number;
   onStart: () => void;
 }
 
 /** 10-1 Peek — 선택한 경로 한 줄 요약 + 안내 시작. 위로 끌면 카드 목록으로 돌아간다 */
-function PeekSummary({ summary, badge, fetchedAt, onStart }: PeekSummaryProps) {
-  const name = badge === null ? '선택한 경로' : `${ROUTE_BADGE[badge].label} 경로`;
+function PeekSummary({ summary, fetchedAt, onStart }: PeekSummaryProps) {
   return (
     <div className="flex items-center justify-between gap-3 py-1">
       <div className="min-w-0">
@@ -235,7 +246,8 @@ function PeekSummary({ summary, badge, fetchedAt, onStart }: PeekSummaryProps) {
           <ExpectedBikes count={summary.expectedBikeCnt} className="text-sm" />
         </div>
         <p className="mt-0.5 truncate text-xs text-gray-500">
-          {name} · {formatArrival(fetchedAt, summary.totalSec)} 도착
+          {ROUTE_TYPE_STYLE[summary.type].label} 경로 ·{' '}
+          {formatArrival(fetchedAt, summary.totalSec)} 도착
         </p>
       </div>
       <Button onClick={onStart} className="shrink-0">
