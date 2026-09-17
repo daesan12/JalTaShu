@@ -3,6 +3,7 @@ import type { BikeStation, PlaceSearchResult, Pos, RouteCandidate } from '@/shar
 import { CurrentLocationMarker } from '@/features/map/components/CurrentLocationMarker';
 import { DestinationMarker } from '@/features/map/components/DestinationMarker';
 import { RoutePolylines } from '@/features/map/components/RoutePolylines';
+import { RouteTurnMarkers } from '@/features/map/components/RouteTurnMarkers';
 import { SelectedRoutePolyline } from '@/features/map/components/SelectedRoutePolyline';
 import { StationMarkers } from '@/features/map/components/StationMarkers';
 import { DAEJEON_CENTER, DEFAULT_ZOOM } from '@/features/map/lib/mapDefaults';
@@ -80,6 +81,9 @@ export function MapView({
   const [failure, setFailure] = useState<MapLoadFailure | null>(null);
   // 마커는 지도 인스턴스가 생긴 뒤에야 붙일 수 있어 state로 내려준다
   const [map, setMap] = useState<naver.maps.Map | null>(null);
+  // 회전 지점을 찍을 경로 — 11·12에서는 고른 경로, 10에서는 지금 선택된 후보
+  const shownRoute =
+    detailRoute ?? (selectedRouteIndex === null ? null : (routes?.[selectedRouteIndex] ?? null));
 
   useEffect(() => {
     let map: naver.maps.Map | null = null;
@@ -146,12 +150,11 @@ export function MapView({
       {map === null ? null : detailRoute !== null ? (
         <SelectedRoutePolyline map={map} route={detailRoute} />
       ) : (
-        <RoutePolylines
-          map={map}
-          routes={routes}
-          selectedIndex={selectedRouteIndex}
-        />
+        <RoutePolylines map={map} routes={routes} selectedIndex={selectedRouteIndex} />
       )}
+
+      {/* 회전 지점은 **지금 보고 있는 경로 하나**에만 찍는다 — 후보를 전부 찍으면 지도가 지저분해진다 */}
+      {map === null ? null : <RouteTurnMarkers map={map} route={shownRoute} />}
 
       {failure === null ? null : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-background px-8 text-center">
