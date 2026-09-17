@@ -1,5 +1,8 @@
 import { ELLIPSIS, getPageItems } from '@/shared/lib/pagination';
 
+/** 관리자 목록 표의 공통 페이지 크기 */
+export const ADMIN_PAGE_SIZE = 12;
+
 interface AdminPaginationProps {
   /** 1부터 시작 */
   page: number;

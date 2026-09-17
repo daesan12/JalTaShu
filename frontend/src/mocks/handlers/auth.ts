@@ -1,0 +1,94 @@
+import { delay, http, HttpResponse } from 'msw';
+import {
+  NICKNAME_MAX,
+  NICKNAME_MIN,
+  NICKNAME_PATTERN,
+  TERMS,
+} from '@/shared/config/constants';
+import { fail, getAuthState, ok, requireAuth, setAuthState } from '@/mocks/core';
+import { setMockReports } from '@/mocks/handlers/reports';
+import { setOpenApiRequests } from '@/mocks/handlers/support';
+
+/** 인증·프로필 (05~06 로그인·가입, 24 마이) — 백엔드 세션 쿠키 방식을 흉내 */
+export const authHandlers = [
+  http.get('/api/users/me', async () => {
+    await delay(300);
+    const state = getAuthState();
+    if (!state.loggedIn) return fail(401, '로그인이 필요합니다.');
+    return HttpResponse.json(ok({ nickname: state.nickname }));
+  }),
+
+  // ── 프로필 (24 — 백엔드 API 미정, 임시 스키마) ─────────────────────
+  http.get('/api/users/me/stats', async () => {
+    await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    return HttpResponse.json(ok({ monthlyRides: 12, distanceKm: 38.2, durationMin: 84 }));
+  }),
+
+  http.put('/api/users/me', async ({ request }) => {
+    await delay(400);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const body = (await request.json()) as { nickname?: string };
+    const nickname = body.nickname ?? '';
+    if (
+      nickname.length < NICKNAME_MIN ||
+      nickname.length > NICKNAME_MAX ||
+      !NICKNAME_PATTERN.test(nickname)
+    ) {
+      return fail(400, '닉네임 형식이 올바르지 않습니다.');
+    }
+    setAuthState({ loggedIn: true, nickname });
+    return HttpResponse.json({ code: 200, message: '닉네임이 변경되었습니다.', data: null });
+  }),
+
+  // 회원 탈퇴 — 백엔드 API 미정. 계정·데이터를 모두 삭제한다
+  http.post('/api/users/withdraw', async () => {
+    await delay(500);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    setAuthState({ loggedIn: false, nickname: null });
+    setMockReports([]);
+    setOpenApiRequests([]);
+    return HttpResponse.json({ code: 200, message: '탈퇴가 완료되었습니다.', data: null });
+  }),
+
+  // 백엔드에 로그아웃 API가 아직 없음 — 확정 시 경로 맞출 것
+  http.post('/api/auth/logout', async () => {
+    await delay(300);
+    setAuthState({ loggedIn: false, nickname: getAuthState().nickname });
+    return HttpResponse.json(ok(null));
+  }),
+
+  // 실제 백엔드에는 없는 개발용 엔드포인트 — 카카오 OAuth 리다이렉트를 대신함
+  http.post('/api/auth/mock-login', async () => {
+    await delay(400);
+    const state = getAuthState();
+    setAuthState({ ...state, loggedIn: true });
+    return HttpResponse.json(ok(null));
+  }),
+
+  http.post('/api/auth/sign-up', async ({ request }) => {
+    await delay(400);
+    const state = getAuthState();
+    if (!state.loggedIn) return fail(401, '로그인이 필요합니다.');
+
+    const body = (await request.json()) as { agrees?: string[][]; nickname?: string };
+    const agreedCodes = new Set((body.agrees ?? []).map((pair) => pair[0]));
+    const requiredOk = TERMS.filter((t) => t.required).every((t) => agreedCodes.has(t.code));
+    if (!requiredOk) return fail(400, '필수 약관에 모두 동의하지 않았습니다.');
+
+    const nickname = body.nickname ?? '';
+    if (
+      nickname.length < NICKNAME_MIN ||
+      nickname.length > NICKNAME_MAX ||
+      !NICKNAME_PATTERN.test(nickname)
+    ) {
+      return fail(400, '닉네임 형식이 올바르지 않습니다.');
+    }
+
+    setAuthState({ loggedIn: true, nickname });
+    return HttpResponse.json({ code: 200, message: '가입에 성공했습니다.', data: null });
+  }),
+];

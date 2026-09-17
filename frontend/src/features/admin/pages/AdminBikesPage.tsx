@@ -10,10 +10,10 @@ import {
 } from '@/features/admin/api/adminCycles';
 import { AdminBadge } from '@/features/admin/ui/AdminBadge';
 import { AdminFilterBar, AdminSearchInput, AdminSelect } from '@/features/admin/ui/AdminFilters';
-import { AdminPagination } from '@/features/admin/ui/AdminPagination';
+import { ADMIN_PAGE_SIZE, AdminPagination } from '@/features/admin/ui/AdminPagination';
+import { AdminStatCard } from '@/features/admin/ui/AdminStatCard';
 import { AdminTable } from '@/features/admin/ui/AdminTable';
-
-const PAGE_SIZE = 12;
+import { AdminTableStatus } from '@/features/admin/ui/AdminTableStatus';
 
 type ClaimFilter = 'all' | 'has' | 'none';
 
@@ -48,7 +48,7 @@ export function AdminBikesPage() {
       return true;
     });
   }, [data, cycleSearch, stationSearch, status, claimFilter]);
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageItems = filtered.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE);
 
   return (
     <div className="flex flex-col gap-4">
@@ -56,16 +56,20 @@ export function AdminBikesPage() {
 
       {/* 통계 4카드 (GET /admin/cycle/statics) */}
       <div className="grid grid-cols-4 gap-4">
-        <StatCard label="전체 자전거" value={statics.data?.totalCnt} />
-        <StatCard label="정상" value={statics.data?.activeCnt} valueClass="text-admin-ok-text" />
-        <StatCard
+        <AdminStatCard label="전체 자전거" value={statics.data?.totalCnt ?? '–'} />
+        <AdminStatCard
+          label="정상"
+          value={statics.data?.activeCnt ?? '–'}
+          valueClass="text-admin-ok-text"
+        />
+        <AdminStatCard
           label="정지"
-          value={statics.data?.suspendedCnt}
+          value={statics.data?.suspendedCnt ?? '–'}
           valueClass="text-admin-danger-text"
         />
-        <StatCard
+        <AdminStatCard
           label="미해결 제보 있는 자전거"
-          value={statics.data?.claimedCnt}
+          value={statics.data?.claimedCnt ?? '–'}
           valueClass="text-admin-warn-text"
         />
       </div>
@@ -127,34 +131,14 @@ export function AdminBikesPage() {
             </tr>
           </thead>
           <tbody>
-            {isPending && (
-              <tr>
-                <td colSpan={5} className="text-center text-admin-muted">
-                  불러오는 중…
-                </td>
-              </tr>
-            )}
-            {isError && (
-              <tr>
-                <td colSpan={5} className="text-center">
-                  <span className="text-admin-muted">목록을 불러오지 못했습니다. </span>
-                  <button
-                    type="button"
-                    className="text-admin-text underline"
-                    onClick={() => void refetch()}
-                  >
-                    다시 시도
-                  </button>
-                </td>
-              </tr>
-            )}
-            {!isPending && !isError && pageItems.length === 0 && (
-              <tr>
-                <td colSpan={5} className="text-center text-admin-muted">
-                  표시할 자전거가 없습니다
-                </td>
-              </tr>
-            )}
+            <AdminTableStatus
+              colSpan={5}
+              isPending={isPending}
+              isError={isError}
+              onRetry={() => void refetch()}
+              isEmpty={pageItems.length === 0}
+              emptyText="표시할 자전거가 없습니다"
+            />
             {pageItems.map((cycle) => (
               <tr key={cycle.cycleId} onClick={() => navigate(`/admin/bikes/${cycle.cycleId}`)}>
                 <td className="tabular-nums">{cycle.cycleId}</td>
@@ -178,28 +162,11 @@ export function AdminBikesPage() {
         </AdminTable>
         <AdminPagination
           page={page}
-          pageSize={PAGE_SIZE}
+          pageSize={ADMIN_PAGE_SIZE}
           totalCount={filtered.length}
           onChange={setPage}
         />
       </div>
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  valueClass = '',
-}: {
-  label: string;
-  value: number | undefined;
-  valueClass?: string;
-}) {
-  return (
-    <div className="rounded-lg bg-admin-panel px-5 py-4">
-      <p className="text-sm text-admin-muted">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold tabular-nums ${valueClass}`}>{value ?? '–'}</p>
     </div>
   );
 }

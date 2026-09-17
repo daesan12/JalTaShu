@@ -1,9 +1,8 @@
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
+import { ADMIN_FIELD_FRAME } from '@/features/admin/ui/AdminField';
 
-/** Figma ControlBar 기준 높이 36px. 테두리·포커스는 세 컨트롤이 같이 쓴다. */
-const CONTROL =
-  'h-9 rounded-md border border-admin-line bg-admin-bg px-3 text-sm text-admin-text ' +
-  'placeholder:text-admin-muted focus:border-admin-indicator focus:ring-1 focus:ring-admin-indicator focus:outline-none';
+/** Figma ControlBar 기준 높이 36px. 테두리·포커스는 모달 입력칸(AdminField)과 같은 껍데기 */
+const CONTROL = `h-9 px-3 ${ADMIN_FIELD_FRAME}`;
 
 /** 목록 위에 놓이는 검색·필터 줄. 어떤 컨트롤을 넣을지는 화면마다 다르다. */
 export function AdminFilterBar({ children }: { children: ReactNode }) {
