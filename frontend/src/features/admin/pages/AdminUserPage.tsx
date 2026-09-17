@@ -1,0 +1,387 @@
+import { useState } from 'react';
+import { Link, useParams } from 'react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ApiError } from '@/shared/api/client';
+import { formatDate, formatMinutes } from '@/shared/lib/format';
+import { useToast } from '@/shared/lib/useToast';
+import {
+  BAN_COMMENT_MAX,
+  USER_STATUS_LABEL,
+  banAdminUser,
+  getAdminUser,
+  getAdminUserBanRecords,
+  unbanAdminUser,
+  type AdminUserDetail,
+} from '@/features/admin/api/adminUsers';
+import { AdminBadge } from '@/features/admin/ui/AdminBadge';
+import { AdminButton } from '@/features/admin/ui/AdminButton';
+import { AdminSelect } from '@/features/admin/ui/AdminFilters';
+import { AdminModal } from '@/features/admin/ui/AdminModal';
+import { AdminTable } from '@/features/admin/ui/AdminTable';
+import { AdminToast } from '@/features/admin/ui/AdminToast';
+
+type DetailTab = 'rides' | 'bans';
+
+/** 이용 기록의 "09.17 14:03" */
+function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** 09 사용자 상세 — 기본 정보·통계 + 이용 기록/밴 이력(09-b) 탭 + 정지(09-c)/해제(09-d) */
+export function AdminUserPage() {
+  const { userId: userIdParam = '' } = useParams();
+  const userId = Number(userIdParam);
+  const queryClient = useQueryClient();
+  const { message, showToast } = useToast();
+
+  const [tab, setTab] = useState<DetailTab>('rides');
+  const [banOpen, setBanOpen] = useState(false);
+  const [unbanOpen, setUnbanOpen] = useState(false);
+
+  const detail = useQuery({
+    queryKey: ['adminUser', userId],
+    queryFn: () => getAdminUser(userId),
+  });
+  const banRecords = useQuery({
+    queryKey: ['adminUserBans', userId],
+    queryFn: () => getAdminUserBanRecords(userId),
+  });
+
+  function refresh() {
+    void queryClient.invalidateQueries({ queryKey: ['adminUser', userId] });
+    void queryClient.invalidateQueries({ queryKey: ['adminUserBans', userId] });
+    void queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
+  }
+
+  const unban = useMutation({
+    mutationFn: () => unbanAdminUser(userId),
+    onSuccess: () => {
+      refresh();
+      setUnbanOpen(false);
+      showToast('이용 정지가 해제되었습니다');
+    },
+  });
+
+  if (detail.isPending) {
+    return <p className="text-sm text-admin-muted">불러오는 중…</p>;
+  }
+  if (detail.isError) {
+    return (
+      <div className="flex flex-col items-start gap-3">
+        <p className="text-sm text-admin-muted">사용자 정보를 불러오지 못했습니다.</p>
+        <AdminButton variant="secondary" size="sm" onClick={() => void detail.refetch()}>
+          다시 시도
+        </AdminButton>
+      </div>
+    );
+  }
+
+  const user = detail.data;
+  const banned = user.userStatement === 'BANNED';
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <Link to="/admin/users" className="text-sm text-admin-muted hover:text-admin-text">
+          ← 사용자 관리
+        </Link>
+        <div className="mt-2 flex items-center gap-3">
+          <h2 className="text-xl font-semibold">{user.nickname}</h2>
+          <AdminBadge state={USER_STATUS_LABEL[user.userStatement]} />
+          <span className="text-sm text-admin-muted">
+            사용자 #{user.userId} · 가입 {formatDate(user.joinedAt)}
+          </span>
+          <div className="ml-auto">
+            {banned ? (
+              <AdminButton variant="secondary" onClick={() => setUnbanOpen(true)}>
+                정지 해제
+              </AdminButton>
+            ) : (
+              <AdminButton variant="danger" onClick={() => setBanOpen(true)}>
+                이용 정지
+              </AdminButton>
+            )}
+          </div>
+        </div>
+        {banned && user.activeBan && (
+          <p className="mt-2 rounded-md bg-admin-danger-bg px-4 py-2.5 text-sm text-admin-danger-text">
+            {formatDate(user.activeBan.scheduledEndAt)}까지 고장신고 이용 정지
+            {user.activeBan.comment && <> · 사유: {user.activeBan.comment}</>}
+          </p>
+        )}
+      </div>
+
+      {/* 이용 통계 3카드 */}
+      <div className="grid grid-cols-3 gap-4">
+        <StatCard label="누적 이용" value={`${user.totalRides}회`} />
+        <StatCard label="누적 거리" value={`${user.totalDistanceKm.toLocaleString()}km`} />
+        <StatCard label="누적 이용 시간" value={formatMinutes(user.totalDurationMin)} />
+      </div>
+
+      {/* 탭 (09-b) */}
+      <div>
+        <div className="flex gap-1 border-b border-admin-line">
+          <TabButton active={tab === 'rides'} onClick={() => setTab('rides')}>
+            이용 기록 <span className="tabular-nums">{user.rides.length}</span>
+          </TabButton>
+          <TabButton active={tab === 'bans'} onClick={() => setTab('bans')}>
+            밴 이력 <span className="tabular-nums">{banRecords.data?.length ?? 0}</span>
+          </TabButton>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-admin-line">
+          {tab === 'rides' ? (
+            <AdminTable>
+              <thead>
+                <tr>
+                  <th className="w-36">대여</th>
+                  <th className="w-36">반납</th>
+                  <th>구간</th>
+                  <th className="w-28 text-right">이용 시간</th>
+                  <th className="w-24 text-right">거리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {user.rides.map((ride) => (
+                  <tr key={ride.rideId}>
+                    <td className="tabular-nums text-admin-muted">{formatDateTime(ride.startAt)}</td>
+                    <td className="tabular-nums text-admin-muted">{formatDateTime(ride.endAt)}</td>
+                    <td className="truncate">
+                      {ride.fromStation} → {ride.toStation}
+                    </td>
+                    <td className="text-right tabular-nums">{ride.durationMin}분</td>
+                    <td className="text-right tabular-nums">{ride.distanceKm}km</td>
+                  </tr>
+                ))}
+              </tbody>
+            </AdminTable>
+          ) : (
+            <AdminTable>
+              <thead>
+                <tr>
+                  <th className="w-32">정지 시작</th>
+                  <th className="w-32">종료 예정</th>
+                  <th className="w-32">해제</th>
+                  <th>사유</th>
+                  <th className="w-32">처리자</th>
+                </tr>
+              </thead>
+              <tbody>
+                {banRecords.isPending && (
+                  <tr>
+                    <td colSpan={5} className="text-center text-admin-muted">
+                      불러오는 중…
+                    </td>
+                  </tr>
+                )}
+                {banRecords.data?.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="text-center text-admin-muted">
+                      밴 이력이 없습니다
+                    </td>
+                  </tr>
+                )}
+                {banRecords.data?.map((record) => (
+                  <tr key={record.banId}>
+                    <td className="tabular-nums text-admin-muted">
+                      {formatDate(record.startedAt)}
+                    </td>
+                    <td className="tabular-nums text-admin-muted">
+                      {formatDate(record.scheduledEndAt)}
+                    </td>
+                    <td className="tabular-nums">
+                      {record.releasedAt ? (
+                        formatDate(record.releasedAt)
+                      ) : (
+                        <span className="text-admin-danger-text">진행 중</span>
+                      )}
+                    </td>
+                    <td className="truncate">{record.comment ?? '—'}</td>
+                    <td className="truncate text-admin-muted">{record.adminName}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </AdminTable>
+          )}
+        </div>
+      </div>
+
+      {/* 09-c 이용 정지 — 닫으면 입력 초기화되게 열릴 때만 마운트 */}
+      {banOpen && (
+        <BanModal
+          user={user}
+          onClose={() => setBanOpen(false)}
+          onBanned={() => {
+            refresh();
+            setBanOpen(false);
+            showToast('이용 정지가 등록되었습니다');
+          }}
+        />
+      )}
+
+      {/* 09-d 정지 해제 */}
+      <AdminModal
+        open={unbanOpen}
+        onClose={() => setUnbanOpen(false)}
+        title="이용 정지를 해제할까요?"
+        size="md"
+        footer={
+          <>
+            <AdminButton variant="secondary" onClick={() => setUnbanOpen(false)}>
+              취소
+            </AdminButton>
+            <AdminButton disabled={unban.isPending} onClick={() => unban.mutate()}>
+              {unban.isPending ? '해제 중…' : '해제'}
+            </AdminButton>
+          </>
+        }
+      >
+        <p className="text-sm text-admin-muted">
+          {user.nickname} 님의 고장신고 이용 제한을 지금 해제합니다. 해제 기록은 밴 이력에
+          남습니다.
+        </p>
+        {unban.isError && (
+          <p className="mt-2 text-sm text-admin-danger-text">
+            {unban.error instanceof ApiError ? unban.error.message : '해제에 실패했습니다.'}
+          </p>
+        )}
+      </AdminModal>
+
+      {message && <AdminToast message={message} />}
+    </div>
+  );
+}
+
+/** 정지 기간 선택지 — 종료 시각(scheduledEndAt)으로 환산해 보낸다 (백엔드 @Future 필수) */
+const BAN_PERIODS = [
+  { days: 7, label: '7일' },
+  { days: 30, label: '30일' },
+  { days: 90, label: '90일' },
+] as const;
+
+interface BanModalProps {
+  user: AdminUserDetail;
+  onClose: () => void;
+  onBanned: () => void;
+}
+
+/** 09-c 이용 정지 — 기간 + 사유(100자, 백엔드 @Size 실측) */
+function BanModal({ user, onClose, onBanned }: BanModalProps) {
+  const [days, setDays] = useState<number>(7);
+  const [comment, setComment] = useState('');
+  // 종료 예정일 미리보기 기준 시각 — 렌더마다 흔들리지 않게 모달 연 시각으로 고정
+  const [openedAt] = useState(() => Date.now());
+
+  const ban = useMutation({
+    mutationFn: () =>
+      banAdminUser(user.userId, {
+        scheduledEndAt: new Date(Date.now() + days * 24 * 3600_000).toISOString(),
+        comment: comment.trim(),
+      }),
+    onSuccess: onBanned,
+  });
+
+  const endDate = formatDate(new Date(openedAt + days * 24 * 3600_000).toISOString());
+
+  return (
+    <AdminModal
+      open
+      onClose={onClose}
+      title={`${user.nickname} 님을 이용 정지할까요?`}
+      size="md"
+      footer={
+        <>
+          <AdminButton variant="secondary" onClick={onClose}>
+            취소
+          </AdminButton>
+          <AdminButton variant="danger" disabled={ban.isPending} onClick={() => ban.mutate()}>
+            {ban.isPending ? '정지 중…' : '이용 정지'}
+          </AdminButton>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-admin-muted">
+          정지 기간 동안 대여·반납은 가능하지만 고장신고(제보)를 쓸 수 없습니다.
+        </p>
+        <div className="grid grid-cols-[6rem_1fr] items-center gap-3">
+          <span className="text-sm font-medium">정지 기간</span>
+          <div className="flex items-center gap-3">
+            <AdminSelect
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value))}
+              className="w-32"
+              aria-label="정지 기간"
+            >
+              {BAN_PERIODS.map((period) => (
+                <option key={period.days} value={period.days}>
+                  {period.label}
+                </option>
+              ))}
+            </AdminSelect>
+            <span className="text-sm text-admin-muted tabular-nums">{endDate}까지</span>
+          </div>
+        </div>
+        <div>
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <span className="text-sm font-medium">사유</span>
+            <span className="text-xs text-admin-muted tabular-nums">
+              {comment.length}/{BAN_COMMENT_MAX}
+            </span>
+          </div>
+          <textarea
+            className="min-h-20 w-full resize-y rounded-md border border-admin-line bg-admin-bg px-3 py-2 text-sm text-admin-text placeholder:text-admin-muted focus:border-admin-indicator focus:ring-1 focus:ring-admin-indicator focus:outline-none"
+            placeholder="예: 허위 제보 반복 접수 (3회)"
+            value={comment}
+            maxLength={BAN_COMMENT_MAX}
+            onChange={(e) => setComment(e.target.value)}
+          />
+        </div>
+        {ban.isError && (
+          <p className="text-sm text-admin-danger-text">
+            {ban.error instanceof ApiError
+              ? ban.error.message
+              : '이용 정지에 실패했습니다. 다시 시도해 주세요.'}
+          </p>
+        )}
+      </div>
+    </AdminModal>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-admin-panel px-5 py-4">
+      <p className="text-sm text-admin-muted">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-selected={active}
+      role="tab"
+      onClick={onClick}
+      className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+        active
+          ? 'border-admin-indicator text-admin-text'
+          : 'border-transparent text-admin-muted hover:text-admin-text'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}

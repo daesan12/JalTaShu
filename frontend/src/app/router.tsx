@@ -111,6 +111,14 @@ export const router = createBrowserRouter(
                       },
                     },
                     {
+                      path: 'stations/:stationId', // 02 대여소 상세 (히트맵에서 진입)
+                      lazy: async () => {
+                        const { AdminStationPage } =
+                          await import('@/features/admin/pages/AdminStationPage');
+                        return { Component: AdminStationPage };
+                      },
+                    },
+                    {
                       path: 'users', // 04·09 사용자 관리
                       lazy: async () => {
                         const { AdminUsersPage } =
@@ -124,6 +132,22 @@ export const router = createBrowserRouter(
                         const { AdminBikesPage } =
                           await import('@/features/admin/pages/AdminBikesPage');
                         return { Component: AdminBikesPage };
+                      },
+                    },
+                    {
+                      path: 'users/:userId', // 09 사용자 상세 (목록에서 진입)
+                      lazy: async () => {
+                        const { AdminUserPage } =
+                          await import('@/features/admin/pages/AdminUserPage');
+                        return { Component: AdminUserPage };
+                      },
+                    },
+                    {
+                      path: 'bikes/:cycleId', // 07 자전거 상세 (목록에서 진입)
+                      lazy: async () => {
+                        const { AdminBikePage } =
+                          await import('@/features/admin/pages/AdminBikePage');
+                        return { Component: AdminBikePage };
                       },
                     },
                     {

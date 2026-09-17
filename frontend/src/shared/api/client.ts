@@ -98,6 +98,19 @@ export async function apiPut<T>(
   }
 }
 
+export async function apiPatch<T>(
+  url: string,
+  body?: unknown,
+  config?: AxiosRequestConfig,
+): Promise<T> {
+  try {
+    const res = await client.patch<ApiResponse<T>>(url, body, config);
+    return unwrap(res.data);
+  } catch (err) {
+    throw err instanceof ApiError ? err : toApiError(err);
+  }
+}
+
 export async function apiDelete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
   try {
     const res = await client.delete<ApiResponse<T>>(url, config);

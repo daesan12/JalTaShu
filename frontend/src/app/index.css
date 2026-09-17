@@ -60,6 +60,10 @@
   --color-admin-warn-text: #92400e;
   --color-admin-ok-bg: #e8f0dc; /* 해결됨 */
   --color-admin-ok-text: #3c6e0e;
+
+  /* 01 히트맵 오버레이 — 대여(유출)는 난색, 반납(유입)은 한색으로 방향을 구분 */
+  --color-admin-heat-rent: #ea580c;
+  --color-admin-heat-return: #2563eb;
 }
 
 /* 안전영역(노치·홈 인디케이터) 유틸 — Capacitor WebView 대비 */
