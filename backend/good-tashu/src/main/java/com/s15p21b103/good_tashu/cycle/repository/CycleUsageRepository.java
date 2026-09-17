@@ -45,4 +45,7 @@ public interface CycleUsageRepository extends JpaRepository<CycleUsageEntity, Lo
             CycleEntity cycleEntity
     );
 
+    Optional<CycleUsageEntity> findFirstByUserEntity_UserIdAndReturnAtIsNotNullOrderByReturnAtDescCycleUsageIdDesc(
+            Long userId
+    );
 }

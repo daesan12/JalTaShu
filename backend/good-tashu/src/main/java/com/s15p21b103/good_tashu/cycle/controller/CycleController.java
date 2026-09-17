@@ -1,10 +1,7 @@
 package com.s15p21b103.good_tashu.cycle.controller;
 
 import com.s15p21b103.good_tashu._util.response.ApiResponse;
-import com.s15p21b103.good_tashu.cycle.dto.req.CycleClaimRequest;
-import com.s15p21b103.good_tashu.cycle.dto.req.CycleClaimReportRequest;
-import com.s15p21b103.good_tashu.cycle.dto.req.CycleRentalRequest;
-import com.s15p21b103.good_tashu.cycle.dto.req.CycleReturnRequest;
+import com.s15p21b103.good_tashu.cycle.dto.req.*;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimListResponse;
 import com.s15p21b103.good_tashu.cycle.service.CycleService;
@@ -85,5 +82,15 @@ public class CycleController {
     public ApiResponse<CycleUsageDetailResponse> getUsageDetail(@CurrentUserId Long userId,
                                                                  @PathVariable Long usageId) {
         return ApiResponse.success(cycleService.getUsageDetail(userId, usageId));
+    }
+
+    // 경로 기록 저장
+    @PostMapping("/usage")
+    public ResponseEntity<ApiResponse<Void>> savePathTrace(
+            @CurrentUserId Long userId,
+            @Valid @RequestBody CyclePathRequest request
+            ) {
+        cycleService.savePathTrace(userId, request);
+        return ResponseEntity.ok(ApiResponse.success("성공"));
     }
 }

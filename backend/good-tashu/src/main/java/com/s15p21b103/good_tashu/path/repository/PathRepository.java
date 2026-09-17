@@ -6,4 +6,5 @@ import java.util.Optional;
 
 public interface PathRepository extends JpaRepository<PathEntity, Long> {
     Optional<PathEntity> findByCycleUsage_CycleUsageId(Long cycleUsageId);
+
 }
