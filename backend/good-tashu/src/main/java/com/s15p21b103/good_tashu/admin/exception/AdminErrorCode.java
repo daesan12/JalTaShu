@@ -17,6 +17,8 @@ public enum AdminErrorCode {
     NOT_EXISTS_CLAIM(HttpStatus.NOT_FOUND, "존재하지 않는 제보입니다."),
     NOT_EXISTS_ADMIN(HttpStatus.NOT_FOUND, "존재하지 않는 관리자입니다."),
     NOT_EXISTS_USER(HttpStatus.NOT_FOUND, "존재하지 않는 사용자입니다."),
+    NOT_EXISTS_BAN_RECORD(HttpStatus.NOT_FOUND, "사용자 제재 기록이 없습니다."),
+    NOT_ACTIVE_BAN_RECORD(HttpStatus.CONFLICT, "현재 유효한 제재 기록이 아닙니다."),
     ALREADY_BANNED(HttpStatus.CONFLICT, "이미 제재 중인 사용자입니다."),
     INVALID_STATEMENT(HttpStatus.BAD_REQUEST, "statement는 BANNED 또는 NORMAL만 가능합니다."),
     INVALID_ORDER(HttpStatus.BAD_REQUEST, "order는 newest 또는 oldest만 가능합니다."),

@@ -108,10 +108,10 @@ public class GlobalExceptionHandler {
     // 유저 예외 처리
     @ExceptionHandler(UserException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(UserException e) {
-        log.warn("유저에서 예외 발생: {}", e.getErrorCode().getMessage());
+        log.warn("유저에서 예외 발생: {}", e.getMessage());
         return ResponseEntity
                 .status(e.getErrorCode().getStatus())
-                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
+                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getMessage()));
     }
 
 }

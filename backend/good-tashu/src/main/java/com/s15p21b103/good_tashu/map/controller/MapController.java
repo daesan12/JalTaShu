@@ -9,7 +9,7 @@ import com.s15p21b103.good_tashu.map.dto.res.PlaceSearchResultListResponse;
 import com.s15p21b103.good_tashu.map.service.MapService;
 import com.s15p21b103.good_tashu.map.dto.req.RecentPlaceRequest;
 import jakarta.validation.Valid;
-import com.s15p21b103.good_tashu.user.annotation.currentUserId;
+import com.s15p21b103.good_tashu.user.annotation.CurrentUserId;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.DecimalMax;
@@ -28,7 +28,7 @@ public class MapController {
 
     // 최근 선택한 장소 최근 검색어에 등록
     @PostMapping("/location/recent")
-    public ApiResponse<Void> saveRecentPlace(@currentUserId Long userId,
+    public ApiResponse<Void> saveRecentPlace(@CurrentUserId Long userId,
                                             @Valid @RequestBody RecentPlaceRequest request) {
         mapService.saveRecentPlace(userId, request);
         return ApiResponse.success("최근 검색한 장소가 등록되었습니다.");
@@ -41,7 +41,7 @@ public class MapController {
     }
     //최근 검색한 장소 목록
     @GetMapping("/recent")
-    public ApiResponse<List<PlaceSearchRecentListResponse>> getRecentSearchPlace(@currentUserId Long userId,
+    public ApiResponse<List<PlaceSearchRecentListResponse>> getRecentSearchPlace(@CurrentUserId Long userId,
                                                                                  @RequestParam("limit") int limit){
         List<PlaceSearchRecentListResponse> response = mapService.getRecentSearchPlace(userId, limit);
         return ApiResponse.success(response);
@@ -49,7 +49,7 @@ public class MapController {
 
     //특정 검색 장소 기록 삭제
     @DeleteMapping("/recent/{recentPlaceId}")
-    public ApiResponse<Void> deleteRecentSearchPlace(@currentUserId Long userId,
+    public ApiResponse<Void> deleteRecentSearchPlace(@CurrentUserId Long userId,
                                                      @PathVariable("recentPlaceId") Long placeId) {
         mapService.deleteRecentSearchPlace(userId, placeId);
         return ApiResponse.success("최근 검색어가 삭제되었습니다.");
@@ -58,7 +58,7 @@ public class MapController {
     // 경로 조회
     @GetMapping("/path")
     public ResponseEntity<ApiResponse<PathResponseDto>> getPath(
-            @currentUserId Long userId,
+            @CurrentUserId Long userId,
             @RequestParam("startLat") @NotNull @DecimalMin("-90") @DecimalMax("90") BigDecimal startLat,
             @RequestParam("startLng") @NotNull @DecimalMin("-180") @DecimalMax("180") BigDecimal startLng,
             @RequestParam("endLat") @NotNull @DecimalMin("-90") @DecimalMax("90") BigDecimal endLat,
@@ -71,7 +71,7 @@ public class MapController {
     // 경로 재조회
     @GetMapping("/re-route")
     public ResponseEntity<ApiResponse<PathResponseDto>> getReRoutePath(
-            @currentUserId Long userId,
+            @CurrentUserId Long userId,
             @RequestParam("startLat") @NotNull @DecimalMin("-90") @DecimalMax("90") BigDecimal startLat,
             @RequestParam("startLng") @NotNull @DecimalMin("-180") @DecimalMax("180") BigDecimal startLng,
             @RequestParam("endLat") @NotNull @DecimalMin("-90") @DecimalMax("90") BigDecimal endLat,

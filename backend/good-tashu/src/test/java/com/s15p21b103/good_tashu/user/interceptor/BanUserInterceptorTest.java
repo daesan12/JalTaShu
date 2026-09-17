@@ -2,10 +2,11 @@ package com.s15p21b103.good_tashu.user.interceptor;
 
 import com.s15p21b103.good_tashu._util.exception.GlobalExceptionHandler;
 import com.s15p21b103.good_tashu.admin.repository.UserBanRecordRepository;
+import com.s15p21b103.good_tashu.admin.domain.UserBanRecordEntity;
 import com.s15p21b103.good_tashu.cycle.controller.CycleController;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimResponse;
 import com.s15p21b103.good_tashu.cycle.service.CycleService;
-import com.s15p21b103.good_tashu.user.annotation.currentUserId;
+import com.s15p21b103.good_tashu.user.annotation.CurrentUserId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static com.s15p21b103.good_tashu.user.exception.UserErrorCode.BANNED_USER;
 import static org.mockito.ArgumentMatchers.any;
@@ -42,6 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(MockitoExtension.class)
 class BanUserInterceptorTest {
     @Mock UserBanRecordRepository userBanRecordRepository;
+    @Mock UserBanRecordEntity banRecord;
     @Mock CycleService cycleService;
 
     private MockMvc mvc;
@@ -51,7 +54,7 @@ class BanUserInterceptorTest {
         HandlerMethodArgumentResolver userResolver = new HandlerMethodArgumentResolver() {
             @Override
             public boolean supportsParameter(MethodParameter parameter) {
-                return parameter.hasParameterAnnotation(currentUserId.class);
+                return parameter.hasParameterAnnotation(CurrentUserId.class);
             }
 
             @Override
@@ -80,8 +83,30 @@ class BanUserInterceptorTest {
     @Test
     void bannedUserCannotCreateClaim() throws Exception {
         // 제재 중이면 컨트롤러 호출 전에 403으로 차단한다.
-        when(userBanRecordRepository.existsActiveBan(eq(1L), any(LocalDateTime.class)))
-                .thenReturn(true);
+        when(userBanRecordRepository
+                .findLatestActiveBan(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(banRecord));
+        when(banRecord.getComment()).thenReturn("장난성 제보를 반복했습니다.");
+
+        mvc.perform(multipart("/api/cycle/claim")
+                        .param("usageId", "100")
+                        .param("claimCategory", "TIRE")
+                        .param("content", "타이어 펑크"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("장난성 제보를 반복했습니다."));
+
+        verify(userBanRecordRepository)
+                .findLatestActiveBan(eq(1L), any(LocalDateTime.class));
+        verifyNoInteractions(cycleService);
+    }
+
+    @Test
+    void blankBanReasonUsesDefaultMessage() throws Exception {
+        // 관리자 메모가 공백이면 기존 제재 오류 문구를 반환한다.
+        when(userBanRecordRepository
+                .findLatestActiveBan(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(banRecord));
+        when(banRecord.getComment()).thenReturn("   ");
 
         mvc.perform(multipart("/api/cycle/claim")
                         .param("usageId", "100")
@@ -89,16 +114,31 @@ class BanUserInterceptorTest {
                         .param("content", "타이어 펑크"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value(BANNED_USER.getMessage()));
+        verifyNoInteractions(cycleService);
+    }
 
-        verify(userBanRecordRepository).existsActiveBan(eq(1L), any(LocalDateTime.class));
+    @Test
+    void nullBanReasonStillBlocksWithDefaultMessage() throws Exception {
+        // 메모가 null인 제재 기록도 차단하고 기본 문구를 반환한다.
+        when(userBanRecordRepository
+                .findLatestActiveBan(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(banRecord));
+
+        mvc.perform(multipart("/api/cycle/claim")
+                        .param("usageId", "100")
+                        .param("claimCategory", "TIRE")
+                        .param("content", "타이어 펑크"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value(BANNED_USER.getMessage()));
         verifyNoInteractions(cycleService);
     }
 
     @Test
     void normalUserCanCreateClaim() throws Exception {
         // 제재 기록이 없으면 제보 서비스까지 요청이 전달된다.
-        when(userBanRecordRepository.existsActiveBan(eq(1L), any(LocalDateTime.class)))
-                .thenReturn(false);
+        when(userBanRecordRepository
+                .findLatestActiveBan(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(Optional.empty());
         when(cycleService.claimCycle(eq(1L), any())).thenReturn(new CycleClaimResponse(10L));
 
         mvc.perform(multipart("/api/cycle/claim")

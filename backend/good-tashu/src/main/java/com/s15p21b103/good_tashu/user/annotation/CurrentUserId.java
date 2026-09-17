@@ -11,5 +11,5 @@ import java.lang.annotation.*;
         expression = "T(java.lang.Long).valueOf(subject)",
         errorOnInvalidType = true
 )
-public @interface currentUserId {
+public @interface CurrentUserId {
 }

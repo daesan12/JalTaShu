@@ -13,7 +13,7 @@ import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageListResponse;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
 import com.s15p21b103.good_tashu.cycle.service.CycleService;
 import com.s15p21b103.good_tashu.path.domain.PathInfo;
-import com.s15p21b103.good_tashu.user.annotation.currentUserId;
+import com.s15p21b103.good_tashu.user.annotation.CurrentUserId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,7 +52,7 @@ class CycleControllerTest {
         HandlerMethodArgumentResolver userResolver = new HandlerMethodArgumentResolver() {
             @Override
             public boolean supportsParameter(MethodParameter parameter) {
-                return parameter.hasParameterAnnotation(currentUserId.class);
+                return parameter.hasParameterAnnotation(CurrentUserId.class);
             }
 
             @Override
