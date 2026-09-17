@@ -27,3 +27,39 @@ export interface BikeStatus {
 export function getBikeStatus(code: string): Promise<BikeStatus> {
   return apiGet<BikeStatus>(`/bikes/${encodeURIComponent(code)}`);
 }
+
+/** 서버 enum(ClaimCategory 실측) → 화면 태그(한글) */
+const CLAIM_CATEGORY_TO_TAG: Record<string, ReportTag> = {
+  BREAK: '브레이크',
+  TIRE: '타이어',
+  SADDLE: '안장',
+  CHAIN: '체인',
+  FRAME: '프레임',
+  ETC: '기타',
+};
+
+/** GET /cycle/list?cycleId= 한 건 (CycleClaimListResponse 실측) */
+interface CycleClaimResponse {
+  claimId: number;
+  nickname: string;
+  claimCategory: string;
+  content: string;
+  createdAt: string;
+}
+
+/**
+ * 20 제보 리스트 — 백엔드 실구현. 응답의 카테고리 enum을 화면 태그로 바꿔
+ * 기존 제보 카드(BikeReportCard)를 그대로 쓴다.
+ */
+export async function getCycleClaims(cycleId: string): Promise<BikeReport[]> {
+  const claims = await apiGet<CycleClaimResponse[]>(
+    `/cycle/list?cycleId=${encodeURIComponent(cycleId)}`,
+  );
+  return claims.map((claim) => ({
+    tag: CLAIM_CATEGORY_TO_TAG[claim.claimCategory] ?? '기타',
+    tagDetail: null,
+    content: claim.content,
+    nickname: claim.nickname,
+    createdAt: claim.createdAt,
+  }));
+}

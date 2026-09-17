@@ -1,36 +1,54 @@
-import { apiGet, apiPost } from '@/shared/api/client';
+import { apiPost, setAccessToken } from '@/shared/api/client';
 
-export interface AdminMe {
-  adminId: number;
-  /** 로그인 아이디 (Figma 로그인 화면의 "admin") */
-  id: string;
-  /** 사이드바 하단 프로필에 표시 (예: 운영관리자) */
-  name: string;
-  /** 사이드바 하단 프로필에 표시 (예: admin@tashu.kr) */
-  email: string;
+/**
+ * 관리자 인증 — 백엔드 실구현(AdminController) 기준.
+ * 이용자와 같은 JWT Bearer 방식이지만 **토큰 체계가 별개다**: access token은 client.ts의
+ * 메모리 슬롯을 같이 쓰고(한 화면에서는 한 세션만 활동), refresh token은
+ * httpOnly 쿠키 `admin_refresh_token`(경로 /api/admin)으로 따로 내려온다.
+ */
+
+interface AdminTokenResponse {
+  accessToken: string;
+  tokenType: string;
+  expiresIn: number;
 }
 
 /**
- * GET /api/admin/auth/me — 미로그인 시 401.
- * 로그인 여부를 '확인'하는 요청이라 전역 리다이렉트에서 제외한다.
- *
- * ⚠ 백엔드에 아직 없는 API다. AdminEntity(id·password)와 @currentAdminId는 있으나
- *   로그인 엔드포인트가 없어 기존 사용자 인증과 같은 httpOnly 쿠키 방식을 전제로
- *   msw 목업 기준 임시 스키마를 쓴다. 확정되면 목업만 걷어내면 된다.
+ * POST /api/admin/login — 성공하면 access token(메모리)과 refresh 쿠키를 받는다.
+ * 실패(401)도 정상 흐름이라 전역 리다이렉트·재발급에서 제외한다.
  */
-export function getAdminMe(): Promise<AdminMe> {
-  return apiGet<AdminMe>('/admin/auth/me', { skipAuthRedirect: true });
+export async function adminLogin(id: string, password: string): Promise<void> {
+  const res = await apiPost<AdminTokenResponse>(
+    '/admin/login',
+    { id, password },
+    { skipAuthRedirect: true, skipAuthRefresh: true },
+  );
+  setAccessToken(res.accessToken);
 }
 
 /**
- * POST /api/admin/auth/login — 성공하면 httpOnly 쿠키가 내려온다.
- * 실패(401)도 정상 흐름이라 전역 리다이렉트에서 제외한다. 안 그러면 로그인 화면이 자기 자신으로 튕긴다.
+ * 새로고침 뒤 세션 복구 — 백엔드에 관리자 me API가 없어서(백엔드 전달 목록),
+ * refresh 쿠키로 access token 재발급이 되는지가 곧 "로그인돼 있는지"다.
+ * 실패해도 예외를 던지지 않는다(미로그인은 정상 상태).
  */
-export function adminLogin(id: string, password: string): Promise<null> {
-  return apiPost<null>('/admin/auth/login', { id, password }, { skipAuthRedirect: true });
+export async function restoreAdminSession(): Promise<boolean> {
+  try {
+    const res = await apiPost<AdminTokenResponse>('/admin/token/refresh', null, {
+      skipAuthRedirect: true,
+      skipAuthRefresh: true,
+    });
+    setAccessToken(res.accessToken);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-/** POST /api/admin/auth/logout — 쿠키를 만료시킨다 */
-export function adminLogout(): Promise<null> {
-  return apiPost<null>('/admin/auth/logout');
+/** POST /api/admin/logout — 서버가 refresh를 폐기하고 쿠키를 만료시킨다. 메모리 토큰도 지운다 */
+export async function adminLogout(): Promise<void> {
+  try {
+    await apiPost<null>('/admin/logout', undefined, { skipAuthRedirect: true });
+  } finally {
+    setAccessToken(null);
+  }
 }

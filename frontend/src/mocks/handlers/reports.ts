@@ -1,5 +1,6 @@
 import { delay, http, HttpResponse } from 'msw';
 import { fail, getAuthState, ok, requireAuth } from '@/mocks/core';
+import { getMockClaims } from '@/mocks/handlers/adminClaims';
 import { STATIONS } from '@/mocks/stations';
 
 /** 가짜 민원 내역 — 새로고침에도 유지되도록 localStorage 사용 */
@@ -133,6 +134,27 @@ export const reportHandlers = [
         reports: [...myReports, ...seedReports],
       }),
     );
+  }),
+
+  // ── 자전거 제보 리스트 (20 — CycleClaimListResponse 실측) ─────────────
+  // 관리자 제보 저장소와 같은 데이터를 자전거 기준으로 거른다
+  http.get('/api/cycle/list', async ({ request }) => {
+    await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const cycleId = new URL(request.url).searchParams.get('cycleId') ?? '';
+    if (!cycleId) return fail(400, '자전거 번호가 필요합니다.');
+    const claims = getMockClaims()
+      .filter((c) => c.cycleId.toUpperCase() === cycleId.toUpperCase())
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((c) => ({
+        claimId: c.claimId,
+        nickname: c.nickname,
+        claimCategory: c.category,
+        content: c.content,
+        createdAt: c.createdAt,
+      }));
+    return HttpResponse.json(ok(claims));
   }),
 
   http.post('/api/cycle/rental', async ({ request }) => {

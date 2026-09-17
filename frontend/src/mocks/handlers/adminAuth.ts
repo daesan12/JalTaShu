@@ -1,26 +1,36 @@
 import { delay, http, HttpResponse } from 'msw';
-import { fail, MOCK_ADMIN, ok, setAdminLoggedIn, isAdminLoggedIn } from '@/mocks/core';
+import { fail, isAdminLoggedIn, MOCK_ADMIN, ok, setAdminLoggedIn } from '@/mocks/core';
 
-/** 관리자 로그인 (10) — 백엔드에 아직 없는 API라 계정·세션 전부 목업 */
+/** 백엔드 TokenResponseDto와 같은 모양의 가짜 토큰 */
+const MOCK_ADMIN_TOKEN = {
+  accessToken: 'msw-admin-access-token',
+  tokenType: 'Bearer',
+  expiresIn: 1800,
+};
+
+/**
+ * 관리자 인증 (AdminController 실측 스키마) — 실서버는 httpOnly `admin_refresh_token`
+ * 쿠키를 쓰지만 목업은 쿠키가 없으므로 localStorage 플래그(core)로 세션을 흉내 낸다.
+ */
 export const adminAuthHandlers = [
-  http.post('/api/admin/auth/login', async ({ request }) => {
+  http.post('/api/admin/login', async ({ request }) => {
     await delay(400);
     const body = (await request.json()) as { id?: string; password?: string };
     if (body.id !== MOCK_ADMIN.id || body.password !== MOCK_ADMIN.password) {
       return fail(401, '아이디 또는 비밀번호가 올바르지 않습니다.');
     }
     setAdminLoggedIn(true);
-    return HttpResponse.json(ok(null));
+    return HttpResponse.json(ok(MOCK_ADMIN_TOKEN));
   }),
 
-  http.get('/api/admin/auth/me', async () => {
+  // 세션 복구 — 프론트는 이 요청의 성공 여부로 로그인 상태를 판정한다
+  http.post('/api/admin/token/refresh', async () => {
     await delay(200);
     if (!isAdminLoggedIn()) return fail(401, '로그인이 필요합니다.');
-    const { password: _password, ...me } = MOCK_ADMIN;
-    return HttpResponse.json(ok(me));
+    return HttpResponse.json(ok(MOCK_ADMIN_TOKEN));
   }),
 
-  http.post('/api/admin/auth/logout', async () => {
+  http.post('/api/admin/logout', async () => {
     await delay(200);
     setAdminLoggedIn(false);
     return HttpResponse.json(ok(null));
