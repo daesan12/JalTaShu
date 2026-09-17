@@ -82,6 +82,9 @@ def db_connect():
         password=_require_env(v["password"]),
         charset="utf8mb4",
         init_command="SET SESSION time_zone = '+00:00'",  # 저장 규약: UTC (infra/mysql/README)
+        # 연결을 루프 내내 재사용한다. autocommit이 없으면 첫 SELECT가 연 트랜잭션이 닫히지 않아
+        # REPEATABLE READ 스냅샷에 갇혀 이후 주기가 새 행을 못 본다 (운영 첫 기동에서 실측 — 키 0개).
+        autocommit=True,
     )
 
 
