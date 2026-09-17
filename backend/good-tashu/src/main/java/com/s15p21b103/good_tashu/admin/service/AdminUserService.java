@@ -83,17 +83,20 @@ public class AdminUserService {
         throw new AdminException(NOT_ACTIVE_BAN_RECORD);
     }
 
-    // 가장 최근 제재 기록 한 건을 조회한다. 조기 해제했다면 실제 해제 시각을 종료 시각으로 사용한다.
+    // 사용자의 전체 제재 이력을 최신순으로 조회한다.
     @Transactional(readOnly = true)
-    public AdminUserBanHistoryResponse getUserBanHistory(Long userId) {
+    public List<AdminUserBanHistoryResponse> getUserBanHistory(Long userId) {
         if (!userRepository.existsById(userId)) {
             throw new AdminException(NOT_EXISTS_USER);
         }
 
-        UserBanRecordEntity ban = userBanRecordRepository
-                .findFirstByUser_UserIdOrderByStartedAtDescIdDesc(userId)
-                .orElseThrow(() -> new AdminException(NOT_EXISTS_BAN_RECORD));
+        return userBanRecordRepository.findAllByUser_UserIdOrderByStartedAtDescIdDesc(userId).stream()
+                .map(this::toBanHistoryResponse)
+                .toList();
+    }
 
+    private AdminUserBanHistoryResponse toBanHistoryResponse(UserBanRecordEntity ban) {
+        // 조기 해제했다면 예정 시각보다 실제 해제 시각을 종료 시각으로 사용한다.
         LocalDateTime endAt = ban.getScheduledEndAt();
         if (ban.getReleasedAt() != null && ban.getReleasedAt().isBefore(endAt)) {
             endAt = ban.getReleasedAt();

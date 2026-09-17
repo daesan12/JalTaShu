@@ -14,6 +14,7 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -24,12 +25,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class AdminUserBanHistoryControllerTest {
     @Test
-    void getLatestBanHistoryReturnsSpecifiedFields() throws Exception {
-        // 관리자 GET 경로와 단일 제재 기록 응답 필드를 확인한다.
+    void getAllBanHistoryReturnsArrayWithSpecifiedFields() throws Exception {
+        // 관리자 GET 경로가 전체 제재 기록을 배열로 반환하는지 확인한다.
         AdminUserService service = mock(AdminUserService.class);
         LocalDateTime start = LocalDateTime.of(2026, 9, 15, 10, 0);
-        when(service.getUserBanHistory(7L)).thenReturn(new AdminUserBanHistoryResponse(
-                12L, start, start.plusDays(7), 7, "장난성 제보", 3L));
+        when(service.getUserBanHistory(7L)).thenReturn(List.of(
+                new AdminUserBanHistoryResponse(12L, start, start.plusDays(7), 7, "장난성 제보", 3L),
+                new AdminUserBanHistoryResponse(9L, start.minusDays(20), start.minusDays(13),
+                        7, "이전 제재", 2L)));
 
         HandlerMethodArgumentResolver adminResolver = new HandlerMethodArgumentResolver() {
             @Override
@@ -50,12 +53,14 @@ class AdminUserBanHistoryControllerTest {
 
         mvc.perform(get("/api/admin/user/7/ban"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.banRecordId").value(12))
-                .andExpect(jsonPath("$.data.banStartedAt").value("2026-09-15T10:00:00"))
-                .andExpect(jsonPath("$.data.banEndAt").value("2026-09-22T10:00:00"))
-                .andExpect(jsonPath("$.data.period").value(7))
-                .andExpect(jsonPath("$.data.comment").value("장난성 제보"))
-                .andExpect(jsonPath("$.data.adminId").value(3));
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].banRecordId").value(12))
+                .andExpect(jsonPath("$.data[0].banStartedAt").value("2026-09-15T10:00:00"))
+                .andExpect(jsonPath("$.data[0].banEndAt").value("2026-09-22T10:00:00"))
+                .andExpect(jsonPath("$.data[0].period").value(7))
+                .andExpect(jsonPath("$.data[0].comment").value("장난성 제보"))
+                .andExpect(jsonPath("$.data[0].adminId").value(3))
+                .andExpect(jsonPath("$.data[1].banRecordId").value(9));
         verify(service).getUserBanHistory(7L);
     }
 }
