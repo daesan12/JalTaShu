@@ -1,55 +1,62 @@
 import { describe, expect, it } from 'vitest';
-import type { RoutePath } from '@/shared/api/types';
+import type { RouteSummary } from '@/features/map/lib/routeMetrics';
 import {
-  assignBadges,
   formatSecondsAsMinutes,
   sortSummaries,
   summarizeRoute,
   totalAscent,
 } from '@/features/map/lib/routeMetrics';
+import { makeLeg, makeRoute } from '@/features/map/lib/__fixtures__/route';
 
-function route(over: Partial<RoutePath>): RoutePath {
-  return {
-    distance: [500, 3000, 500],
-    time: [420, 720, 420],
-    behave: ['WALK', 'BIKE', 'WALK'],
-    location: [],
-    altitude: [],
-    expectedBikeCnt: 3,
-    ...over,
-  };
+/** 고도만 다르게 준 한 구간짜리 경로 */
+function routeWithAltitudes(altitudes: number[]) {
+  return makeRoute({
+    legs: [makeLeg('BICYCLE', 0, altitudes.length - 1, 1000, 300, altitudes)],
+  });
 }
-
-const alt = (values: number[]) => values.map((altitude) => ({ xPos: 0, yPos: 0, altitude }));
 
 describe('totalAscent', () => {
   it('올라가는 구간만 더하고 내려가는 구간은 세지 않는다', () => {
-    expect(totalAscent(alt([50, 70, 60, 90, 40]))).toBe(50); // +20, +30
-    expect(totalAscent(alt([50]))).toBe(0);
-    expect(totalAscent([])).toBe(0);
+    expect(totalAscent(routeWithAltitudes([50, 70, 60, 90, 40]))).toBe(50); // +20, +30
+    expect(totalAscent(routeWithAltitudes([50, 50]))).toBe(0);
+  });
+
+  it('구간 경계 좌표를 두 번 세지 않는다', () => {
+    // 좌표 11개가 0m에서 100m까지 10m씩 오른다 — 구간이 3개로 나뉘어도 총 상승은 100m
+    const climbing = Array.from({ length: 11 }, (_, i) => i * 10);
+    expect(totalAscent(makeRoute({ altitudes: climbing }))).toBe(100);
   });
 });
 
 describe('summarizeRoute', () => {
-  it('총 시간과 도보 시간을 나눠 더한다. RENT/RETURN 0초 구간이 끼어도 같다', () => {
-    const s = summarizeRoute(
-      route({
-        time: [420, 0, 720, 0, 420],
-        behave: ['WALK', 'RENT', 'BIKE', 'RETURN', 'WALK'],
-        altitude: alt([50, 80]),
-      }),
-      2,
-    );
-    expect(s).toEqual({ index: 2, totalSec: 1560, walkSec: 840, ascentM: 30, expectedBikeCnt: 3 });
+  it('서버가 준 총 시간·종류를 그대로 쓰고 도보 시간만 따로 더한다', () => {
+    const summary = summarizeRoute(makeRoute({ type: 'UPHILL' }), 2);
+    expect(summary).toEqual({
+      index: 2,
+      type: 'UPHILL',
+      totalSec: 500, // 150 + 200 + 150
+      walkSec: 300, // 도보 두 구간
+      ascentM: 0, // 기본 고정 데이터는 평지
+      expectedBikeCnt: undefined,
+    });
+  });
+
+  it('예상 대수는 아직 응답에 없어 undefined다 — 값이 오면 그대로 담는다', () => {
+    expect(summarizeRoute(makeRoute(), 0).expectedBikeCnt).toBeUndefined();
+    expect(summarizeRoute(makeRoute({ expectedBikeCnt: 4 }), 0).expectedBikeCnt).toBe(4);
+  });
+
+  it('거리 0인 구간은 도보 시간에 넣지 않는다', () => {
+    expect(summarizeRoute(makeRoute({ distances: [0, 538, 179] }), 0).walkSec).toBe(150);
   });
 });
 
 describe('sortSummaries', () => {
-  const summaries = [
-    { index: 0, totalSec: 1260, walkSec: 540, ascentM: 72, expectedBikeCnt: 1 },
-    { index: 1, totalSec: 1380, walkSec: 540, ascentM: 45, expectedBikeCnt: 4 },
-    { index: 2, totalSec: 1560, walkSec: 600, ascentM: 18, expectedBikeCnt: 3 },
-    { index: 3, totalSec: 1500, walkSec: 300, ascentM: 60, expectedBikeCnt: 4 },
+  const summaries: RouteSummary[] = [
+    { index: 0, type: 'BIKE', totalSec: 1260, walkSec: 540, ascentM: 72, expectedBikeCnt: 1 },
+    { index: 1, type: 'UPHILL', totalSec: 1380, walkSec: 540, ascentM: 45, expectedBikeCnt: 4 },
+    { index: 2, type: 'BIKE', totalSec: 1560, walkSec: 600, ascentM: 18, expectedBikeCnt: 3 },
+    { index: 3, type: 'UPHILL', totalSec: 1500, walkSec: 300, ascentM: 60, expectedBikeCnt: 4 },
   ];
 
   it('확보 우선: 대수 많은 순, 같으면 빠른 순. 원본은 건드리지 않는다', () => {
@@ -65,50 +72,19 @@ describe('sortSummaries', () => {
     expect(sortSummaries(summaries, []).map((s) => s.index)).toEqual([0, 1, 3, 2]);
   });
 
-  it('둘 다 켜면 확보 우선으로 줄 세우고 동률(1·3번)은 오르막 적은 쪽이 앞', () => {
-    // bikes만일 때는 동률을 시간으로 갈라 [1, 3, ...]이지만, flat이 동점 처리에 끼면 45m < 60m로 1번이 앞
-    expect(sortSummaries(summaries, ['bikes', 'flat']).map((s) => s.index)).toEqual([1, 3, 2, 0]);
-    const tieBreak = [
-      { index: 0, totalSec: 1000, walkSec: 100, ascentM: 80, expectedBikeCnt: 4 },
-      { index: 1, totalSec: 1400, walkSec: 100, ascentM: 20, expectedBikeCnt: 4 },
+  it('예상 대수가 아직 없으면 전부 동률이라 빠른 순으로 떨어진다', () => {
+    const pending = summaries.map((s) => ({ ...s, expectedBikeCnt: undefined }));
+    expect(sortSummaries(pending, ['bikes']).map((s) => s.index)).toEqual([0, 1, 3, 2]);
+  });
+
+  it('둘 다 켜면 확보 우선으로 줄 세우고 동률은 오르막 적은 쪽이 앞', () => {
+    const tieBreak: RouteSummary[] = [
+      { index: 0, type: 'BIKE', totalSec: 1000, walkSec: 100, ascentM: 80, expectedBikeCnt: 4 },
+      { index: 1, type: 'UPHILL', totalSec: 1400, walkSec: 100, ascentM: 20, expectedBikeCnt: 4 },
     ];
-    // bikes만이면 빠른 0번이 앞, flat이 동점 처리면 오르막 적은 1번이 앞
+    // bikes만이면 빠른 0번이 앞, flat이 동점 처리에 끼면 오르막 적은 1번이 앞
     expect(sortSummaries(tieBreak, ['bikes']).map((s) => s.index)).toEqual([0, 1]);
     expect(sortSummaries(tieBreak, ['bikes', 'flat']).map((s) => s.index)).toEqual([1, 0]);
-  });
-});
-
-describe('assignBadges', () => {
-  it('후보 4개면 뱃지 4개가 서로 다른 후보에게 간다', () => {
-    const badges = assignBadges([
-      { index: 0, totalSec: 1260, walkSec: 540, ascentM: 72, expectedBikeCnt: 1 },
-      { index: 1, totalSec: 1380, walkSec: 540, ascentM: 45, expectedBikeCnt: 4 },
-      { index: 2, totalSec: 1560, walkSec: 600, ascentM: 18, expectedBikeCnt: 3 },
-      { index: 3, totalSec: 1500, walkSec: 300, ascentM: 60, expectedBikeCnt: 6 },
-    ]);
-    expect(badges).toEqual(['fast', 'walk', 'flat', 'bikes']);
-  });
-
-  it('한 후보가 여러 기준에서 1등이면 앞 순서 뱃지만 받고 나머지는 다음 후보에게 넘어간다', () => {
-    const badges = assignBadges([
-      { index: 0, totalSec: 1000, walkSec: 100, ascentM: 10, expectedBikeCnt: 9 }, // 전부 1등
-      { index: 1, totalSec: 1200, walkSec: 200, ascentM: 20, expectedBikeCnt: 5 },
-    ]);
-    expect(badges).toEqual(['fast', 'bikes']);
-  });
-
-  it('동점이면 앞 인덱스가 받는다', () => {
-    const same = { totalSec: 1000, walkSec: 100, ascentM: 10, expectedBikeCnt: 3 };
-    expect(
-      assignBadges([
-        { index: 0, ...same },
-        { index: 1, ...same },
-      ]),
-    ).toEqual(['fast', 'bikes']);
-  });
-
-  it('후보가 없으면 빈 배열', () => {
-    expect(assignBadges([])).toEqual([]);
   });
 });
 

@@ -1,38 +1,36 @@
 import { useMemo } from 'react';
-import type { RoutePath } from '@/shared/api/types';
+import type { RouteCandidate } from '@/shared/api/types';
 import { formatDistance } from '@/shared/lib/format';
 import { BottomSheet } from '@/shared/ui/BottomSheet';
 import { Button } from '@/shared/ui/Button';
 import { ElevationChart } from '@/shared/ui/ElevationChart';
 import { WALK_COLOR } from '@/shared/ui/grade';
 import { toStationStatus, type StationStatus } from '@/shared/ui/stationStatus';
-import { ROUTE_BADGE } from '@/features/map/lib/routeBadges';
+import { ROUTE_TYPE_STYLE } from '@/features/map/lib/routeTypeStyle';
 import { buildElevationProfile } from '@/features/map/lib/routeElevation';
 import { toLegs } from '@/features/map/lib/routeSegments';
 import {
   formatArrival,
   formatSecondsAsMinutes,
   totalAscent,
-  type RouteBadgeKind,
   type RouteSummary,
 } from '@/features/map/lib/routeMetrics';
 
-/** "도착 시 N대" 색 — 대여소 마커·10 카드와 같은 여유/보통/부족 판정 */
+/** "도착 시 N대" 색 — 대여소 마커·10 카드와 같은 여유/보통/부족 판정. 값이 없으면 줄 자체를 안 그린다 */
 const BIKES_TEXT_CLASS: Record<StationStatus, string> = {
   high: 'text-status-high',
   mid: 'text-status-mid',
   low: 'text-status-low',
 };
 
-/** 실제 턴바이턴 안내는 다음 이슈라 지금은 안내만 띄운다 */
+/** 회전 단위·음성 안내는 다음 이슈. 지금은 구간 단위 안내(12)로 시작한다 */
 const START_LABEL = '안내 시작';
 
 interface RouteDetailSheetProps {
   open: boolean;
   /** 선택한 경로 — 닫히는 동안에도 내용이 남도록 페이지가 마지막 값을 유지한다 */
-  route: RoutePath | null;
+  route: RouteCandidate | null;
   summary: RouteSummary | null;
-  badge: RouteBadgeKind | null;
   /** 후보를 받은 시각 — 도착 예정 시각 계산용 */
   fetchedAt: number;
   onStart: () => void;
@@ -48,14 +46,13 @@ export function RouteDetailSheet({
   open,
   route,
   summary,
-  badge,
   fetchedAt,
   onStart,
   onBack,
 }: RouteDetailSheetProps) {
   const profile = useMemo(() => (route === null ? null : buildElevationProfile(route)), [route]);
   const legs = useMemo(() => (route === null ? [] : toLegs(route)), [route]);
-  const ascentM = useMemo(() => (route === null ? 0 : totalAscent(route.altitude)), [route]);
+  const ascentM = useMemo(() => (route === null ? 0 : totalAscent(route)), [route]);
 
   return (
     <BottomSheet open={open} snapPoint="half" onClose={onBack} backdrop={false} dismissible={false}>
@@ -63,26 +60,26 @@ export function RouteDetailSheet({
         <div className="flex flex-col gap-4 pb-4">
           {/* 요약 */}
           <div>
-            {badge === null ? null : (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold ${ROUTE_TYPE_STYLE[route.type].pillClass}`}
+            >
               <span
-                className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold ${ROUTE_BADGE[badge].pillClass}`}
-              >
-                <span
-                  aria-hidden
-                  className={`h-1 w-3 rounded-full ${ROUTE_BADGE[badge].dotClass}`}
-                />
-                {ROUTE_BADGE[badge].label}
-              </span>
-            )}
+                aria-hidden
+                className={`h-1 w-3 rounded-full ${ROUTE_TYPE_STYLE[route.type].dotClass}`}
+              />
+              {ROUTE_TYPE_STYLE[route.type].label}
+            </span>
             <div className="mt-1.5 flex items-baseline gap-2">
               <span className="text-2xl font-bold tabular-nums text-gray-900">
                 {formatSecondsAsMinutes(summary.totalSec)}
               </span>
-              <span
-                className={`text-sm font-semibold ${BIKES_TEXT_CLASS[toStationStatus(summary.expectedBikeCnt)]}`}
-              >
-                도착 시 <span className="tabular-nums">{summary.expectedBikeCnt}</span>대
-              </span>
+              {summary.expectedBikeCnt === undefined ? null : (
+                <span
+                  className={`text-sm font-semibold ${BIKES_TEXT_CLASS[toStationStatus(summary.expectedBikeCnt)]}`}
+                >
+                  도착 시 <span className="tabular-nums">{summary.expectedBikeCnt}</span>대
+                </span>
+              )}
             </div>
             <p className="mt-0.5 text-sm text-gray-500 tabular-nums">
               {formatArrival(fetchedAt, summary.totalSec)} 도착 예정 · 도보{' '}
@@ -110,7 +107,7 @@ export function RouteDetailSheet({
             <h2 className="text-base font-bold text-gray-900">구간 안내</h2>
             <ul className="mt-3 space-y-3.5">
               {legs.map((leg, i) => {
-                const isWalk = leg.behave === 'WALK';
+                const isWalk = leg.mode === 'WALK';
                 return (
                   <li key={i} className="flex gap-3">
                     <span
@@ -121,7 +118,7 @@ export function RouteDetailSheet({
                     <div className="min-w-0">
                       <p className="text-sm text-gray-500">{isWalk ? '도보' : '자전거'}</p>
                       <p className="text-base font-bold text-gray-900 tabular-nums">
-                        {formatSecondsAsMinutes(leg.timeSec)} · {formatDistance(leg.distanceM)}
+                        {formatSecondsAsMinutes(leg.time)} · {formatDistance(leg.distance)}
                       </p>
                     </div>
                   </li>

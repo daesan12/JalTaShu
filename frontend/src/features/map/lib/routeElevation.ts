@@ -1,14 +1,14 @@
-import type { RoutePath } from '@/shared/api/types';
-import { haversineMeters, posToLatLng } from '@/shared/lib/coords';
+import type { RouteCandidate, RoutePoint } from '@/shared/api/types';
+import { haversineMeters, osrmToLatLng } from '@/shared/lib/coords';
+import { routePoints } from '@/features/map/lib/routeSegments';
 import type { ElevationBar } from '@/shared/ui/ElevationChart';
 import type { GradeClass } from '@/shared/ui/grade';
 
 /**
- * 11 고도 그래프 — 백엔드 `altitude[]`(경도·위도·고도 묶음)를 공용 `ElevationChart`가 받는 막대로 바꾼다.
+ * 11 고도 그래프 — 경로 좌표를 공용 `ElevationChart`가 받는 막대로 바꾼다.
  *
- * `altitude[]`는 `location[]`보다 촘촘하고 두 배열의 인덱스는 서로 대응하지 않는다. 그래서 여기서는
- * `location[]`을 보지 않고 `altitude[]` 안에서만 계산하며, 막대는 **누적 거리**를 같은 폭으로 잘라 만든다
- * (좌표 간격이 들쭉날쭉해도 가로축이 실제 거리 비율과 맞게).
+ * 고도는 **좌표마다** 붙어 온다(`points[].altitude`). 좌표 간격이 들쭉날쭉하므로 막대는 개수가 아니라
+ * **누적 거리**를 같은 폭으로 잘라 만든다(가로축이 실제 거리 비율과 맞게).
  */
 
 /** 막대 개수 — 화면 폭(최대 430px)에서 막대가 뭉개지지 않는 선 */
@@ -32,20 +32,20 @@ export interface ElevationProfile {
   maxGradePct: number;
 }
 
-/** 고도 지점들의 누적 거리(m). 첫 항목은 0 */
-function cumulativeDistances(altitude: RoutePath['altitude']): number[] {
+/** 좌표들의 누적 거리(m). 첫 항목은 0 */
+function cumulativeDistances(points: RoutePoint[]): number[] {
   const cumulative = [0];
-  for (let i = 1; i < altitude.length; i++) {
-    const prev = posToLatLng(altitude[i - 1]);
-    const curr = posToLatLng(altitude[i]);
+  for (let i = 1; i < points.length; i++) {
+    const prev = osrmToLatLng(points[i - 1].location);
+    const curr = osrmToLatLng(points[i].location);
     cumulative.push(cumulative[i - 1] + haversineMeters(prev, curr));
   }
   return cumulative;
 }
 
-/** 누적 거리 `target`m 지점의 고도 — 앞뒤 지점을 선형 보간한다 */
+/** 누적 거리 `target`m 지점의 고도 — 앞뒤 좌표를 선형 보간한다 */
 function altitudeAt(
-  altitude: RoutePath['altitude'],
+  points: RoutePoint[],
   cumulative: number[],
   target: number,
   searchFrom: number,
@@ -53,24 +53,24 @@ function altitudeAt(
   let i = searchFrom;
   while (i < cumulative.length - 1 && cumulative[i + 1] < target) i++;
   if (i >= cumulative.length - 1) {
-    return { altitude: altitude[altitude.length - 1].altitude, index: cumulative.length - 1 };
+    return { altitude: points[points.length - 1].altitude, index: cumulative.length - 1 };
   }
   const span = cumulative[i + 1] - cumulative[i];
   const ratio = span <= 0 ? 0 : (target - cumulative[i]) / span;
   const value =
-    altitude[i].altitude + (altitude[i + 1].altitude - altitude[i].altitude) * Math.min(1, ratio);
+    points[i].altitude + (points[i + 1].altitude - points[i].altitude) * Math.min(1, ratio);
   return { altitude: value, index: i };
 }
 
 /**
- * 고도 배열 → 막대 24개. 막대 높이는 경로 안에서의 상대 높이(0~1),
+ * 경로 좌표 → 막대 24개. 막대 높이는 경로 안에서의 상대 높이(0~1),
  * 색은 그 구간의 평균 경사로 정한 4단계.
  */
-export function buildElevationProfile(route: RoutePath): ElevationProfile {
-  const altitude = route.altitude;
-  if (altitude.length < 2) return { bars: [], maxGradePct: 0 };
+export function buildElevationProfile(route: RouteCandidate): ElevationProfile {
+  const points = routePoints(route);
+  if (points.length < 2) return { bars: [], maxGradePct: 0 };
 
-  const cumulative = cumulativeDistances(altitude);
+  const cumulative = cumulativeDistances(points);
   const totalM = cumulative[cumulative.length - 1];
   if (totalM <= 0) return { bars: [], maxGradePct: 0 };
 
@@ -79,7 +79,7 @@ export function buildElevationProfile(route: RoutePath): ElevationProfile {
   const edges: number[] = [];
   let cursor = 0;
   for (let i = 0; i <= BAR_COUNT; i++) {
-    const found = altitudeAt(altitude, cumulative, stepM * i, cursor);
+    const found = altitudeAt(points, cumulative, stepM * i, cursor);
     cursor = found.index;
     edges.push(found.altitude);
   }

@@ -2,10 +2,14 @@ import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 import { ENV } from '@/shared/config/env';
 import type { ApiResponse } from '@/shared/api/types';
 
-// 요청별로 401 전역 리다이렉트를 건너뛸 수 있는 커스텀 옵션 (예: 로그인 여부 확인용 /users/me)
 declare module 'axios' {
   export interface AxiosRequestConfig {
+    /** 401이어도 로그인 화면으로 보내지 않는다 (예: 로그인 여부 확인용 /users/me) */
     skipAuthRedirect?: boolean;
+    /** 401이어도 토큰 재발급을 시도하지 않는다 (재발급 요청 자신) */
+    skipAuthRefresh?: boolean;
+    /** 재발급 뒤 한 번 다시 보낸 요청인지 — 무한 재시도 방지용(내부 전용) */
+    authRetried?: boolean;
   }
 }
 
@@ -23,26 +27,90 @@ export class ApiError extends Error {
 export const client = axios.create({
   baseURL: ENV.API_BASE_URL,
   timeout: 10_000,
-  // 백엔드 인증이 세션 쿠키(JSESSIONID) 방식이라 모든 요청에 쿠키 포함 필수
+  // refresh token이 httpOnly 쿠키라 재발급 요청에 쿠키가 실려야 한다
   withCredentials: true,
 });
 
-/** 앱 사용 중 세션이 만료(401)되면 로그인 화면으로 보낸다 (새로고침 효과로 상태도 초기화) */
-client.interceptors.response.use(undefined, (error: unknown) => {
-  if (
-    error instanceof AxiosError &&
-    error.response?.status === 401 &&
-    !error.config?.skipAuthRedirect
-  ) {
-    // 관리자 화면에서 끊겼으면 모바일 로그인이 아니라 관리자 로그인으로 보낸다
-    const base = import.meta.env.BASE_URL;
-    const inAdmin = window.location.pathname.startsWith(`${base}admin`);
-    const loginUrl = `${base}${inAdmin ? 'admin/login' : 'login'}`;
-    // 이미 로그인 화면이면 리다이렉트 루프 방지
-    if (window.location.pathname !== loginUrl) {
-      window.location.assign(loginUrl);
+/*
+ * 인증 — 백엔드는 **JWT Bearer 토큰** 방식이다(세션 쿠키가 아니다).
+ *
+ * - access token은 쿠키가 아니라서 브라우저가 자동으로 안 붙인다 → 요청마다 헤더에 직접 적는다
+ * - 저장은 **메모리에만** 한다. localStorage는 XSS에 취약하고, 새로고침하면 아래 재발급으로 다시 받는다
+ * - refresh token은 httpOnly 쿠키(경로 `/api/auth`)라 재발급 요청에만 자동으로 실린다
+ * - 로그인 직후에도 백엔드가 access token을 본문으로 주지 않는다(쿠키만 심고 리다이렉트).
+ *   그래서 첫 요청이 401을 받고 → 재발급 → 재시도하는 이 흐름이 로그인 복구 경로이기도 하다
+ */
+let accessToken: string | null = null;
+
+/** 로그인·재발급에 성공한 쪽이 토큰을 넣어 준다. 로그아웃은 null */
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+
+client.interceptors.request.use((config) => {
+  if (accessToken !== null) config.headers.Authorization = `Bearer ${accessToken}`;
+  return config;
+});
+
+interface TokenResponse {
+  accessToken: string;
+  tokenType: string;
+  expiresIn: number;
+}
+
+/**
+ * 재발급은 동시에 한 번만 — 화면 여러 곳이 한꺼번에 401을 받아도 요청이 몰리지 않게 한다.
+ * 실패해도 예외를 던지지 않고 null을 돌려준다(호출한 쪽이 "세션 만료"로 처리한다).
+ */
+let refreshing: Promise<string | null> | null = null;
+
+function refreshAccessToken(): Promise<string | null> {
+  refreshing ??= client
+    .post<ApiResponse<TokenResponse>>('/auth/token/refresh', null, {
+      skipAuthRedirect: true,
+      skipAuthRefresh: true,
+    })
+    .then((res) => {
+      accessToken = res.data?.data?.accessToken ?? null;
+      return accessToken;
+    })
+    .catch(() => {
+      accessToken = null;
+      return null;
+    })
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
+}
+
+/** 세션이 끝났을 때 로그인 화면으로 (새로고침 효과로 상태도 초기화) */
+function redirectToLogin(): void {
+  // 관리자 화면에서 끊겼으면 모바일 로그인이 아니라 관리자 로그인으로 보낸다
+  const base = import.meta.env.BASE_URL;
+  const inAdmin = window.location.pathname.startsWith(`${base}admin`);
+  const loginUrl = `${base}${inAdmin ? 'admin/login' : 'login'}`;
+  // 이미 로그인 화면이면 리다이렉트 루프 방지
+  if (window.location.pathname !== loginUrl) {
+    window.location.assign(loginUrl);
+  }
+}
+
+/** 401 → 재발급 1회 → 원래 요청 재시도. 그래도 안 되면 로그인 화면 */
+client.interceptors.response.use(undefined, async (error: unknown) => {
+  if (!(error instanceof AxiosError) || error.response?.status !== 401 || !error.config) {
+    return Promise.reject(error);
+  }
+  const config = error.config;
+  if (!config.skipAuthRefresh && !config.authRetried) {
+    const token = await refreshAccessToken();
+    if (token !== null) {
+      config.authRetried = true;
+      return client.request(config);
     }
   }
+  accessToken = null;
+  if (!config.skipAuthRedirect) redirectToLogin();
   return Promise.reject(error);
 });
 

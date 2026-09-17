@@ -9,8 +9,21 @@ import { fail, getAuthState, ok, requireAuth, setAuthState } from '@/mocks/core'
 import { setMockReports } from '@/mocks/handlers/reports';
 import { setOpenApiRequests } from '@/mocks/handlers/support';
 
-/** 인증·프로필 (05~06 로그인·가입, 24 마이) — 백엔드 세션 쿠키 방식을 흉내 */
+/** 인증·프로필 (05~06 로그인·가입, 24 마이) */
 export const authHandlers = [
+  /**
+   * access token 재발급 — 실서버는 httpOnly refresh 쿠키를 검증해 새 access token을 준다.
+   * 목업은 쿠키가 없으므로 가짜 세션이 살아 있으면 가짜 토큰을 돌려준다.
+   * (`shared/api/client.ts`가 401을 받으면 이 경로로 한 번 재발급을 시도한다)
+   */
+  http.post('/api/auth/token/refresh', async () => {
+    await delay(200);
+    if (!getAuthState().loggedIn) return fail(401, '로그인이 필요합니다.');
+    return HttpResponse.json(
+      ok({ accessToken: 'msw-access-token', tokenType: 'Bearer', expiresIn: 1800 }),
+    );
+  }),
+
   http.get('/api/users/me', async () => {
     await delay(300);
     const state = getAuthState();

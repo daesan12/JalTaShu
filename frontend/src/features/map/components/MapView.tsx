@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BikeStation, PlaceSearchResult, Pos, RoutePath } from '@/shared/api/types';
+import type { BikeStation, PlaceSearchResult, Pos, RouteCandidate } from '@/shared/api/types';
 import { CurrentLocationMarker } from '@/features/map/components/CurrentLocationMarker';
 import { DestinationMarker } from '@/features/map/components/DestinationMarker';
 import { RoutePolylines } from '@/features/map/components/RoutePolylines';
 import { SelectedRoutePolyline } from '@/features/map/components/SelectedRoutePolyline';
 import { StationMarkers } from '@/features/map/components/StationMarkers';
-import type { RouteBadgeKind } from '@/features/map/lib/routeMetrics';
 import { DAEJEON_CENTER, DEFAULT_ZOOM } from '@/features/map/lib/mapDefaults';
 import {
   loadNaverMaps,
@@ -43,14 +42,13 @@ interface MapViewProps {
   /** 08에서 고른 목적지. null이면 핀 없음 */
   destination: PlaceSearchResult | null;
   /** 10 경로 후보. null이면 경로선 없음 */
-  routes: RoutePath[] | null;
-  routeBadges: (RouteBadgeKind | null)[];
+  routes: RouteCandidate[] | null;
   selectedRouteIndex: number | null;
   /**
    * 11 경로 상세에서 보고 있는 경로. null이 아니면 후보 4개 대신
    * 이 경로 하나만 도보/자전거 2색으로 그린다
    */
-  detailRoute: RoutePath | null;
+  detailRoute: RouteCandidate | null;
   /** 현재 위치. null이면 점을 그리지 않는다 */
   currentLocation: Pos | null;
   /** 값이 바뀔 때마다 현재 위치로 지도를 옮긴다(현재위치 버튼) */
@@ -71,7 +69,6 @@ export function MapView({
   onSelectStation,
   destination,
   routes,
-  routeBadges,
   selectedRouteIndex,
   detailRoute,
   currentLocation,
@@ -152,7 +149,6 @@ export function MapView({
         <RoutePolylines
           map={map}
           routes={routes}
-          badges={routeBadges}
           selectedIndex={selectedRouteIndex}
         />
       )}

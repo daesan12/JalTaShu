@@ -1,13 +1,20 @@
 import { delay, http, HttpResponse } from 'msw';
 import type {
   BikeStation,
+  PathResponse,
   PlaceSearchResult,
   Pos,
   RecentPlace,
-  RoutePath,
+  RouteCandidate,
+  RouteLeg,
+  RoutePoint,
+  RouteStation,
+  RouteStep,
+  RouteType,
   Station,
   StationForecastPoint,
   StationPrediction,
+  TravelMode,
 } from '@/shared/api/types';
 import { PREDICTION_HORIZONS } from '@/shared/config/constants';
 import { fail, ok, requireAuth } from '@/mocks/core';
@@ -162,9 +169,8 @@ const PLACES: PlaceSearchResult[] = [
 ];
 
 /**
- * 경로 후보 목업(10) — 출발·도착 사이를 잇는 4개 경로를 만든다.
- * 가운데를 좌우로 휘게 해 경로마다 길이·시간이 다르고, 10의 뱃지(가장 빠름/자전거 많음/…)가 각각 다른
- * 후보에 붙을 수 있게 확보 대수·고도도 다르게 준다. 실제 OSRM 경로가 아니다.
+ * 경로 후보 목업(10) — 출발·도착 사이를 잇는 경로를 만든다.
+ * 가운데를 좌우로 휘게 해 후보마다 길이·고도가 다르다. 실제 OSRM 경로가 아니다.
  */
 const EARTH_RADIUS_M = 6_371_000;
 const BIKE_M_PER_SEC = 4.2; // ≈ 15km/h
@@ -194,39 +200,114 @@ function curvedPath(start: Pos, end: Pos, bend: number, points: number): Pos[] {
   });
 }
 
-function pathLength(path: Pos[]): number {
-  let total = 0;
-  for (let i = 1; i < path.length; i++) total += distanceMeters(path[i - 1], path[i]);
-  return total;
-}
-
-const MOCK_ROUTE_VARIANTS = [
-  { bend: 0.05, walkM: 320, expectedBikeCnt: 1, hill: 72 },
-  { bend: -0.12, walkM: 300, expectedBikeCnt: 4, hill: 45 },
-  { bend: 0.22, walkM: 380, expectedBikeCnt: 3, hill: 18 },
-  { bend: -0.3, walkM: 180, expectedBikeCnt: 6, hill: 60 },
+/**
+ * 목업 회전 안내 — 서버가 step마다 한국어 문장까지 만들어 준다(`instruction`).
+ * 화면은 다음 이슈에서 붙이지만, 그때 쓸 수 있게 여기서 형태를 맞춰 둔다.
+ */
+const MOCK_MANEUVERS = [
+  { type: 'depart', modifier: null, exit: null, instruction: '출발하세요' },
+  { type: 'turn', modifier: 'right', exit: null, instruction: '우회전하세요' },
+  { type: 'turn', modifier: 'slight left', exit: null, instruction: '왼쪽으로 완만하게 이동하세요' },
+  {
+    type: 'roundabout',
+    modifier: 'right',
+    exit: 2,
+    instruction: '회전교차로에서 2번째 출구로 나가세요',
+  },
+  { type: 'arrive', modifier: null, exit: null, instruction: '구간 목적지에 도착했습니다' },
 ] as const;
 
-function buildMockRoutes(start: Pos, end: Pos): RoutePath[] {
-  return MOCK_ROUTE_VARIANTS.map(({ bend, walkM, expectedBikeCnt, hill }) => {
-    const location = curvedPath(start, end, bend, 12);
-    const bikeM = Math.max(200, pathLength(location) - walkM * 2);
-    // 고도는 경로보다 촘촘하게(3배) 주고, 가운데가 hill만큼 솟는 언덕 하나
-    const altitude = curvedPath(start, end, bend, 36).map((p, i, arr) => ({
-      ...p,
-      altitude: 50 + Math.round(Math.sin((Math.PI * i) / (arr.length - 1)) * hill),
+/** 좌표 → 서버 응답의 GeoJSON 좌표 `[경도, 위도]` */
+function toGeo({ xPos, yPos }: Pos): [number, number] {
+  return [xPos, yPos];
+}
+
+/** 경로 한 토막을 step들로 자른다 — step 경계 좌표는 앞뒤가 함께 갖는다(서버와 같은 모양) */
+function toSteps(points: RoutePoint[], mode: TravelMode, speed: number): RouteStep[] {
+  const chunks = Math.min(3, Math.max(1, points.length - 1));
+  const size = Math.ceil((points.length - 1) / chunks);
+  const steps: RouteStep[] = [];
+  for (let i = 0; i < chunks; i++) {
+    const slice = points.slice(i * size, Math.min(points.length, (i + 1) * size + 1));
+    if (slice.length < 2) continue;
+    let distance = 0;
+    for (let j = 1; j < slice.length; j++) {
+      distance += distanceMeters(
+        { xPos: slice[j - 1].location[0], yPos: slice[j - 1].location[1] },
+        { xPos: slice[j].location[0], yPos: slice[j].location[1] },
+      );
+    }
+    const action = MOCK_MANEUVERS[(i + steps.length) % MOCK_MANEUVERS.length];
+    steps.push({
+      distance: Math.round(distance),
+      time: Math.round(distance / speed),
+      roadName: mode === 'WALK' ? '' : '대덕대로',
+      travelMode: mode === 'WALK' ? 'walking' : 'cycling',
+      points: slice,
+      behave: {
+        type: action.type,
+        modifier: action.modifier,
+        exit: action.exit,
+        location: slice[0].location,
+        instruction: action.instruction,
+      },
+    });
+  }
+  return steps;
+}
+
+function toLeg(points: RoutePoint[], mode: TravelMode): RouteLeg {
+  const speed = mode === 'WALK' ? WALK_M_PER_SEC : BIKE_M_PER_SEC;
+  const steps = toSteps(points, mode, speed);
+  return {
+    mode,
+    distance: steps.reduce((sum, step) => sum + step.distance, 0),
+    time: steps.reduce((sum, step) => sum + step.time, 0),
+    steps,
+  };
+}
+
+/**
+ * 경로 후보 목업 — 실제 서버처럼 **2개**(일반·오르막 회피)를 만든다.
+ * 출발·도착 대여소가 같은 경우(도보 1개만)는 지금 화면에서 재현할 일이 없어 만들지 않는다.
+ * `expectedBikeCnt`는 **일부러 넣지 않는다** — 실제 응답에 아직 없어서, 10의 "확보 우선" 칩이
+ * 준비 중으로 막히는 상태를 그대로 확인할 수 있어야 한다.
+ */
+const MOCK_ROUTE_VARIANTS: { type: RouteType; bend: number; hill: number }[] = [
+  { type: 'BIKE', bend: 0.05, hill: 72 },
+  { type: 'UPHILL', bend: -0.22, hill: 18 },
+];
+
+/** 전체 경로 좌표 개수와 구간 경계 — 앞뒤 구간이 경계 좌표를 함께 갖도록 인덱스를 겹친다 */
+const MOCK_POINT_COUNT = 40;
+const RENT_INDEX = 7;
+const RETURN_INDEX = 32;
+
+function buildMockRoutes(start: Pos, end: Pos): RouteCandidate[] {
+  return MOCK_ROUTE_VARIANTS.map(({ type, bend, hill }) => {
+    const path = curvedPath(start, end, bend, MOCK_POINT_COUNT);
+    const points: RoutePoint[] = path.map((pos, i) => ({
+      location: toGeo(pos),
+      // 가운데가 hill만큼 솟는 언덕 하나
+      altitude: 50 + Math.round(Math.sin((Math.PI * i) / (path.length - 1)) * hill),
     }));
+    const station = (index: number, name: string): RouteStation => ({
+      stationId: `ST${String(index).padStart(4, '0')}`,
+      name,
+      location: points[index].location,
+    });
+    const legs = [
+      toLeg(points.slice(0, RENT_INDEX + 1), 'WALK'),
+      toLeg(points.slice(RENT_INDEX, RETURN_INDEX + 1), 'BICYCLE'),
+      toLeg(points.slice(RETURN_INDEX), 'WALK'),
+    ];
     return {
-      distance: [walkM, Math.round(bikeM), walkM],
-      time: [
-        Math.round(walkM / WALK_M_PER_SEC),
-        Math.round(bikeM / BIKE_M_PER_SEC),
-        Math.round(walkM / WALK_M_PER_SEC),
-      ],
-      behave: ['WALK', 'BIKE', 'WALK'],
-      location,
-      altitude,
-      expectedBikeCnt,
+      type,
+      startStation: station(RENT_INDEX, '목업 대여 대여소'),
+      endStation: station(RETURN_INDEX, '목업 반납 대여소'),
+      totalDistance: legs.reduce((sum, leg) => sum + leg.distance, 0),
+      totalTime: legs.reduce((sum, leg) => sum + leg.time, 0),
+      legs,
     };
   });
 }
@@ -313,13 +394,15 @@ export const mapHandlers = [
     await delay(1500);
     const authFail = requireAuth();
     if (authFail) return authFail;
+    // ⚠ 이 API만 좌표를 이름으로 구분한다(lat=위도, lng=경도). 다른 API의 xPos/yPos와 다르다
     const q = new URL(request.url).searchParams;
-    const start: Pos = { xPos: Number(q.get('startXPos')), yPos: Number(q.get('startYPos')) };
-    const end: Pos = { xPos: Number(q.get('endXPos')), yPos: Number(q.get('endYPos')) };
+    const start: Pos = { xPos: Number(q.get('startLng')), yPos: Number(q.get('startLat')) };
+    const end: Pos = { xPos: Number(q.get('endLng')), yPos: Number(q.get('endLat')) };
     if (![start.xPos, start.yPos, end.xPos, end.yPos].every(Number.isFinite)) {
       return fail(400, '출발지와 목적지 좌표가 필요합니다.');
     }
-    return HttpResponse.json(ok(buildMockRoutes(start, end)));
+    const body: PathResponse = { routes: buildMockRoutes(start, end) };
+    return HttpResponse.json(ok(body));
   }),
 
   http.get('/api/map/recent', async ({ request }) => {

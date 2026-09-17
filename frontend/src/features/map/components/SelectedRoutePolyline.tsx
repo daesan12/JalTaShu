@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { RoutePath } from '@/shared/api/types';
-import { posToLatLng } from '@/shared/lib/coords';
+import type { RouteCandidate } from '@/shared/api/types';
 import { readCssToken } from '@/shared/lib/cssToken';
 import { WALK_COLOR } from '@/shared/ui/grade';
 import { fitPathAboveSheet } from '@/features/map/lib/mapFit';
@@ -8,7 +7,7 @@ import { splitByLeg } from '@/features/map/lib/routeSegments';
 
 /**
  * 11 경로 상세의 경로선 — 선택한 경로 하나를 도보/자전거 2색으로 그린다.
- * 10(후보 4개를 뱃지 색·회색으로)과 그리는 규칙이 달라 컴포넌트를 나눴다.
+ * 10(후보 전체를 종류 색·회색으로)과 그리는 규칙이 달라 컴포넌트를 나눴다.
  *
  * 색: 도보는 `shared/ui/grade.ts`의 `WALK_COLOR`(23 기록 상세에서도 도보를 뜻하는 파랑),
  * 자전거는 브랜드색 토큰(`--color-primary`). 네이버 Polyline은 클래스를 못 받아 값으로 넘긴다.
@@ -18,7 +17,7 @@ const STROKE_WEIGHT = 7;
 interface SelectedRoutePolylineProps {
   map: naver.maps.Map;
   /** null이면 선을 지운다 */
-  route: RoutePath | null;
+  route: RouteCandidate | null;
 }
 
 export function SelectedRoutePolyline({ map, route }: SelectedRoutePolylineProps) {
@@ -34,17 +33,14 @@ export function SelectedRoutePolyline({ map, route }: SelectedRoutePolylineProps
     const bikeColor = readCssToken('--color-primary');
     const allPoints: naver.maps.LatLng[] = [];
 
-    for (const leg of splitByLeg(route)) {
-      const path = leg.points.map((pos) => {
-        const { lat, lng } = posToLatLng(pos);
-        return new LatLng(lat, lng);
-      });
+    for (const { leg, points } of splitByLeg(route)) {
+      const path = points.map(({ lat, lng }) => new LatLng(lat, lng));
       allPoints.push(...path);
       lines.push(
         new Polyline({
           map,
           path,
-          strokeColor: leg.behave === 'WALK' ? WALK_COLOR : bikeColor,
+          strokeColor: leg.mode === 'WALK' ? WALK_COLOR : bikeColor,
           strokeWeight: STROKE_WEIGHT,
           strokeOpacity: 1,
           strokeLineCap: 'round',
