@@ -8,6 +8,7 @@ import com.s15p21b103.good_tashu.cycle.dto.req.CycleReturnRequest;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimListResponse;
 import com.s15p21b103.good_tashu.cycle.service.CycleService;
+import com.s15p21b103.good_tashu.user.annotation.BlockBanUser;
 import com.s15p21b103.good_tashu.user.annotation.currentUserId;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class CycleController {
         return ApiResponse.success(localDateTime);
     }
     //자전거 상태제보
+    @BlockBanUser
     @PostMapping(value = "/claim", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<CycleClaimResponse> claimCycle(@currentUserId Long userId,
                                                   @Valid @ModelAttribute CycleClaimRequest request){

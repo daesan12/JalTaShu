@@ -60,7 +60,6 @@ public class AdminCycleController {
             @RequestParam(name = "cycleId", defaultValue = "") String cycleId,
             @RequestParam(name = "order", defaultValue = "newest") String order,
             @RequestParam(name = "status", defaultValue = "") String status) {
-        // TODO: 검색·정렬 조건 검증 및 전체 제보 조회 서비스 연결
         return ApiResponse.success(
                 adminCycleService.getCycleClaimList(nickname, cycleId, order, status));
     }

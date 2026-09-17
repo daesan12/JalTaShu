@@ -13,4 +13,14 @@ public interface UserBanRecordRepository extends JpaRepository<UserBanRecordEnti
     @Query("update UserBanRecordEntity b set b.releasedAt = :now "
             + "where b.user.userId = :userId and b.releasedAt is null")
     int releaseActiveBan(Long userId, LocalDateTime now);
+
+    @Query("""
+          select case when count(b) > 0 then true else false end
+          from UserBanRecordEntity b
+          where b.user.userId = :userId
+            and b.startedAt <= :now
+            and b.scheduledEndAt > :now
+            and b.releasedAt is null
+          """)
+    boolean existsActiveBan(Long userId, LocalDateTime now);
 }
