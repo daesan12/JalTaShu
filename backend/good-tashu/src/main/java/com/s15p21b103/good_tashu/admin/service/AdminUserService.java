@@ -1,6 +1,7 @@
 package com.s15p21b103.good_tashu.admin.service;
 
 import com.s15p21b103.good_tashu.admin.dto.res.AdminUserListResponse;
+import com.s15p21b103.good_tashu.admin.dto.res.AdminUserBanHistoryResponse;
 import com.s15p21b103.good_tashu.admin.repository.AdminUserRepository;
 import com.s15p21b103.good_tashu.admin.repository.AdminRepository;
 import com.s15p21b103.good_tashu.admin.repository.UserBanRecordRepository;
@@ -16,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 import java.util.List;
 import java.util.Locale;
@@ -68,13 +71,38 @@ public class AdminUserService {
     }
 
     @Transactional
-    public void releaseUserBan(Long userId) {
-        // 존재하는 사용자만 제재 해제 가능
-        if (userRepository.findById(userId).isEmpty()) {
+    public void releaseUserBan(Long banRecordId) {
+        // 지정한 제재 기록이 현재 유효할 때만 한 건을 해제한다.
+        int updated = userBanRecordRepository.releaseActiveBan(banRecordId, LocalDateTime.now());
+        if (updated == 1) {
+            return;
+        }
+        if (!userBanRecordRepository.existsById(banRecordId)) {
+            throw new AdminException(NOT_EXISTS_BAN_RECORD);
+        }
+        throw new AdminException(NOT_ACTIVE_BAN_RECORD);
+    }
+
+    // 가장 최근 제재 기록 한 건을 조회한다. 조기 해제했다면 실제 해제 시각을 종료 시각으로 사용한다.
+    @Transactional(readOnly = true)
+    public AdminUserBanHistoryResponse getUserBanHistory(Long userId) {
+        if (!userRepository.existsById(userId)) {
             throw new AdminException(NOT_EXISTS_USER);
         }
-        // 해제 시각을 기록
-        userBanRecordRepository.releaseActiveBan(userId, java.time.LocalDateTime.now());
+
+        UserBanRecordEntity ban = userBanRecordRepository
+                .findFirstByUser_UserIdOrderByStartedAtDescIdDesc(userId)
+                .orElseThrow(() -> new AdminException(NOT_EXISTS_BAN_RECORD));
+
+        LocalDateTime endAt = ban.getScheduledEndAt();
+        if (ban.getReleasedAt() != null && ban.getReleasedAt().isBefore(endAt)) {
+            endAt = ban.getReleasedAt();
+        }
+
+        long period = ChronoUnit.DAYS.between(ban.getStartedAt(), ban.getScheduledEndAt());
+        return new AdminUserBanHistoryResponse(
+                ban.getId(), ban.getStartedAt(), endAt, period,
+                ban.getComment(), ban.getAdmin().getAdminId());
     }
 
     //최근 이용일과 현재 제재 상태를 사용자 목록으로 조회

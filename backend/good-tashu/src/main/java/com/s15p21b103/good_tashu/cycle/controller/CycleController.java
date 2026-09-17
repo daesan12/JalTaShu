@@ -9,7 +9,7 @@ import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimListResponse;
 import com.s15p21b103.good_tashu.cycle.service.CycleService;
 import com.s15p21b103.good_tashu.user.annotation.BlockBanUser;
-import com.s15p21b103.good_tashu.user.annotation.currentUserId;
+import com.s15p21b103.good_tashu.user.annotation.CurrentUserId;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -30,14 +30,14 @@ public class CycleController {
 
     //대여 요청
     @PostMapping("/rental")
-    public ApiResponse<LocalDateTime> rentalCycle(@currentUserId Long userId,
+    public ApiResponse<LocalDateTime> rentalCycle(@CurrentUserId Long userId,
                                                   @Valid @RequestBody CycleRentalRequest request){
         LocalDateTime localDateTime = cycleService.rentalCycle(userId, request);
         return ApiResponse.success(localDateTime);
     }
     //반납 요청
     @PostMapping("return")
-    public ApiResponse<LocalDateTime> returnCycle(@currentUserId Long userId,
+    public ApiResponse<LocalDateTime> returnCycle(@CurrentUserId Long userId,
                                                   @Valid @RequestBody CycleReturnRequest request){
         LocalDateTime localDateTime = cycleService.returnCycle(userId, request);
         return ApiResponse.success(localDateTime);
@@ -45,7 +45,7 @@ public class CycleController {
     //자전거 상태제보
     @BlockBanUser
     @PostMapping(value = "/claim", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<CycleClaimResponse> claimCycle(@currentUserId Long userId,
+    public ApiResponse<CycleClaimResponse> claimCycle(@CurrentUserId Long userId,
                                                   @Valid @ModelAttribute CycleClaimRequest request){
         CycleClaimResponse response = cycleService.claimCycle(userId, request);
         return ApiResponse.success(response);
@@ -61,7 +61,7 @@ public class CycleController {
     //자전거 상태제보 신고
     @PostMapping(value = "/claims/{claimId}/reports")
     public ResponseEntity<ApiResponse<Void>> reportCycleClaim(
-            @currentUserId Long userId,
+            @CurrentUserId Long userId,
             @PathVariable(name = "claimId") Long claimId,
             @Valid @RequestBody CycleClaimReportRequest request) {
         cycleService.reportCycleClaim(userId, claimId, request.claimCategory());
@@ -70,19 +70,19 @@ public class CycleController {
 
     //개인이용내역 전체 통계 조회
     @GetMapping("/statics")
-    public ApiResponse<CycleStatisticsResponse> getStatistics(@currentUserId Long userId) {
+    public ApiResponse<CycleStatisticsResponse> getStatistics(@CurrentUserId Long userId) {
         return ApiResponse.success(cycleService.getStatistics(userId));
     }
 
     //개인이용내역 리스트 조회
     @GetMapping("/usage/list")
-    public ApiResponse<List<CycleUsageListResponse>> getUsageList(@currentUserId Long userId) {
+    public ApiResponse<List<CycleUsageListResponse>> getUsageList(@CurrentUserId Long userId) {
         return ApiResponse.success(cycleService.getUsageList(userId));
     }
 
     //개인이용내역 상세 조회
     @GetMapping("/usage/{usageId}")
-    public ApiResponse<CycleUsageDetailResponse> getUsageDetail(@currentUserId Long userId,
+    public ApiResponse<CycleUsageDetailResponse> getUsageDetail(@CurrentUserId Long userId,
                                                                  @PathVariable Long usageId) {
         return ApiResponse.success(cycleService.getUsageDetail(userId, usageId));
     }
