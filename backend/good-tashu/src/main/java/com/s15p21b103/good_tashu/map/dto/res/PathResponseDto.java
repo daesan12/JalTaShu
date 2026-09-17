@@ -1,10 +1,11 @@
 package com.s15p21b103.good_tashu.map.dto.res;
 
+import com.s15p21b103.good_tashu.map.domain.RouteType;
+
 import java.util.List;
 
 /** Distances/altitudes are metres, times are seconds, locations are [longitude, latitude]. */
 public record PathResponseDto(List<Route> routes) {
-    public enum RouteType { BIKE, UPHILL, WALK }
     public enum TravelMode { WALK, BICYCLE }
 
     public record Station(String stationId, String name, List<Double> location) {}

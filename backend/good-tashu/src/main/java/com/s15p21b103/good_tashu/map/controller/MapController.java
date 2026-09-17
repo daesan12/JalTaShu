@@ -1,6 +1,8 @@
 package com.s15p21b103.good_tashu.map.controller;
 
 import com.s15p21b103.good_tashu._util.response.ApiResponse;
+import com.s15p21b103.good_tashu.map.domain.RouteType;
+import com.s15p21b103.good_tashu.map.domain.TravelStatus;
 import com.s15p21b103.good_tashu.map.dto.res.PathResponseDto;
 import com.s15p21b103.good_tashu.map.dto.res.PlaceSearchRecentListResponse;
 import com.s15p21b103.good_tashu.map.dto.res.PlaceSearchResultListResponse;
@@ -61,8 +63,26 @@ public class MapController {
             @RequestParam("startLng") @NotNull @DecimalMin("-180") @DecimalMax("180") BigDecimal startLng,
             @RequestParam("endLat") @NotNull @DecimalMin("-90") @DecimalMax("90") BigDecimal endLat,
             @RequestParam("endLng") @NotNull @DecimalMin("-180") @DecimalMax("180") BigDecimal endLng
-            ) {
+    ) {
         PathResponseDto responseDto = mapService.getPath(userId, startLat, startLng, endLat, endLng);
+        return ResponseEntity.ok(ApiResponse.success(responseDto));
+    }
+
+    // 경로 재조회
+    @GetMapping("/re-route")
+    public ResponseEntity<ApiResponse<PathResponseDto>> getReRoutePath(
+            @currentUserId Long userId,
+            @RequestParam("startLat") @NotNull @DecimalMin("-90") @DecimalMax("90") BigDecimal startLat,
+            @RequestParam("startLng") @NotNull @DecimalMin("-180") @DecimalMax("180") BigDecimal startLng,
+            @RequestParam("endLat") @NotNull @DecimalMin("-90") @DecimalMax("90") BigDecimal endLat,
+            @RequestParam("endLng") @NotNull @DecimalMin("-180") @DecimalMax("180") BigDecimal endLng,
+            @RequestParam(value = "startStationId", required = false) String startStationId,
+            @RequestParam(value = "endStationId", required = false) String endStationId,
+            @RequestParam("travelStatus") TravelStatus travelStatus,
+            @RequestParam("routeType") RouteType routeType
+            ) {
+        PathResponseDto responseDto = mapService.getReRoutePath(userId, startLat, startLng, endLat, endLng,
+                startStationId, endStationId, travelStatus, routeType);
         return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
 }
