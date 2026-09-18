@@ -1,4 +1,4 @@
-package com.s15p21b103.good_tashu.cycle.domain;
+package com.s15p21b103.good_tashu.claim.domain;
 
 import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import jakarta.persistence.*;
@@ -15,16 +15,17 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@Table(name = "cycle_claim_reports")
-public class CycleClaimReportEntity {
+@Table(name = "claim_reports", uniqueConstraints = @UniqueConstraint(
+        name = "uk_claim_reports_claim_user", columnNames = {"claim_id", "user_id"}))
+public class ClaimReportEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "cycle_claim_report_id")
-    private Long id;
+    @Column(name = "claim_report_id")
+    private Long claimReportId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "cycle_claim_id", nullable = false)
-    private CycleClaimEntity cycleClaimEntity;
+    @JoinColumn(name = "claim_id", nullable = false)
+    private ClaimEntity claimEntity;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)

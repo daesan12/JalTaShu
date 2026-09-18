@@ -56,6 +56,7 @@ public class AdminUserService {
             throw new AdminException(INVALID_ADMIN_PASSWORD);
         }
         String loginId = id.strip();
+
         // 있으면 수정하지 않고 그대로 adminId를 반환
         return adminRepository.findByIdEquals(loginId)
                 .map(AdminEntity::getAdminId)

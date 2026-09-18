@@ -8,11 +8,10 @@ import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleClaimListResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleClaimDetailResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleClaimReportResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleClaimUpdateResponse;
-import com.s15p21b103.good_tashu.cycle.domain.CycleClaimEntity;
-import com.s15p21b103.good_tashu.cycle.domain.ClaimStatus;
-import com.s15p21b103.good_tashu.cycle.domain.CycleUsageEntity;
-import com.s15p21b103.good_tashu.cycle.repository.CycleClaimRepository;
-import com.s15p21b103.good_tashu.cycle.repository.CycleClaimReportRepository;
+import com.s15p21b103.good_tashu.claim.domain.ClaimEntity;
+import com.s15p21b103.good_tashu.claim.domain.ClaimStatus;
+import com.s15p21b103.good_tashu.claim.repository.ClaimRepository;
+import com.s15p21b103.good_tashu.claim.repository.ClaimReportRepository;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleHistoryResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleDetailStatisticsResponse;
 import com.s15p21b103.good_tashu.admin.repository.AdminCycleRepository.CycleDetailStatistics;
@@ -43,8 +42,8 @@ import static com.s15p21b103.good_tashu.admin.exception.AdminErrorCode.*;
 public class AdminCycleService {
     private final AdminCycleRepository adminCycleRepository;
     private final StationRepository stationRepository;
-    private final CycleClaimRepository cycleClaimRepository;
-    private final CycleClaimReportRepository cycleClaimReportRepository;
+    private final ClaimRepository cycleClaimRepository;
+    private final ClaimReportRepository cycleClaimReportRepository;
     private final S3Service s3Service;
 
     @Transactional
@@ -58,10 +57,10 @@ public class AdminCycleService {
             throw new AdminException(INVALID_CLAIM_STATUS);
         }
 
-        CycleClaimEntity claim = cycleClaimRepository.findById(claimId)
+        ClaimEntity claim = cycleClaimRepository.findById(claimId)
                 .orElseThrow(() -> new AdminException(NOT_EXISTS_CLAIM));
         claim.updateReview(request.statement(), request.content());
-        return new AdminCycleClaimUpdateResponse(claim.getId());
+        return new AdminCycleClaimUpdateResponse(claim.getClaimId());
     }
 
     @Transactional(readOnly = true)
@@ -90,28 +89,26 @@ public class AdminCycleService {
         if (orderFilter.equals("oldest")) {
             direction = Sort.Direction.ASC;
         }
-        Sort sort = Sort.by(direction, "createdAt").and(Sort.by(direction, "id"));
+        Sort sort = Sort.by(direction, "createdAt").and(Sort.by(direction, "claimId"));
 
         // 검색 조건을 DB에 적용하고 요청한 생성일 순서로 조회한다.
         return cycleClaimRepository
                 .findAllForAdmin(nicknameFilter, cycleIdFilter, statusFilter, sort)
                 .stream()
                 .map(claim -> {
-                    CycleUsageEntity usage = claim.getCycleUsageEntity();
                     // 제보 신고 건수와 관리자 코멘트 존재 여부를 목록에 함께 표시한다.
                     long reportCount = cycleClaimReportRepository
-                            .countByCycleClaimEntity_Id(claim.getId());
+                            .countByClaimEntity_ClaimId(claim.getClaimId());
                     String comment = claim.getAdminComment();
                     boolean hasComment = comment != null && !comment.isBlank();
 
                     return new AdminCycleClaimListResponse(
-                            claim.getId(),
-                            usage.getCycleEntity().getCycleId(),
-                            usage.getCycleUsageId(),
+                            claim.getClaimId(),
+                            claim.getCycleEntity() == null ? null : claim.getCycleEntity().getCycleId(),
                             claim.getContent(),
                             claim.getClaimCategory(),
-                            usage.getUserEntity().getNickname(),
-                            usage.getUserEntity().getUserId(),
+                            claim.getUserEntity().getNickname(),
+                            claim.getUserEntity().getUserId(),
                             claim.getCreatedAt(),
                             reportCount,
                             claim.getStatus(),
@@ -127,13 +124,12 @@ public class AdminCycleService {
         }
 
         // 제보와 작성자, 자전거 정보를 함께 조회한다.
-        CycleClaimEntity claim = cycleClaimRepository.findById(claimId)
+        ClaimEntity claim = cycleClaimRepository.findById(claimId)
                 .orElseThrow(() -> new AdminException(NOT_EXISTS_CLAIM));
-        // 제보가 참조하는 실제 이용 기록에서 자전거·작성자·대여 시간을 가져온다.
-        CycleUsageEntity usage = claim.getCycleUsageEntity();
-        String cycleId = usage.getCycleEntity().getCycleId();
-        Long userId = usage.getUserEntity().getUserId();
-        String nickname = usage.getUserEntity().getNickname();
+        // 제보에 직접 연결된 자전거와 작성자를 가져온다.
+        String cycleId = claim.getCycleEntity() == null ? null : claim.getCycleEntity().getCycleId();
+        Long userId = claim.getUserEntity().getUserId();
+        String nickname = claim.getUserEntity().getNickname();
 
         String photoUrl = null;
         if (claim.getPath() != null && !claim.getPath().isBlank()) {
@@ -142,10 +138,10 @@ public class AdminCycleService {
 
         // 해당 제보를 신고한 사용자 목록을 최신순으로 반환한다.
         List<AdminCycleClaimReportResponse> reports = cycleClaimReportRepository
-                .findAllByCycleClaimEntity_IdOrderByCreatedAtDescIdDesc(claimId)
+                .findAllByClaimEntity_ClaimIdOrderByCreatedAtDescClaimReportIdDesc(claimId)
                 .stream()
                 .map(report -> new AdminCycleClaimReportResponse(
-                        report.getId(),
+                        report.getClaimReportId(),
                         report.getClaimCategory(),
                         report.getCreatedAt(),
                         report.getUserEntity().getUserId(),
@@ -153,8 +149,7 @@ public class AdminCycleService {
                 .toList();
 
         return new AdminCycleClaimDetailResponse(
-                claim.getId(), cycleId, userId, nickname, claim.getCreatedAt(),
-                usage.getCycleUsageId(), usage.getRentalAt(), usage.getReturnAt(),
+                claim.getClaimId(), cycleId, userId, nickname, claim.getCreatedAt(),
                 claim.getContent(), claim.getStatus(),
                 claim.getAdminComment(), photoUrl, reports);
     }
@@ -170,28 +165,27 @@ public class AdminCycleService {
         }
         // 처리 상태와 관계없이 최신 제보부터 반환한다.
         return cycleClaimRepository
-                .findAllByCycleUsageEntity_CycleEntity_CycleIdOrderByCreatedAtDescIdDesc(cycleId)
+                .findAllByCycleEntity_CycleIdOrderByCreatedAtDescClaimIdDesc(cycleId)
                 .stream()
                 .map(claim -> {
-                    CycleUsageEntity usage = claim.getCycleUsageEntity();
                     String nickname = null;
-                    if (usage.getUserEntity() != null) {
-                        nickname = usage.getUserEntity().getNickname();
+                    if (claim.getUserEntity() != null) {
+                        nickname = claim.getUserEntity().getNickname();
                     }
                     // null 또는 공백 코멘트는 작성되지 않은 것으로 처리한다.
                     String comment = claim.getAdminComment();
                     boolean hasComment = comment != null && !comment.isBlank();
                     String claimCycleId = null;
-                    if (usage.getCycleEntity() != null) {
-                        claimCycleId = usage.getCycleEntity().getCycleId();
+                    if (claim.getCycleEntity() != null) {
+                        claimCycleId = claim.getCycleEntity().getCycleId();
                     }
                     Long userId = null;
-                    if (usage.getUserEntity() != null) {
-                        userId = usage.getUserEntity().getUserId();
+                    if (claim.getUserEntity() != null) {
+                        userId = claim.getUserEntity().getUserId();
                     }
-                    long cycleReportNum = cycleClaimReportRepository.countByCycleClaimEntity_Id(claim.getId());
+                    long cycleReportNum = cycleClaimReportRepository.countByClaimEntity_ClaimId(claim.getClaimId());
                     return new AdminCycleClaimResponse(
-                            claim.getId(), claimCycleId, claim.getContent(), claim.getClaimCategory(),
+                            claim.getClaimId(), claimCycleId, claim.getContent(), claim.getClaimCategory(),
                             nickname, userId, claim.getCreatedAt(), cycleReportNum,
                             claim.getStatus(), hasComment);
                 })

@@ -1,6 +1,6 @@
-package com.s15p21b103.good_tashu.cycle.dto.res;
+package com.s15p21b103.good_tashu.claim.dto.res;
 
-import com.s15p21b103.good_tashu.cycle.domain.ClaimCategory;
+import com.s15p21b103.good_tashu.claim.domain.ClaimCategory;
 
 import java.time.LocalDateTime;
 

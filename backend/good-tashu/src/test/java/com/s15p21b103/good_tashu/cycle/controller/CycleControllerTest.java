@@ -1,17 +1,21 @@
 package com.s15p21b103.good_tashu.cycle.controller;
 
 import com.s15p21b103.good_tashu._util.exception.GlobalExceptionHandler;
-import com.s15p21b103.good_tashu.cycle.domain.ClaimCategory;
-import com.s15p21b103.good_tashu.cycle.domain.ClaimReportCategory;
-import com.s15p21b103.good_tashu.cycle.dto.req.CycleClaimRequest;
-import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimListResponse;
-import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimResponse;
+import com.s15p21b103.good_tashu.claim.domain.ClaimCategory;
+import com.s15p21b103.good_tashu.claim.domain.ClaimReportCategory;
+import com.s15p21b103.good_tashu.claim.dto.req.CycleClaimRequest;
+import com.s15p21b103.good_tashu.claim.dto.res.CycleClaimListResponse;
+import com.s15p21b103.good_tashu.claim.dto.res.ClaimResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CyclePointResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleStatisticsResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageDetailResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageListResponse;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
+import com.s15p21b103.good_tashu.claim.exception.ClaimException;
+import static com.s15p21b103.good_tashu.claim.exception.ClaimErrorCode.*;
 import com.s15p21b103.good_tashu.cycle.service.CycleService;
+import com.s15p21b103.good_tashu.claim.service.ClaimService;
+import com.s15p21b103.good_tashu.claim.controller.ClaimController;
 import com.s15p21b103.good_tashu.path.domain.PathInfo;
 import com.s15p21b103.good_tashu.user.annotation.CurrentUserId;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(MockitoExtension.class)
 class CycleControllerTest {
     @Mock CycleService cycleService;
+    @Mock ClaimService claimService;
     private MockMvc mvc;
 
     @BeforeEach
@@ -61,7 +66,7 @@ class CycleControllerTest {
                 return 1L;
             }
         };
-        mvc = MockMvcBuilders.standaloneSetup(new CycleController(cycleService))
+        mvc = MockMvcBuilders.standaloneSetup(new CycleController(cycleService), new ClaimController(claimService))
                 .setCustomArgumentResolvers(userResolver)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -70,45 +75,64 @@ class CycleControllerTest {
     @Test
     void multipartClaimBindsAllFourFields() throws Exception {
         MockMultipartFile photo = new MockMultipartFile("file", "photo.jpg", "image/jpeg", new byte[]{1, 2});
-        when(cycleService.claimCycle(eq(1L), any())).thenReturn(new CycleClaimResponse(10L));
+        when(claimService.claimCycle(eq(1L), any())).thenReturn(new ClaimResponse(10L));
 
-        mvc.perform(multipart("/api/cycle/claim").file(photo)
-                        .param("usageId", "100").param("claimCategory", "TIRE").param("content", "타이어 펑크"))
+        mvc.perform(multipart("/api/claim/cycle").file(photo)
+                        .param("cycleId", "C1").param("claimCategory", "TIRE").param("content", "타이어 펑크"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.claimId").value(10));
 
         ArgumentCaptor<CycleClaimRequest> captor = ArgumentCaptor.forClass(CycleClaimRequest.class);
-        verify(cycleService).claimCycle(eq(1L), captor.capture());
-        assertThat(captor.getValue().usageId()).isEqualTo(100L);
+        verify(claimService).claimCycle(eq(1L), captor.capture());
+        assertThat(captor.getValue().cycleId()).isEqualTo("C1");
         assertThat(captor.getValue().claimCategory()).isEqualTo(ClaimCategory.TIRE);
         assertThat(captor.getValue().content()).isEqualTo("타이어 펑크");
         assertThat(captor.getValue().file().getBytes()).containsExactly(1, 2);
     }
 
     @Test
+    void abandonedClaimRequiresCycleButNoCategory() throws Exception {
+        when(claimService.claimAbandoned(eq(1L), any())).thenReturn(new ClaimResponse(11L));
+        mvc.perform(multipart("/api/claim/abandoned").param("cycleId", "C1").param("content", "abandoned"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.claimId").value(11));
+        verify(claimService).claimAbandoned(eq(1L), argThat(request -> request.cycleId().equals("C1")));
+        mvc.perform(multipart("/api/claim/abandoned").param("content", "abandoned"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void etcClaimAcceptsOnlyContentAsJson() throws Exception {
+        when(claimService.claimEtc(eq(1L), any())).thenReturn(new ClaimResponse(12L));
+        mvc.perform(post("/api/claim/etc").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"other\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.claimId").value(12));
+        mvc.perform(post("/api/claim/etc").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\" \"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void multipartClaimAllowsMissingPhoto() throws Exception {
-        when(cycleService.claimCycle(eq(1L), any())).thenReturn(new CycleClaimResponse(10L));
-        mvc.perform(multipart("/api/cycle/claim")
-                        .param("usageId", "100").param("claimCategory", "TIRE").param("content", "타이어 펑크"))
+        when(claimService.claimCycle(eq(1L), any())).thenReturn(new ClaimResponse(10L));
+        mvc.perform(multipart("/api/claim/cycle")
+                        .param("cycleId", "C1").param("claimCategory", "TIRE").param("content", "타이어 펑크"))
                 .andExpect(status().isOk());
         ArgumentCaptor<CycleClaimRequest> captor = ArgumentCaptor.forClass(CycleClaimRequest.class);
-        verify(cycleService).claimCycle(eq(1L), captor.capture());
+        verify(claimService).claimCycle(eq(1L), captor.capture());
         assertThat(captor.getValue().file()).isNull();
     }
 
     @Test
     void missingClaimCategoryIsRejectedBeforeServiceCall() throws Exception {
-        mvc.perform(multipart("/api/cycle/claim").param("usageId", "100").param("content", "내용"))
+        mvc.perform(multipart("/api/claim/cycle").param("cycleId", "C1").param("content", "내용"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
-        verifyNoInteractions(cycleService);
+        verifyNoInteractions(cycleService, claimService);
     }
 
     @Test
     void listBindsCycleIdAndReturnsSpecifiedFields() throws Exception {
-        when(cycleService.getCycleClaims("C1")).thenReturn(List.of(new CycleClaimListResponse(
+        when(claimService.getCycleClaims("C1")).thenReturn(List.of(new CycleClaimListResponse(
                 10L, "타슈이용자", ClaimCategory.TIRE, "타이어 펑크", LocalDateTime.of(2026, 9, 10, 10, 0))));
-        mvc.perform(get("/api/cycle/list").param("cycleId", "C1"))
+        mvc.perform(get("/api/claim/list").param("cycleId", "C1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].claimId").value(10))
                 .andExpect(jsonPath("$.data[0].nickname").value("타슈이용자"))
@@ -119,37 +143,46 @@ class CycleControllerTest {
 
     @Test
     void blankCycleIdDomainErrorBecomes400() throws Exception {
-        when(cycleService.getCycleClaims("")).thenThrow(new CycleException(CYCLE_ID_REQUIRED));
-        mvc.perform(get("/api/cycle/list").param("cycleId", ""))
+        when(claimService.getCycleClaims("")).thenThrow(new CycleException(CYCLE_ID_REQUIRED));
+        mvc.perform(get("/api/claim/list").param("cycleId", ""))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(CYCLE_ID_REQUIRED.getMessage()));
     }
 
     @Test
     void reportBindsUserClaimIdAndJsonEnum() throws Exception {
-        mvc.perform(post("/api/cycle/claims/10/reports")
+        mvc.perform(post("/api/claim/claims/10/reports")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"claimCategory\":\"ABUSE\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("신고가 접수되었습니다."));
-        verify(cycleService).reportCycleClaim(1L, 10L, ClaimReportCategory.ABUSE);
+        verify(claimService).reportClaim(1L, 10L, ClaimReportCategory.ABUSE);
     }
 
     @Test
     void reportRejectsMissingCategory() throws Exception {
-        mvc.perform(post("/api/cycle/claims/10/reports")
+        mvc.perform(post("/api/claim/claims/10/reports")
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
-        verifyNoInteractions(cycleService);
+        verifyNoInteractions(cycleService, claimService);
     }
 
     @Test
     void reportForMissingClaimReturns404() throws Exception {
-        doThrow(new CycleException(NOT_EXIST_CLAIM_ID)).when(cycleService)
-                .reportCycleClaim(1L, 99L, ClaimReportCategory.ABUSE);
-        mvc.perform(post("/api/cycle/claims/99/reports")
+        doThrow(new ClaimException(NOT_EXIST_CLAIM_ID)).when(claimService)
+                .reportClaim(1L, 99L, ClaimReportCategory.ABUSE);
+        mvc.perform(post("/api/claim/claims/99/reports")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"claimCategory\":\"ABUSE\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    void duplicateReportReturns409() throws Exception {
+        doThrow(new ClaimException(ALREADY_REPORTED_CLAIM)).when(claimService)
+                .reportClaim(1L, 10L, ClaimReportCategory.ABUSE);
+        mvc.perform(post("/api/claim/claims/10/reports")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"claimCategory\":\"ABUSE\"}"))
+                .andExpect(status().isConflict());
     }
 
     @Test

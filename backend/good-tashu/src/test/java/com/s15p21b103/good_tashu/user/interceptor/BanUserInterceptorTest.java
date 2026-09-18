@@ -4,8 +4,10 @@ import com.s15p21b103.good_tashu._util.exception.GlobalExceptionHandler;
 import com.s15p21b103.good_tashu.admin.repository.UserBanRecordRepository;
 import com.s15p21b103.good_tashu.admin.domain.UserBanRecordEntity;
 import com.s15p21b103.good_tashu.cycle.controller.CycleController;
-import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimResponse;
+import com.s15p21b103.good_tashu.claim.dto.res.ClaimResponse;
 import com.s15p21b103.good_tashu.cycle.service.CycleService;
+import com.s15p21b103.good_tashu.claim.service.ClaimService;
+import com.s15p21b103.good_tashu.claim.controller.ClaimController;
 import com.s15p21b103.good_tashu.user.annotation.CurrentUserId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +48,7 @@ class BanUserInterceptorTest {
     @Mock UserBanRecordRepository userBanRecordRepository;
     @Mock UserBanRecordEntity banRecord;
     @Mock CycleService cycleService;
+    @Mock ClaimService claimService;
 
     private MockMvc mvc;
 
@@ -64,7 +67,7 @@ class BanUserInterceptorTest {
             }
         };
 
-        mvc = MockMvcBuilders.standaloneSetup(new CycleController(cycleService))
+        mvc = MockMvcBuilders.standaloneSetup(new CycleController(cycleService), new ClaimController(claimService))
                 .addInterceptors(new BanUserInterceptor(userBanRecordRepository))
                 .setCustomArgumentResolvers(userResolver)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -88,8 +91,8 @@ class BanUserInterceptorTest {
                 .thenReturn(Optional.of(banRecord));
         when(banRecord.getComment()).thenReturn("장난성 제보를 반복했습니다.");
 
-        mvc.perform(multipart("/api/cycle/claim")
-                        .param("usageId", "100")
+        mvc.perform(multipart("/api/claim/cycle")
+                        .param("cycleId", "C1")
                         .param("claimCategory", "TIRE")
                         .param("content", "타이어 펑크"))
                 .andExpect(status().isForbidden())
@@ -97,7 +100,7 @@ class BanUserInterceptorTest {
 
         verify(userBanRecordRepository)
                 .findLatestActiveBan(eq(1L), any(LocalDateTime.class));
-        verifyNoInteractions(cycleService);
+        verifyNoInteractions(cycleService, claimService);
     }
 
     @Test
@@ -108,13 +111,13 @@ class BanUserInterceptorTest {
                 .thenReturn(Optional.of(banRecord));
         when(banRecord.getComment()).thenReturn("   ");
 
-        mvc.perform(multipart("/api/cycle/claim")
-                        .param("usageId", "100")
+        mvc.perform(multipart("/api/claim/cycle")
+                        .param("cycleId", "C1")
                         .param("claimCategory", "TIRE")
                         .param("content", "타이어 펑크"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value(BANNED_USER.getMessage()));
-        verifyNoInteractions(cycleService);
+        verifyNoInteractions(cycleService, claimService);
     }
 
     @Test
@@ -124,13 +127,13 @@ class BanUserInterceptorTest {
                 .findLatestActiveBan(eq(1L), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(banRecord));
 
-        mvc.perform(multipart("/api/cycle/claim")
-                        .param("usageId", "100")
+        mvc.perform(multipart("/api/claim/cycle")
+                        .param("cycleId", "C1")
                         .param("claimCategory", "TIRE")
                         .param("content", "타이어 펑크"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value(BANNED_USER.getMessage()));
-        verifyNoInteractions(cycleService);
+        verifyNoInteractions(cycleService, claimService);
     }
 
     @Test
@@ -139,24 +142,24 @@ class BanUserInterceptorTest {
         when(userBanRecordRepository
                 .findLatestActiveBan(eq(1L), any(LocalDateTime.class)))
                 .thenReturn(Optional.empty());
-        when(cycleService.claimCycle(eq(1L), any())).thenReturn(new CycleClaimResponse(10L));
+        when(claimService.claimCycle(eq(1L), any())).thenReturn(new ClaimResponse(10L));
 
-        mvc.perform(multipart("/api/cycle/claim")
-                        .param("usageId", "100")
+        mvc.perform(multipart("/api/claim/cycle")
+                        .param("cycleId", "C1")
                         .param("claimCategory", "TIRE")
                         .param("content", "타이어 펑크"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.claimId").value(10));
 
-        verify(cycleService).claimCycle(eq(1L), any());
+        verify(claimService).claimCycle(eq(1L), any());
     }
 
     @Test
     void unmarkedEndpointDoesNotCheckBan() throws Exception {
         // @BlockBanUser가 없는 목록 조회는 제재 여부를 조회하지 않는다.
-        when(cycleService.getCycleClaims("C1")).thenReturn(List.of());
+        when(claimService.getCycleClaims("C1")).thenReturn(List.of());
 
-        mvc.perform(get("/api/cycle/list").param("cycleId", "C1"))
+        mvc.perform(get("/api/claim/list").param("cycleId", "C1"))
                 .andExpect(status().isOk());
 
         verifyNoInteractions(userBanRecordRepository);

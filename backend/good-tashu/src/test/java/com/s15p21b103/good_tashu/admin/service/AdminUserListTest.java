@@ -23,7 +23,7 @@ class AdminUserListTest {
         when(summary.getRecentUsingAt()).thenReturn(recentUsingAt);
         when(summary.getUserStatement()).thenReturn("NORMAL");
         when(repository.findUserSummaries("", "newest")).thenReturn(List.of(summary));
-        AdminUserService service = new AdminUserService(repository, null, null, null, null);
+        AdminUserService service = new AdminUserService(repository, null, null, null, null, null, null);
 
         List<AdminUserListResponse> responses = service.getUserList("", "newest");
 

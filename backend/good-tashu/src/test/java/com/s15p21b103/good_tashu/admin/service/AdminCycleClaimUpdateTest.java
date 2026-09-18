@@ -3,9 +3,9 @@ package com.s15p21b103.good_tashu.admin.service;
 import com.s15p21b103.good_tashu.admin.dto.req.AdminCycleClaimUpdateRequest;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleClaimUpdateResponse;
 import com.s15p21b103.good_tashu.admin.exception.AdminException;
-import com.s15p21b103.good_tashu.cycle.domain.ClaimStatus;
-import com.s15p21b103.good_tashu.cycle.domain.CycleClaimEntity;
-import com.s15p21b103.good_tashu.cycle.repository.CycleClaimRepository;
+import com.s15p21b103.good_tashu.claim.domain.ClaimStatus;
+import com.s15p21b103.good_tashu.claim.domain.ClaimEntity;
+import com.s15p21b103.good_tashu.claim.repository.ClaimRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -24,13 +24,14 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AdminCycleClaimUpdateTest {
-    @Mock CycleClaimRepository cycleClaimRepository;
+    @Mock
+    ClaimRepository cycleClaimRepository;
     @InjectMocks AdminCycleService adminCycleService;
 
     @Test
     void updatesStatusAndComment() {
-        CycleClaimEntity claim = CycleClaimEntity.builder()
-                .id(10L).status(ClaimStatus.READY).build();
+        ClaimEntity claim = ClaimEntity.builder()
+                .claimId(10L).status(ClaimStatus.READY).build();
         when(cycleClaimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
         AdminCycleClaimUpdateResponse response = adminCycleService.updateCycleClaim(
@@ -43,8 +44,8 @@ class AdminCycleClaimUpdateTest {
 
     @Test
     void omittedCommentPreservesExistingComment() {
-        CycleClaimEntity claim = CycleClaimEntity.builder()
-                .id(10L).status(ClaimStatus.IN_PROGRESS).adminComment("수리 중").build();
+        ClaimEntity claim = ClaimEntity.builder()
+                .claimId(10L).status(ClaimStatus.IN_PROGRESS).adminComment("수리 중").build();
         when(cycleClaimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
         adminCycleService.updateCycleClaim(
