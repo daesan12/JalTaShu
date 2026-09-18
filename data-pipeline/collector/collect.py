@@ -25,6 +25,7 @@ import pyarrow.parquet as pq
 import requests
 
 from kafka_publisher import KafkaOutbox, KafkaPublishError, KafkaPublisher
+from redis_publisher import RedisPublishError, RedisSnapshotPublisher
 
 
 API_URL = "https://apis.data.go.kr/B551982/pbdo_v2/inf_101_00010002_v2"
@@ -122,6 +123,7 @@ class Collector:
         self.interval_seconds = _env_int("TASHU_INTERVAL_SECONDS", 45)
         self.write_csv = _env_bool("TASHU_WRITE_CSV", False)
         self.kafka_enabled = _env_bool("TASHU_KAFKA_ENABLED", False)
+        self.redis_enabled = _env_bool("TASHU_REDIS_ENABLED", False)
         self.webhook_url = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
         self.session = requests.Session()
         self.stop_requested = False
@@ -131,11 +133,14 @@ class Collector:
         self.failure_alert_sent = False
         self.state = self._load_state()
         self.kafka_outbox: KafkaOutbox | None = None
+        self.redis_publisher: RedisSnapshotPublisher | None = None
         if self.kafka_enabled:
             spool_dir = _env_path(
                 "TASHU_KAFKA_SPOOL_DIR", str(DATA_ROOT / "kafka-spool")
             )
             self.kafka_outbox = KafkaOutbox(KafkaPublisher.from_env(), spool_dir)
+        if self.redis_enabled:
+            self.redis_publisher = RedisSnapshotPublisher.from_env()
 
     def _load_state(self) -> dict[str, Any]:
         default: dict[str, Any] = {"calls": {}, "stats": {}, "last_summary_date": None}
@@ -489,6 +494,23 @@ class Collector:
             return
         self._replay_kafka()
 
+    def _publish_redis(self, frame: pd.DataFrame, snapshot_id: str) -> None:
+        if self.redis_publisher is None:
+            return
+        try:
+            self.redis_publisher.publish(frame, snapshot_id)
+        except RedisPublishError:
+            # Parquet/Kafka 원본 수집은 Redis의 일시 장애와 독립적으로 계속한다.
+            logging.exception(
+                "Redis 최신 snapshot 반영 실패: 다음 수집 때 새 snapshot으로 재시도합니다"
+            )
+            return
+        logging.info(
+            "Redis 최신 snapshot 반영 성공 snapshot_id=%s stations=%d",
+            snapshot_id,
+            len(frame),
+        )
+
     def request_stop(self, signum: int, _frame: Any) -> None:
         logging.info("종료 신호 수신 signal=%s", signum)
         self.stop_requested = True
@@ -498,6 +520,7 @@ class Collector:
         snapshot_id = str(uuid.uuid4())
         self.buffer.append(frame)
         self._enqueue_kafka(frame, snapshot_id)
+        self._publish_redis(frame, snapshot_id)
         self._record_slot(slot_day, True, len(frame))
         self._update_health(collected_at, len(frame))
         self.consecutive_failures = 0
@@ -550,6 +573,8 @@ class Collector:
             self.session.close()
             if self.kafka_outbox is not None:
                 self.kafka_outbox.close()
+            if self.redis_publisher is not None:
+                self.redis_publisher.close()
             if normal:
                 self.notify_discord(f"🛑 타슈 수집기 정상 종료: {datetime.now(KST).isoformat()}")
 
