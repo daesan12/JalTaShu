@@ -10,6 +10,7 @@ import java.util.List;
 public interface AdminUserRepository extends JpaRepository<UserEntity, Long> {
     interface UserSummary {
         Long getUserId();
+        String getNickname();
         LocalDateTime getRecentUsingAt();
         String getUserStatement();
     }
@@ -27,13 +28,14 @@ public interface AdminUserRepository extends JpaRepository<UserEntity, Long> {
                   AND released_at IS NULL
             ), user_status AS (
                 SELECT u.user_id AS userId,
+                       u.nickname AS nickname,
                        lu.recentUsingAt,
                        CASE WHEN ab.user_id IS NULL THEN 'NORMAL' ELSE 'BANNED' END AS userStatement
                 FROM users u
                 LEFT JOIN latest_usage lu ON lu.user_id = u.user_id
                 LEFT JOIN active_bans ab ON ab.user_id = u.user_id
             )
-            SELECT userId, recentUsingAt, userStatement
+            SELECT userId, nickname, recentUsingAt, userStatement
             FROM user_status
             WHERE (:statement IS NULL OR :statement = '' OR userStatement = :statement)
             ORDER BY

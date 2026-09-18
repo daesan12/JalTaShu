@@ -1,15 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router';
 import { TopHeader } from '@/shared/ui/TopHeader';
-import { getBikeStatus } from '@/features/rental/api/bikes';
+import { getCycleClaims } from '@/features/rental/api/bikes';
 import { BikeReportCard } from '@/features/rental/components/BikeReportCard';
 
-/** 20 제보 리스트 — 자전거 한 대의 전체 제보 */
+/** 20 제보 리스트 — 자전거 한 대의 전체 제보 (백엔드 GET /cycle/list?cycleId= 실구현) */
 export function BikeReportsPage() {
   const { code = '' } = useParams();
-  const { data: bike, isPending, error } = useQuery({
-    queryKey: ['bike', code],
-    queryFn: () => getBikeStatus(code),
+  const { data: reports, isPending, error } = useQuery({
+    queryKey: ['bikeClaims', code],
+    queryFn: () => getCycleClaims(code),
     enabled: code.length > 0,
   });
 
@@ -21,18 +21,18 @@ export function BikeReportsPage() {
         {isPending && <p className="text-sm text-gray-400">불러오는 중…</p>}
         {error && <p className="text-sm text-status-low">에러: {error.message}</p>}
 
-        {bike && (
+        {reports && (
           <>
             <div className="flex items-center justify-between rounded-2xl bg-background px-5 py-4">
-              <span className="tabular-nums text-lg font-bold text-gray-900">{bike.code}</span>
-              <span className="text-sm text-gray-500">전체 제보 {bike.reports.length}건</span>
+              <span className="tabular-nums text-lg font-bold text-gray-900">{code}</span>
+              <span className="text-sm text-gray-500">전체 제보 {reports.length}건</span>
             </div>
 
-            {bike.reports.length === 0 ? (
+            {reports.length === 0 ? (
               <p className="mt-4 text-sm text-gray-400">아직 제보가 없어요.</p>
             ) : (
               <ul className="mt-4 space-y-3">
-                {bike.reports.map((report, i) => (
+                {reports.map((report, i) => (
                   <BikeReportCard key={i} report={report} />
                 ))}
               </ul>

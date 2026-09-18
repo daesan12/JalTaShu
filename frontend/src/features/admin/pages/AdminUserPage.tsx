@@ -9,8 +9,8 @@ import {
   USER_STATUS_LABEL,
   banAdminUser,
   getAdminUser,
-  getAdminUserBanRecords,
-  unbanAdminUser,
+  getAdminUserBanRecord,
+  releaseAdminUserBan,
   type AdminUserDetail,
 } from '@/features/admin/api/adminUsers';
 import { formatDateTime } from '@/features/admin/lib/format';
@@ -43,19 +43,32 @@ export function AdminUserPage() {
     queryKey: ['adminUser', userId],
     queryFn: () => getAdminUser(userId),
   });
-  const banRecords = useQuery({
-    queryKey: ['adminUserBans', userId],
-    queryFn: () => getAdminUserBanRecords(userId),
+  // 백엔드는 밴 이력 리스트가 아니라 **최신 1건**만 준다. 기록이 아예 없으면 404 → null
+  const banRecord = useQuery({
+    queryKey: ['adminUserBan', userId],
+    queryFn: async () => {
+      try {
+        return await getAdminUserBanRecord(userId);
+      } catch (err) {
+        if (err instanceof ApiError && err.code === 404) return null;
+        throw err;
+      }
+    },
   });
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ['adminUser', userId] });
-    void queryClient.invalidateQueries({ queryKey: ['adminUserBans', userId] });
+    void queryClient.invalidateQueries({ queryKey: ['adminUserBan', userId] });
     void queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
   }
 
+  // 해제는 사용자가 아니라 밴 기록 기준 — 최신 기록의 id로 부른다
+  const latestBanId = banRecord.data?.banRecordId ?? null;
   const unban = useMutation({
-    mutationFn: () => unbanAdminUser(userId),
+    mutationFn: () => {
+      if (latestBanId === null) return Promise.reject(new Error('해제할 밴 기록이 없습니다.'));
+      return releaseAdminUserBan(latestBanId);
+    },
     onSuccess: () => {
       refresh();
       setUnbanOpen(false);
@@ -122,7 +135,7 @@ export function AdminUserPage() {
             이용 기록 <span className="tabular-nums">{user.rides.length}</span>
           </AdminTabButton>
           <AdminTabButton active={tab === 'bans'} onClick={() => setTab('bans')}>
-            밴 이력 <span className="tabular-nums">{banRecords.data?.length ?? 0}</span>
+            밴 기록 <span className="tabular-nums">{banRecord.data ? 1 : 0}</span>
           </AdminTabButton>
         </AdminTabBar>
 
@@ -153,42 +166,39 @@ export function AdminUserPage() {
               </tbody>
             </AdminTable>
           ) : (
+            /* 백엔드가 최신 밴 기록 1건만 준다 — 전체 이력 조회는 전달 목록 */
             <AdminTable>
               <thead>
                 <tr>
                   <th className="w-32">정지 시작</th>
-                  <th className="w-32">종료 예정</th>
-                  <th className="w-32">해제</th>
+                  <th className="w-32">종료</th>
+                  <th className="w-24 text-right">기간</th>
                   <th>사유</th>
-                  <th className="w-32">처리자</th>
+                  <th className="w-28">처리자</th>
                 </tr>
               </thead>
               <tbody>
                 <AdminTableStatus
                   colSpan={5}
-                  isPending={banRecords.isPending}
-                  isEmpty={banRecords.data?.length === 0}
-                  emptyText="밴 이력이 없습니다"
+                  isPending={banRecord.isPending}
+                  isEmpty={banRecord.data === null}
+                  emptyText="밴 기록이 없습니다"
                 />
-                {banRecords.data?.map((record) => (
-                  <tr key={record.banId}>
+                {banRecord.data && (
+                  <tr>
                     <td className="tabular-nums text-admin-muted">
-                      {formatDate(record.startedAt)}
+                      {formatDate(banRecord.data.banStartedAt)}
                     </td>
                     <td className="tabular-nums text-admin-muted">
-                      {formatDate(record.scheduledEndAt)}
+                      {formatDate(banRecord.data.banEndAt)}
                     </td>
-                    <td className="tabular-nums">
-                      {record.releasedAt ? (
-                        formatDate(record.releasedAt)
-                      ) : (
-                        <span className="text-admin-danger-text">진행 중</span>
-                      )}
+                    <td className="text-right tabular-nums">{banRecord.data.period}일</td>
+                    <td className="truncate">{banRecord.data.comment ?? '—'}</td>
+                    <td className="truncate text-admin-muted">
+                      관리자 #{banRecord.data.adminId}
                     </td>
-                    <td className="truncate">{record.comment ?? '—'}</td>
-                    <td className="truncate text-admin-muted">{record.adminName}</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </AdminTable>
           )}
@@ -219,7 +229,10 @@ export function AdminUserPage() {
             <AdminButton variant="secondary" onClick={() => setUnbanOpen(false)}>
               취소
             </AdminButton>
-            <AdminButton disabled={unban.isPending} onClick={() => unban.mutate()}>
+            <AdminButton
+              disabled={unban.isPending || latestBanId === null}
+              onClick={() => unban.mutate()}
+            >
               {unban.isPending ? '해제 중…' : '해제'}
             </AdminButton>
           </>

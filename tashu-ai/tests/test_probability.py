@@ -130,6 +130,6 @@ def test_predict_horizons_assembly():
     assert set(out) == set(config.HORIZONS_MIN)
     # h=15: λ_total=5.0, μ_total=1.5 → 예상 잔여 8+1.5−5.0=4.5
     assert out[15]["bikes"] == pytest.approx(4.5)
-    assert out[15]["prob_out"] == pytest.approx(float(depletion_probability(8, 5.0, 1.5)))
+    assert out[15]["prob_out"] == pytest.approx(float(depletion_probability(8, 5.0, 1.5, tail_correction=config.TAIL_CORRECTION)))
     # 지평이 길수록 고갈 확률 증가 (같은 율)
     assert out[5]["prob_out"] <= out[10]["prob_out"] <= out[15]["prob_out"]

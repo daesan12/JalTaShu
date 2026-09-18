@@ -8,8 +8,9 @@ import {
   NOTICE_TITLE_MAX,
   createAdminNotice,
   deleteAdminNotice,
+  getAdminNotice,
   getAdminNotices,
-  type AdminNotice,
+  type AdminNoticeSummary,
 } from '@/features/admin/api/adminNotices';
 import { AdminButton } from '@/features/admin/ui/AdminButton';
 import { AdminFieldLabel, AdminInput, AdminTextarea } from '@/features/admin/ui/AdminField';
@@ -29,9 +30,9 @@ export function AdminNoticesPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
-  const [detail, setDetail] = useState<AdminNotice | null>(null);
+  const [detail, setDetail] = useState<AdminNoticeSummary | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<AdminNotice | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminNoticeSummary | null>(null);
 
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['adminNotices'],
@@ -51,8 +52,15 @@ export function AdminNoticesPage() {
   }, [data, search, from, to]);
   const pageItems = filtered.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE);
 
+  // 본문은 목록 응답에 없다(실측) — 상세를 열 때 따로 조회한다
+  const detailQuery = useQuery({
+    queryKey: ['adminNotice', detail?.noticeId],
+    queryFn: () => getAdminNotice(detail!.noticeId),
+    enabled: detail !== null,
+  });
+
   const remove = useMutation({
-    mutationFn: (notice: AdminNotice) => deleteAdminNotice(notice.noticeId),
+    mutationFn: (notice: AdminNoticeSummary) => deleteAdminNotice(notice.noticeId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminNotices'] });
       setDeleteTarget(null);
@@ -140,7 +148,7 @@ export function AdminNoticesPage() {
         />
       </div>
 
-      {/* 06 상세 보기 — 목록 응답에 내용이 포함된 임시 스키마라 재요청 없이 연다 */}
+      {/* 06 상세 보기 — 본문은 상세 API로 받아 채운다 */}
       <AdminModal
         open={detail !== null}
         onClose={() => setDetail(null)}
@@ -163,9 +171,19 @@ export function AdminNoticesPage() {
         {detail && (
           <div className="flex flex-col gap-3">
             <p className="text-xs text-admin-muted">
-              {formatDate(detail.createdAt)} · 공지 #{detail.noticeId}
+              {formatDate(detail.createdAt)} · {detail.author} · 공지 #{detail.noticeId}
             </p>
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">{detail.content}</p>
+            {detailQuery.isPending && (
+              <p className="text-sm text-admin-muted">내용을 불러오는 중…</p>
+            )}
+            {detailQuery.isError && (
+              <p className="text-sm text-admin-muted">내용을 불러오지 못했습니다.</p>
+            )}
+            {detailQuery.data && (
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                {detailQuery.data.content}
+              </p>
+            )}
           </div>
         )}
       </AdminModal>

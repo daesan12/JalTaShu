@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { logout } from '@/features/auth/api/auth';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { getMyStats } from '@/features/mypage/api/mypage';
 import { NicknameSheet } from '@/features/mypage/components/NicknameSheet';
 
 /** 준비 중 항목은 to 없이 렌더 (25~33 화면 확정 시 연결) */
@@ -21,8 +20,6 @@ export function MyPage() {
   const queryClient = useQueryClient();
   const { me } = useAuth();
   const [nicknameSheetOpen, setNicknameSheetOpen] = useState(false);
-
-  const { data: stats } = useQuery({ queryKey: ['myStats'], queryFn: getMyStats });
 
   const logoutMutation = useMutation({
     mutationFn: logout,
@@ -52,12 +49,12 @@ export function MyPage() {
           </button>
         </div>
 
-        {/* 이용 통계 */}
+        {/* 이용 통계 — /users/me의 월간 통계 (거리 km, 시간 분 단위로 온다) */}
         <div className="mt-6 grid grid-cols-3 gap-3">
           {[
-            { label: '이번 달 이동', value: stats ? `${stats.monthlyRides}회` : '–' },
-            { label: '이동 거리', value: stats ? `${stats.distanceKm}km` : '–' },
-            { label: '이동 시간', value: stats ? `${stats.durationMin}분` : '–' },
+            { label: '이번 달 이동', value: me ? `${me.monthlyMoveCnt}회` : '–' },
+            { label: '이동 거리', value: me ? `${(me.monthlyMoveDis ?? 0).toFixed(1)}km` : '–' },
+            { label: '자전거 시간', value: me ? `${me.monthlyTime}분` : '–' },
           ].map((item) => (
             <div key={item.label} className="rounded-2xl bg-background px-3 py-5 text-center">
               <p className="text-sm text-gray-500">{item.label}</p>

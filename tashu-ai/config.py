@@ -112,3 +112,35 @@ WEATHER_HISTORY_HOURS = 24          # ③ minutes_since_rain 상한(1440분)을 
 UNKNOWN_STATION_MAX_RATIO = 0.5     # 학습에 없던 station_id 비율이 이보다 크면 ID 포맷 불일치로 간주
 SERVE_INTERVAL_SECONDS = 60         # 매분 배치
 SERVE_TIME_BUDGET_SECONDS = 5       # 완료 기준: 1,374곳 × 3지평 < 5초 (초과 시 경고 로그)
+
+# ── 캘리브레이션·백테스트 (9·10단계, 설계서 §6) ───────────────────────────
+# 홀드아웃 = 자체 수집 스냅샷(S3 bronze/realtime). 학습에 절대 쓰지 않는다.
+# S3는 파이썬이 직접 읽지 않고 `aws s3 sync`로 아래 로컬 폴더에 내려받은 Parquet만 읽는다
+# (자격증명은 사용자 PC의 aws profile에만 — 코드·저장소에 두지 않음).
+S3_REALTIME_PREFIX = "s3://s15p21b103-tashu-datalake/bronze/realtime/"
+S3_LOCAL_ROOT = DATA_ROOT / "s3" / "realtime"          # ← aws s3 sync 대상. 하위: snapshots/dt=…, weather/observations/dt=…
+SNAPSHOT_PARQUET_DIR = S3_LOCAL_ROOT / "snapshots"
+WEATHER_PARQUET_DIR = S3_LOCAL_ROOT / "weather" / "observations"
+# 기상청 수집이 없는 구간(2026-09-16 이전)은 학습과 같은 소스(Open-Meteo, 계약 §6)로 채운다.
+# dev/fetch_openmeteo_weather.py 가 같은 dt= 파티션 형식으로 저장. 기상청 관측이 있는 시각은 기상청 우선.
+WEATHER_BACKFILL_DIR = S3_LOCAL_ROOT / "weather" / "openmeteo"
+OPENMETEO_LAT, OPENMETEO_LON = 36.3504, 127.3845   # 대전 (기상청 격자 nx67·ny100 인근)
+REPLAY_DIR = ARTIFACTS_DIR / "replay"                  # 시점별 예측 vs 실제 테이블 (Parquet)
+# S3 스냅샷엔 station_count가 없어 '완전' = 행 수 ≥ 그날 최대 행 수 × 이 비율. 실측(2026-09-10): API가
+# 스냅샷마다 1,368~1,374곳을 돌려줘(대여소 몇 곳의 일시 누락은 정상) 최대치와 같음을 요구하면 70%가 버려진다.
+# 페이지 누락(~1,000행 결손)만 걸러내는 것이 목적.
+SNAPSHOT_COMPLETE_RATIO = 0.98
+REPLAY_STEP_MIN = 5                  # 리플레이 평가 시점 간격 (1분이면 7일 ≈ 3시간, 5분이면 ≈ 35분)
+EVAL_HORIZONS_MIN = (5, 10, 15)      # 지표 산출 지평 (1~15 전부는 내분점이라 대표 3개로 평가)
+CALIBRATION_BINS = 10                # 캘리브레이션 곡선 구간 수
+TAIL_CORRECTION_GRID = tuple(round(1.0 + 0.05 * i, 2) for i in range(11))  # 1.00 ~ 1.50 (실측 낙관 편향 1.03~1.28배)
+# 서빙에 적용하는 보정계수 (단일값, 전 지평·전 대여소). 2026-09-17 캘리브레이션(9/9~9/16 홀드아웃, 결정 구간 s≥1)에서
+# Brier 최소가 5/10/15분 = 1.35/1.25/1.20 — 지평별 차이는 1주치 잡음 범위라 중앙값 하나로 확정. 재실행 때 다시 확인.
+TAIL_CORRECTION = 1.25
+DEPLETION_BIKES = 0                  # '고갈' = 도착 시점 잔여 ≤ 이 값
+
+# 백테스트 (10단계, 설계서 §6-3): "추천 여정 vs 현재 잔여 기준 최단 여정 → 헛걸음 감소율"
+BACKTEST_K_NEAREST = 4               # 출발 위치(각 대여소) 주변 후보 대여소 수 (자기 자신 포함)
+BACKTEST_MAX_WALK_M = 1200           # 후보 반경(m) — 이보다 멀면 후보 아님
+BACKTEST_WALK_SPEED_MPM = 80         # 도보 속도 m/분 (≈4.8 km/h)
+BACKTEST_FAIL_PENALTY_MIN = 8        # 헛걸음 시 다음 대여소까지 추가 이동 시간(분) — 기대비용식의 벌점

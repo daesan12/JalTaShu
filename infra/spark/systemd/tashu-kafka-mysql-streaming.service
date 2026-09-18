@@ -1,0 +1,28 @@
+[Unit]
+Description=Tashu Kafka to MySQL Spark Structured Streaming
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Group=root
+Environment=TASHU_SPARK_SUBMIT_CONTAINER_NAME=tashu-kafka-mysql-streaming
+ExecStartPre=/usr/bin/test -f /srv/tashu/workspace/data/jobs/kafka_mysql_streaming.py
+ExecStartPre=/usr/bin/test -r /etc/tashu/streaming/mysql-data-writer.env
+ExecStartPre=/opt/tashu/spark/scripts/cleanup-kafka-mysql-streaming-container.sh
+ExecStart=/opt/tashu/spark/scripts/submit-data-job.sh jobs/kafka_mysql_streaming.py
+ExecStop=-/usr/bin/docker stop --time 90 tashu-kafka-mysql-streaming
+Restart=on-failure
+RestartSec=15
+TimeoutStartSec=180
+TimeoutStopSec=120
+KillMode=control-group
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

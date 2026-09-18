@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { formatDate } from '@/shared/lib/format';
 import { TopHeader } from '@/shared/ui/TopHeader';
 import { getNotices } from '@/features/mypage/api/support';
 
@@ -20,9 +21,14 @@ export function NoticesPage() {
         {notices && (
           <ul className="space-y-3">
             {notices.map((notice) => (
-              <li key={notice.id} className="rounded-2xl border border-gray-200 bg-surface p-4">
+              <li
+                key={notice.noticeId}
+                className="rounded-2xl border border-gray-200 bg-surface p-4"
+              >
                 <p className="truncate font-medium text-gray-900">{notice.title}</p>
-                <p className="tabular-nums mt-1.5 text-sm text-gray-400">{notice.date}</p>
+                <p className="tabular-nums mt-1.5 text-sm text-gray-400">
+                  {formatDate(notice.createdAt)}
+                </p>
               </li>
             ))}
           </ul>

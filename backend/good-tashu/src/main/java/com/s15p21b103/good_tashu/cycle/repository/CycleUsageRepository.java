@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,6 +20,31 @@ public interface CycleUsageRepository extends JpaRepository<CycleUsageEntity, Lo
         Long getTotalDistance();
         Long getTotalCycleRidingTime();
     }
+
+    interface MonthlyMoveStatistics {
+        Long getMonthlyMoveCnt();
+        Long getMonthlyMoveDisMeters();
+        Long getMonthlyTimeSeconds();
+    }
+
+    // 반납일이 이번 달인 완료 이용만 집계하며, 경로 거리가 빠진 이용이 있으면 거리 합계는 미확정이다.
+    @Query(value = """
+            SELECT COUNT(*) AS monthlyMoveCnt,
+                   CASE WHEN COUNT(*) = 0 THEN 0
+                        WHEN COUNT(p.total_distance) < COUNT(*) THEN NULL
+                        ELSE SUM(p.total_distance) END AS monthlyMoveDisMeters,
+                   COALESCE(SUM(TIMESTAMPDIFF(SECOND, cu.rental_at, cu.return_at)), 0)
+                       AS monthlyTimeSeconds
+            FROM cycle_usages cu
+            LEFT JOIN paths p ON p.cycle_usage_id = cu.cycle_usage_id AND p.user_id = cu.user_id
+            WHERE cu.user_id = :userId
+              AND cu.return_at >= :monthStart
+              AND cu.return_at < :nextMonthStart
+            """, nativeQuery = true)
+    MonthlyMoveStatistics getMonthlyMoveStatistics(
+            @Param("userId") Long userId,
+            @Param("monthStart") LocalDateTime monthStart,
+            @Param("nextMonthStart") LocalDateTime nextMonthStart);
 
     // 완료된 이용만 집계. 거리 미수집 기록이 있으면 총거리는 미확정(null).
     @Query(value = """

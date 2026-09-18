@@ -1,12 +1,13 @@
 package com.s15p21b103.good_tashu.user.service;
 
-import com.s15p21b103.good_tashu._util.jwt.refresh_token.dto.res.RefreshTokenResponseDto;
 import com.s15p21b103.good_tashu._util.jwt.refresh_token.service.RefreshTokenService;
+import com.s15p21b103.good_tashu.cycle.repository.CycleUsageRepository;
 import com.s15p21b103.good_tashu.user.domain.SocialLoginProvider;
 import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import com.s15p21b103.good_tashu.user.domain.UserRole;
 import com.s15p21b103.good_tashu.user.domain.UserTermEntity;
 import com.s15p21b103.good_tashu.user.dto.req.InitUserRequestDto;
+import com.s15p21b103.good_tashu.user.dto.res.UserMeResponse;
 import com.s15p21b103.good_tashu.user.exception.UserErrorCode;
 import com.s15p21b103.good_tashu.user.exception.UserException;
 import com.s15p21b103.good_tashu.user.repository.UserRepository;
@@ -16,7 +17,11 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 
@@ -26,8 +31,32 @@ public class UserService {
     private final UserRepository userRepository;
     private final UserTermRepository userTermRepository;
     private final RefreshTokenService refreshTokenService;
+    private final CycleUsageRepository cycleUsageRepository;
 
     static private final Set<String> REQUIRED_TERMS = Set.of("SERVICE", "PRIVACY", "LOCATION");
+
+    @Transactional(readOnly = true)
+    public UserMeResponse getMyInfo(Long userId) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserException(UserErrorCode.NOT_EXISTS_USER));
+
+        LocalDate firstDay = LocalDate.now(ZoneId.of("Asia/Seoul")).withDayOfMonth(1);
+        LocalDateTime monthStart = firstDay.atStartOfDay();
+        LocalDateTime nextMonthStart = firstDay.plusMonths(1).atStartOfDay();
+        CycleUsageRepository.MonthlyMoveStatistics statistics = cycleUsageRepository
+                .getMonthlyMoveStatistics(userId, monthStart, nextMonthStart);
+
+        BigDecimal distanceKm = null;
+        Long distanceMeters = statistics.getMonthlyMoveDisMeters();
+        if (distanceMeters != null) {
+            distanceKm = BigDecimal.valueOf(distanceMeters)
+                    .divide(BigDecimal.valueOf(1000), 1, RoundingMode.HALF_UP);
+        }
+
+        long timeMinutes = statistics.getMonthlyTimeSeconds() / 60;
+        return new UserMeResponse(userId, user.getNickname(), statistics.getMonthlyMoveCnt(),
+                distanceKm, timeMinutes);
+    }
 
     
     // provider와 oauth2User를 받아서, 해당 객체를 찾아 반환하던가 혹은 생성하여 반환

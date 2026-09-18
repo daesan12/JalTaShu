@@ -1,6 +1,5 @@
 import { delay, http, HttpResponse } from 'msw';
 import { ok, requireAuth, fail } from '@/mocks/core';
-import { getMockNotices } from '@/mocks/handlers/adminNotices';
 
 /** 공지 팝업 목업 이미지 — 실제 이미지가 없어 색·번호만 있는 SVG를 data URI로 만든다 */
 function placeholderImage(label: string, color: string): string {
@@ -39,24 +38,11 @@ export function setOpenApiRequests(requests: MockOpenApiRequest[]) {
   }
 }
 
-/** 고객센터·자전거 정보 (공지 목록·공지 팝업·Open API 신청) */
+/**
+ * 고객센터·자전거 정보 (공지 팝업·Open API 신청).
+ * 공지 목록·상세는 실서버와 같이 /api/notice/* (adminNotices 핸들러)를 쓴다.
+ */
 export const supportHandlers = [
-  // ── 공지사항 (고객센터 — 백엔드 API 미정, 임시 스키마) ──────────────
-  // 관리자 공지 저장소를 그대로 읽는다 — 관리자가 등록/삭제하면 여기에도 반영
-  http.get('/api/notices', async () => {
-    await delay(300);
-    const authFail = requireAuth();
-    if (authFail) return authFail;
-    const notices = [...getMockNotices()]
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map((n) => ({
-        id: n.noticeId,
-        title: n.title,
-        date: n.createdAt.slice(0, 10).replaceAll('-', '/'),
-      }));
-    return HttpResponse.json(ok(notices));
-  }),
-
   // ── Open API 신청 (자전거 정보 — 백엔드 API 미정, 임시 스키마) ──────
   http.post('/api/open-api/requests', async ({ request }) => {
     await delay(400);

@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { formatDate, formatDistance, formatMinutes } from '@/shared/lib/format';
-import { getRides } from '@/features/history/api/rides';
 import { ELLIPSIS, getPageItems } from '@/shared/lib/pagination';
+import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/stations';
+import { getUsageList, getUsageStats } from '@/features/history/api/rides';
+import { pointLabel } from '@/features/history/lib/usageDisplay';
+
+const PAGE_SIZE = 5;
 
 /** 이용 내역 행의 경로 아이콘 (파랑=도보, 초록=자전거 두 줄) */
 function RouteIcon() {
@@ -18,16 +22,27 @@ function RouteIcon() {
   );
 }
 
-/** 22 이동 기록 — 나의 경로 탭 */
+/**
+ * 22 이동 기록 — 나의 경로 탭.
+ * 서버가 페이지네이션 없이 전체를 주므로(실측) 페이지는 프론트에서 나눈다.
+ * 출발·도착 이름도 응답에 없어 좌표를 지도 대여소 목록과 대조해 복원한다.
+ */
 export function HistoryPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
-  const { data, isPending, isFetching, error } = useQuery({
-    queryKey: ['rides', page],
-    queryFn: () => getRides(page),
-    // 페이지 전환 시 이전 목록을 유지한 채 교체 (전체 로딩 화면 방지)
-    placeholderData: keepPreviousData,
+  const stats = useQuery({ queryKey: ['usageStats'], queryFn: getUsageStats });
+  const { data: rides, isPending, error } = useQuery({
+    queryKey: ['usageList'],
+    queryFn: getUsageList,
   });
+  // 좌표 → 대여소 이름 대조용 (지도 탭과 캐시 공유)
+  const { data: stations } = useQuery({
+    queryKey: BIKE_STATIONS_QUERY_KEY,
+    queryFn: getBikeStations,
+  });
+
+  const totalPages = Math.ceil((rides?.length ?? 0) / PAGE_SIZE);
+  const pageItems = (rides ?? []).slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="flex h-full flex-col">
@@ -40,51 +55,52 @@ export function HistoryPage() {
         {isPending && <p className="pt-4 text-sm text-gray-400">불러오는 중…</p>}
         {error && <p className="pt-4 text-sm text-status-low">에러: {error.message}</p>}
 
-        {data && (
+        {rides && (
           <>
-            {/* 누적 통계 */}
+            {/* 누적 통계 (GET /cycle/statics — 거리 m·시간 초) */}
             <div className="mt-5 grid grid-cols-2 gap-3">
               <div className="row-span-2 flex flex-col items-center justify-center rounded-2xl bg-primary-light py-6">
                 <p className="text-sm text-gray-500">누적 이용 횟수</p>
                 <p className="tabular-nums mt-2 text-3xl font-bold text-primary">
-                  {data.stats.totalRides}회
+                  {stats.data ? `${stats.data.totalUseCnt}회` : '–'}
                 </p>
               </div>
               <div className="rounded-2xl bg-background px-4 py-4">
                 <p className="text-sm text-gray-500">누적 이동 거리</p>
                 <p className="tabular-nums mt-1 text-xl font-bold text-gray-900">
-                  {formatDistance(data.stats.totalDistanceKm * 1000)}
+                  {stats.data ? formatDistance(stats.data.totalDistance) : '–'}
                 </p>
               </div>
               <div className="rounded-2xl bg-background px-4 py-4">
-                <p className="text-sm text-gray-500">이동 시간</p>
+                <p className="text-sm text-gray-500">자전거 이용 시간</p>
                 <p className="tabular-nums mt-1 text-xl font-bold text-gray-900">
-                  {formatMinutes(data.stats.totalDurationMin)}
+                  {stats.data ? formatMinutes(Math.round(stats.data.totalCycleRidingTime / 60)) : '–'}
                 </p>
               </div>
             </div>
 
-            {/* 이용 내역 — 페이지 전환 중엔 살짝 흐리게 */}
+            {/* 이용 내역 */}
             <h2 className="mt-8 text-[19px] font-bold text-gray-900">이용 내역</h2>
-            <ul
-              className={`mt-2 divide-y divide-gray-100 transition-[opacity] duration-150 ${
-                isFetching ? 'opacity-50' : ''
-              }`}
-            >
-              {data.rides.map((ride) => (
-                <li key={ride.id}>
+            {rides.length === 0 && (
+              <p className="pt-3 text-sm text-gray-400">아직 이용 기록이 없습니다.</p>
+            )}
+            <ul className="mt-2 divide-y divide-gray-100">
+              {pageItems.map((ride) => (
+                <li key={ride.usageId}>
                   <button
                     type="button"
-                    onClick={() => navigate(`/history/${ride.id}`)}
+                    onClick={() => navigate(`/history/${ride.usageId}`)}
                     className="flex min-h-18 w-full items-center gap-3.5 py-3 text-left active:bg-gray-50"
                   >
                     <RouteIcon />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-semibold text-gray-900">
-                        {ride.from} → {ride.to}
+                        {pointLabel(ride.startingPoint, stations)} →{' '}
+                        {pointLabel(ride.endPoint, stations)}
                       </span>
                       <span className="tabular-nums mt-0.5 block text-sm text-gray-500">
-                        {formatDate(ride.date)} · {ride.durationMin}분 · {ride.bikeCode}
+                        {formatDate(ride.startingDate)} ·{' '}
+                        {Math.max(1, Math.round(ride.totalDuration / 60))}분 · {ride.cycleId}
                       </span>
                     </span>
                     <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-gray-300" fill="none">
@@ -96,9 +112,9 @@ export function HistoryPage() {
             </ul>
 
             {/* 페이지네이션 — 내역이 적어도 항상 스크롤 영역 바닥에 */}
-            {data.totalPages > 1 && (
+            {totalPages > 1 && (
               <nav aria-label="페이지" className="mt-auto flex items-center justify-center gap-2 pt-6">
-                {getPageItems(page, data.totalPages).map((item, i) =>
+                {getPageItems(page, totalPages).map((item, i) =>
                   item === ELLIPSIS ? (
                     <span key={`e${i}`} className="px-1 text-gray-300">
                       ···

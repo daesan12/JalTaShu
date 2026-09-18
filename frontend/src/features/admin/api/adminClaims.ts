@@ -1,50 +1,94 @@
 import { apiGet, apiPatch } from '@/shared/api/client';
 
 /**
- * 03 제보 관리 — API 3종 전부 백엔드 미구현이라 msw 목업 기준 임시 스키마.
+ * 03 제보 관리 — 백엔드 실구현(AdminCycleController) 스키마.
  * 화면 이름은 "제보"지만 API 용어는 claim (신고=report는 허위 제보 신고, 별개 기능).
  * 401은 관리자 가드가 처리(skipAuthRedirect).
  */
 
-/** 서버 enum — 한글 라벨로 바꾸는 건 화면에서 한다 (AdminBadge 규칙) */
-export type ClaimStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+/** 서버 enum(ClaimStatus 실측) — 한글 라벨로 바꾸는 건 화면에서 한다 (AdminBadge 규칙) */
+export type ClaimStatus = 'READY' | 'IN_PROGRESS' | 'COMPLETED';
 
 export const CLAIM_STATUS_LABEL: Record<ClaimStatus, '미해결' | '처리중' | '해결됨'> = {
-  OPEN: '미해결',
+  READY: '미해결',
   IN_PROGRESS: '처리중',
-  RESOLVED: '해결됨',
+  COMPLETED: '해결됨',
 };
 
+/** 서버 enum(ClaimCategory 실측) — 고장 부위 */
+export type ClaimCategory = 'BREAK' | 'TIRE' | 'SADDLE' | 'CHAIN' | 'FRAME' | 'ETC';
+
+export const CLAIM_CATEGORY_LABEL: Record<ClaimCategory, string> = {
+  BREAK: '브레이크',
+  TIRE: '타이어',
+  SADDLE: '안장',
+  CHAIN: '체인',
+  FRAME: '프레임',
+  ETC: '기타',
+};
+
+/** 목록 한 건 (AdminCycleClaimListResponse 실측) */
 export interface AdminClaim {
   claimId: number;
   cycleId: string;
-  /** 제보자 닉네임 */
+  content: string;
+  category: ClaimCategory;
+  /** 제보자 */
   nickname: string;
-  /** 고장 부위 태그 (모바일 제보와 같은 분류) */
-  tag: string;
+  userId: number;
+  createdAt: string;
+  /** 이 제보에 달린 허위 제보 신고 수 */
+  cycleReportNum: number;
+  status: ClaimStatus;
+  /** 관리자 처리 내용이 있는지 — 내용 자체는 상세 API로 받는다 */
+  hasComment: boolean;
+}
+
+/** 상세에 붙는 허위 제보 신고 한 건 */
+export interface AdminClaimReport {
+  reportId: number;
+  reportCategory: 'FALSE_INFORMATION' | 'PRANK_REPORT' | 'ABUSE' | 'ETC';
+  createdAt: string;
+  userId: number;
+  nickname: string;
+}
+
+/** 상세 (AdminCycleClaimDetailResponse 실측) — 목록에 없는 처리 내용·사진·이용 시각이 온다 */
+export interface AdminClaimDetail {
+  claimId: number;
+  cycleId: string;
+  userId: number;
+  nickname: string;
+  createdAt: string;
+  recordId: number | null;
+  rentalAt: string | null;
+  returnAt: string | null;
   content: string;
   statement: ClaimStatus;
-  /** 관리자 처리 내용 (PATCH의 content) */
-  adminContent: string | null;
-  /** 이 제보에 달린 허위 제보 신고 수 */
-  reportCnt: number;
-  createdAt: string;
+  adminComment: string | null;
+  photoUrl: string | null;
+  report: AdminClaimReport[];
 }
 
 /**
- * 목록 — 명세의 필터 파라미터(nickname·cycleId·order·status)는 백엔드 미구현이라
- * 전체를 받아 클라이언트에서 거른다 (연동 시 서버 필터로 교체).
+ * 목록 — 서버 필터(nickname·cycleId·order·status)가 있지만 화면 검색은
+ * "닉네임 또는 자전거 ID" 한 칸이라 전체를 받아 클라이언트에서 거른다.
  */
 export function getAdminClaims(): Promise<AdminClaim[]> {
   return apiGet<AdminClaim[]>('/admin/cycle/claim', { skipAuthRedirect: true });
 }
 
-/** PATCH /admin/cycle/claim/{claimId} — 처리 상태·처리 내용 변경 */
+/** GET /admin/cycle/claim/{claimId} — 상세 모달용 */
+export function getAdminClaimDetail(claimId: number): Promise<AdminClaimDetail> {
+  return apiGet<AdminClaimDetail>(`/admin/cycle/claim/${claimId}`, { skipAuthRedirect: true });
+}
+
+/** PATCH /admin/cycle/claim/{claimId} — 처리 상태·처리 내용(≤255자) 변경. 응답은 claimId뿐 */
 export function updateAdminClaim(
   claimId: number,
   input: { statement: ClaimStatus; content: string },
-): Promise<AdminClaim> {
-  return apiPatch<AdminClaim>(`/admin/cycle/claim/${claimId}`, input, {
+): Promise<{ claimId: number }> {
+  return apiPatch<{ claimId: number }>(`/admin/cycle/claim/${claimId}`, input, {
     skipAuthRedirect: true,
   });
 }
