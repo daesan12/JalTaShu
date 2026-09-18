@@ -1,6 +1,5 @@
 import { delay, http, HttpResponse } from 'msw';
 import type {
-  BikeStation,
   PathResponse,
   PlaceSearchResult,
   Pos,
@@ -13,10 +12,8 @@ import type {
   RouteType,
   Station,
   StationForecastPoint,
-  StationPrediction,
   TravelMode,
 } from '@/shared/api/types';
-import { PREDICTION_HORIZONS } from '@/shared/config/constants';
 import { fail, ok, requireAuth } from '@/mocks/core';
 import { STATIONS } from '@/mocks/stations';
 
@@ -25,17 +22,32 @@ import { STATIONS } from '@/mocks/stations';
  * 대여소마다 다르게 보이도록 ID 끝자리로 오르내림을 바꾼다. 실제 값은 예측 모델이 완성되면 백엔드가 준다.
  * 예측이 아직 없는 대여소도 화면에서 확인할 수 있게 ST0005는 비워 둔다.
  */
-function forecastFor(station: Station): StationForecastPoint[] | undefined {
-  if (station.stationId === 'ST0005') return undefined;
+function forecastFor(station: Station): StationForecastPoint[] {
+  if (station.stationId === 'ST0005') return [];
   const seed = Number(station.stationId.slice(-1));
   const start = Date.now();
   return Array.from({ length: 6 }, (_, i) => {
-    const swing = Math.round(Math.sin((i + seed) / 1.6) * 3);
+    const swing = Math.sin((i + seed) / 1.6) * 3;
+    // 실제 예측값은 소수로 온다(6.8 등) — 화면이 반올림을 제대로 하는지 목업에서도 확인한다
+    const bikeCnt = Math.max(0, Math.round((station.currentBikes + swing) * 10) / 10);
     return {
       dateTime: new Date(start + (i + 1) * 30 * 60_000).toISOString(),
-      bikeCnt: Math.max(0, station.currentBikes + swing),
+      bikeCnt,
+      probOut: bikeCnt < 1 ? 0.9 : bikeCnt < 3 ? 0.3 : 0.05,
     };
   });
+}
+
+/**
+ * 실시간 스냅샷이 없는 대여소 — 백엔드는 `currentCnt`·`time`을 **둘 다 null**로 준다.
+ * 마커에 '-'가 뜨고 상태가 회색이 되는 경로를 로컬에서도 볼 수 있게 한 곳을 비워 둔다.
+ * 07 첫 화면(대전시청 중심)에서 바로 보이는 대여소로 골랐다 — 지도를 옮겨야 보이면 확인을 건너뛰게 된다.
+ */
+const STATION_WITHOUT_REALTIME = 'ST0006';
+
+/** 실시간 스냅샷 관측 시각 — 수집기가 올린 시각을 흉내 낸다(대여소 공통) */
+function snapshotTime(): string {
+  return new Date(Date.now() - 42_000).toISOString();
 }
 
 /** 08 장소 검색 목업 — 네이버 지역검색 응답을 백엔드가 정리한 형태(xPos=경도, yPos=위도) */
@@ -436,41 +448,49 @@ function nextMockPlaceId(): number {
 /** 지도(07)·장소 검색(08)·경로 탐색(10)·최근 검색 */
 export const mapHandlers = [
   // ── 대여소 ─────────────────────────────────────────────────────────
-  // 07 메인 지도용. 도보 시간은 프론트에서 좌표로 계산하므로 내려주지 않는다.
+  /*
+   * 07 메인 지도용 목록 — 백엔드 `BikeStationListItem` 그대로다(파라미터 없이 전체를 준다).
+   * 좌표는 xPos=경도·yPos=위도, 대수는 currentCnt, 관측 시각은 time. 예상 대수는 여기 없고 상세에만 있다.
+   */
   http.get('/api/map/bike-station', async () => {
     await delay(300);
     const authFail = requireAuth();
     if (authFail) return authFail;
-    const stations: BikeStation[] = STATIONS.map((s) => ({
-      ...s,
-      futureData: forecastFor(s),
-    }));
+    const time = snapshotTime();
+    const stations = STATIONS.map((s) => {
+      const offline = s.stationId === STATION_WITHOUT_REALTIME;
+      return {
+        stationId: s.stationId,
+        name: s.name,
+        xPos: s.lng,
+        yPos: s.lat,
+        address: '대전광역시 (목업 주소)',
+        currentCnt: offline ? null : s.currentBikes,
+        time: offline ? null : time,
+      };
+    });
     return HttpResponse.json(ok(stations));
   }),
 
-  http.get('/api/stations/:stationId/predictions', async ({ params }) => {
+  // 대여소 상세 — 예상 대수(futureData)는 여기에만 있다. 시트를 확장했을 때만 불린다
+  http.get('/api/map/bike-station/:stationId', async ({ params }) => {
     await delay(300);
     const authFail = requireAuth();
     if (authFail) return authFail;
     const station = STATIONS.find((s) => s.stationId === params.stationId);
-    if (!station) {
-      return HttpResponse.json(
-        { code: 404, message: '대여소를 찾을 수 없습니다.', data: null },
-        { status: 404 },
-      );
+    if (!station) return fail(404, '대여소를 찾을 수 없습니다.');
+    // 실시간 정보가 없는 대여소는 백엔드가 상세를 막는다(BIKE_STATION_DATA_UNAVAILABLE)
+    if (station.stationId === STATION_WITHOUT_REALTIME) {
+      return fail(404, '대여소 실시간 정보를 찾을 수 없습니다.');
     }
-    // 지평이 길수록 잔여가 조금씩 줄어드는 단순 목업
-    const predictions: StationPrediction[] = PREDICTION_HORIZONS.map((horizonMin, i) => {
-      const bikes = Math.max(0, station.currentBikes - i);
-      return {
+    return HttpResponse.json(
+      ok({
         stationId: station.stationId,
-        horizonMin,
-        bikes,
-        probOut: bikes === 0 ? 0.9 : bikes < 3 ? 0.3 : 0.05,
-        updatedAt: new Date().toISOString(),
-      };
-    });
-    return HttpResponse.json(ok(predictions));
+        currentCnt: station.currentBikes,
+        time: snapshotTime(),
+        futureData: forecastFor(station),
+      }),
+    );
   }),
 
   // ── 장소 검색 (08) — 백엔드 #18 MapController와 동일 경로 ─────────

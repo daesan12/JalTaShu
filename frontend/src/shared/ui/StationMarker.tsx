@@ -8,12 +8,13 @@ const STATUS_BG: Record<StationStatus, string> = {
   high: 'bg-status-high',
   mid: 'bg-status-mid',
   low: 'bg-status-low',
+  unknown: 'bg-gray-400',
 };
 
 interface StationMarkerProps {
   status: StationStatus;
-  /** 잔여 대수 */
-  count: number;
+  /** 잔여 대수. 실시간 정보가 없는 대여소는 null — 숫자 대신 '-'를 보여준다 */
+  count: number | null;
   selected?: boolean;
 }
 
@@ -24,7 +25,7 @@ export function StationMarker({ status, count, selected = false }: StationMarker
         STATUS_BG[status]
       } ${selected ? 'h-10 w-10 scale-110 text-base' : 'h-8 w-8 text-sm'}`}
     >
-      {count}
+      {count ?? '-'}
     </div>
   );
 }

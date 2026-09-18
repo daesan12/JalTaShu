@@ -21,6 +21,7 @@ const BIKES_TEXT_CLASS: Record<StationStatus, string> = {
   high: 'text-status-high',
   mid: 'text-status-mid',
   low: 'text-status-low',
+  unknown: 'text-gray-500',
 };
 
 /** 회전 단위·음성 안내는 다음 이슈. 지금은 구간 단위 안내(12)로 시작한다 */

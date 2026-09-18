@@ -5,6 +5,7 @@ const STATUS_CLASS: Record<StationStatus, string> = {
   high: 'bg-primary-light text-primary',
   mid: 'bg-amber-50 text-status-mid',
   low: 'bg-red-50 text-status-low',
+  unknown: 'bg-gray-100 text-gray-500',
 };
 
 export function StatusBadge({ status, className = '' }: { status: StationStatus; className?: string }) {
