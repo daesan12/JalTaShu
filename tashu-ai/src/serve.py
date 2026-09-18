@@ -264,34 +264,49 @@ def predict_rates(art: Artifacts, rows: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def compute_predictions(now: pd.Timestamp, rates: pd.DataFrame, s_by_station: pd.Series,
-                        tail_correction: float = 1.0) -> pd.DataFrame:
-    """대여소 × 지평 → [station_id, horizon_min, bikes, prob_out]. 표시용 클립·반올림은 여기서.
+def horizon_totals(now: pd.Timestamp, rates: pd.DataFrame, s_by_station: pd.Series,
+                   horizons_min: tuple[int, ...] = config.HORIZONS_MIN,
+                   rate_cols: tuple[str, str] = ("lambda_hat", "mu_hat")) -> pd.DataFrame:
+    """대여소 × 지평의 λ_total·μ_total (계약 §8 버킷 겹침 가중합) + s — 원시값, 반올림 없음.
 
-    probability.predict_horizons(대여소 1곳)와 같은 계산을 전 대여소 배열로 한 번에 한다 —
+    probability.horizon_total(대여소 1곳)과 같은 계산을 전 대여소 배열로 한 번에 한다 —
     버킷 가중치는 now·h에만 의존해 모든 대여소에 공통 (per-station 루프는 1,500곳에 3초).
+    rate_cols로 프로파일 평균 등 다른 율 컬럼도 같은 방식으로 합산할 수 있다 (베이스라인용).
+    반환: [station_id, horizon_min, s, lam_total, mu_total]
     """
-    wide = rates.pivot(index="station_id", columns="bucket_start", values=["lambda_hat", "mu_hat"])
+    lam_col, mu_col = rate_cols
+    wide = rates.pivot(index="station_id", columns="bucket_start", values=[lam_col, mu_col])
     s = s_by_station.reindex(wide.index)
     keep = s.notna().to_numpy()
     wide, s = wide[keep], s[keep].to_numpy(dtype=float)
 
     frames = []
-    for h in config.HORIZONS_MIN:
+    for h in horizons_min:
         lam_total = np.zeros(len(wide))
         mu_total = np.zeros(len(wide))
         for bucket, weight in probability.bucket_weights(now, h):
-            if ("lambda_hat", bucket) not in wide.columns:
+            if (lam_col, bucket) not in wide.columns:
                 raise KeyError(f"버킷 {bucket} 의 예측 율이 없음 — 대여소당 피처 행 구성(현재+다음) 확인")
-            lam_total += wide[("lambda_hat", bucket)].to_numpy() * weight
-            mu_total += wide[("mu_hat", bucket)].to_numpy() * weight
+            lam_total += wide[(lam_col, bucket)].to_numpy(dtype=float) * weight
+            mu_total += wide[(mu_col, bucket)].to_numpy(dtype=float) * weight
         frames.append(pd.DataFrame({
-            "station_id": wide.index.to_numpy(),
-            "horizon_min": h,
-            "bikes": np.round(np.clip(probability.expected_bikes(s, lam_total, mu_total), 0.0, None), 1),
-            "prob_out": np.round(probability.depletion_probability(s, lam_total, mu_total, tail_correction), 3),
+            "station_id": wide.index.to_numpy(), "horizon_min": h,
+            "s": s, "lam_total": lam_total, "mu_total": mu_total,
         }))
     return pd.concat(frames, ignore_index=True)
+
+
+def compute_predictions(now: pd.Timestamp, rates: pd.DataFrame, s_by_station: pd.Series,
+                        tail_correction: float = config.TAIL_CORRECTION) -> pd.DataFrame:
+    """대여소 × 지평 → [station_id, horizon_min, bikes, prob_out]. 표시용 클립·반올림은 여기서."""
+    tot = horizon_totals(now, rates, s_by_station)
+    s, lam, mu = tot["s"].to_numpy(), tot["lam_total"].to_numpy(), tot["mu_total"].to_numpy()
+    return pd.DataFrame({
+        "station_id": tot["station_id"].to_numpy(),
+        "horizon_min": tot["horizon_min"].to_numpy(),
+        "bikes": np.round(np.clip(probability.expected_bikes(s, lam, mu), 0.0, None), 1),
+        "prob_out": np.round(probability.depletion_probability(s, lam, mu, tail_correction), 3),
+    })
 
 
 def write_redis(client, preds: pd.DataFrame, now: pd.Timestamp) -> int:

@@ -180,6 +180,18 @@ def test_compute_predictions_matches_predict_horizons():
             assert row["prob_out"] == pytest.approx(round(v["prob_out"], 3))
 
 
+def test_compute_predictions_applies_config_tail_correction():
+    """서빙 확률 = 원시 Skellam 꼬리 × config.TAIL_CORRECTION (s≥1·λ>0 행에서 원시값과 달라야 한다)."""
+    rates = rates_frame(NOW)
+    preds = serve.compute_predictions(NOW, rates, pd.Series({"ST0001": 5}))
+    tot = serve.horizon_totals(NOW, rates, pd.Series({"ST0001": 5}))
+    s, lam, mu = tot["s"].to_numpy(), tot["lam_total"].to_numpy(), tot["mu_total"].to_numpy()
+    corrected = np.round(probability.depletion_probability(s, lam, mu, tail_correction=config.TAIL_CORRECTION), 3)
+    raw = probability.depletion_probability(s, lam, mu)
+    assert preds["prob_out"].to_numpy() == pytest.approx(corrected)
+    assert config.TAIL_CORRECTION > 1.0 and (corrected > raw).any()
+
+
 def test_compute_predictions_clips_bikes_and_skips_missing_s():
     rates = rates_frame(NOW, lam=(30.0, 30.0), mu=(0.0, 0.0))
     preds = serve.compute_predictions(NOW, rates, pd.Series({"ST0001": 2}))  # ST0002는 s 없음 → 제외
