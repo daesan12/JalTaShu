@@ -28,7 +28,12 @@ export const authHandlers = [
     await delay(300);
     const state = getAuthState();
     if (!state.loggedIn) return fail(401, '로그인이 필요합니다.');
-    return HttpResponse.json(ok({ nickname: state.nickname }));
+    // 실서버 계약: 가입(약관·닉네임) 전 GUEST는 권한이 없어 403 — useAuth가 "가입 필요"로 해석
+    if (state.nickname === null) return fail(403, '접근 권한이 없습니다.');
+    // UserMeResponse — 월간 통계 (거리 km 소수 1자리, 시간 분)
+    return HttpResponse.json(
+      ok({ nickname: state.nickname, monthlyMoveCnt: 6, monthlyMoveDis: 18.3, monthlyTime: 97 }),
+    );
   }),
 
   http.put('/api/users/me', async ({ request }) => {

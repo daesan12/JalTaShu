@@ -134,8 +134,9 @@ function unwrap<T>(body: ApiResponse<T>): T {
 }
 
 function toApiError(err: unknown): ApiError {
-  if (err instanceof AxiosError && err.response?.data) {
-    const body = err.response.data as Partial<ApiResponse<unknown>>;
+  if (err instanceof AxiosError && err.response) {
+    // 시큐리티 필터가 자른 401·403은 본문이 비어 있다 — 그 경우 HTTP 상태 코드를 쓴다
+    const body = (err.response.data || {}) as Partial<ApiResponse<unknown>>;
     return new ApiError(body.code ?? err.response.status, body.message ?? '요청에 실패했습니다.');
   }
   return new ApiError(0, '네트워크 연결을 확인해 주세요.');

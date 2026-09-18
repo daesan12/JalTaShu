@@ -2,12 +2,23 @@ import { apiGet, apiPost, apiPut, setAccessToken } from '@/shared/api/client';
 import { ENV } from '@/shared/config/env';
 import { TERMS, type TermCode } from '@/shared/config/constants';
 
+/** GET /users/me 응답 (백엔드 UserMeResponse) — 월간 통계는 매달 1일 0시(KST) 기준 리셋 */
 export interface Me {
   /** null이면 가입(약관·닉네임) 미완료 신규 유저 */
   nickname: string | null;
+  /** 이번 달 이동 횟수 */
+  monthlyMoveCnt: number;
+  /** 이번 달 이동 거리(km, 소수 1자리) — 이동 기록이 없으면 null */
+  monthlyMoveDis: number | null;
+  /** 이번 달 자전거 이용 시간(분) */
+  monthlyTime: number;
 }
 
-/** GET /api/users/me — 비로그인 시 401 ApiError (로그인 여부 확인용이라 전역 리다이렉트 제외) */
+/**
+ * GET /api/users/me — 로그인 여부 확인 겸 내 정보 조회 (전역 리다이렉트 제외).
+ * 401 = 비로그인, 403 = 로그인은 됐지만 가입 미완료(GUEST 권한이라 시큐리티 필터가 자름).
+ * 403 → "가입 필요" 해석은 useAuth가 담당한다.
+ */
 export function getMe(): Promise<Me> {
   return apiGet<Me>('/users/me', { skipAuthRedirect: true });
 }
