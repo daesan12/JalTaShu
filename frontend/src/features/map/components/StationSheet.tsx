@@ -14,6 +14,8 @@ interface StationSheetProps {
   /** null이면 닫힌 상태 */
   station: BikeStation | null;
   snap: StationSnap;
+  /** 대여소 목록을 마지막으로 받아온 시각 (epoch ms) — 갱신 배지에 그대로 넘긴다 */
+  updatedAt: number;
   onSnapChange: (snap: StationSnap) => void;
   onClose: () => void;
   /** "반납하기" — 지금 이 대여소를 반납 대여소로 삼아 번호 입력 시트를 연다 */
@@ -28,6 +30,7 @@ interface StationSheetProps {
 export function StationSheet({
   station,
   snap,
+  updatedAt,
   onSnapChange,
   onClose,
   onReturn,
@@ -79,7 +82,7 @@ export function StationSheet({
 
               <div className="mt-4 flex items-baseline justify-between gap-2">
                 <h2 className="text-[15px] font-semibold text-gray-900">예상 대수</h2>
-                <UpdatedBadge updatedAt={shown.updatedAt} />
+                <UpdatedBadge updatedAt={updatedAt} />
               </div>
               <p className="mt-1 text-xs text-gray-500">
                 시간대별로 이 대여소에 남아 있을 자전거 대수입니다.

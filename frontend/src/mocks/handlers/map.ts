@@ -441,11 +441,8 @@ export const mapHandlers = [
     await delay(300);
     const authFail = requireAuth();
     if (authFail) return authFail;
-    // 갱신 배지가 "N초 전"부터 올라가는 것을 확인할 수 있게 10초 전으로 고정
-    const updatedAt = new Date(Date.now() - 10_000).toISOString();
     const stations: BikeStation[] = STATIONS.map((s) => ({
       ...s,
-      updatedAt,
       futureData: forecastFor(s),
     }));
     return HttpResponse.json(ok(stations));

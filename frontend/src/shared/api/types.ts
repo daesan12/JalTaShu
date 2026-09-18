@@ -37,8 +37,10 @@ export interface StationForecastPoint {
  * - 도보 시간·거리는 화면에 표시하지 않으므로 받지도, 계산하지도 않는다
  */
 export interface BikeStation extends Station {
-  /** 데이터 갱신 시각 (ISO 8601, KST) — 명세의 `time`. 07 갱신 배지에서 사용 */
-  updatedAt: string;
+  /*
+   * 갱신 시각 필드는 두지 않는다 — 백엔드 목록 응답에도, stations 테이블에도 그런 값이 없다(2026-09-18 확인).
+   * 07 갱신 배지는 프론트가 목록을 받아온 시각(react-query `dataUpdatedAt`)을 쓴다.
+   */
   /**
    * 앞으로의 예상 대수. 목록 응답에 함께 온다고 **가정**한다(별도 상세 API로 갈라지면 `api/stations.ts`만 고친다).
    * 예측 모델이 아직이라 값이 없을 수 있어 optional — 없으면 그래프 자리에 안내만 띄운다

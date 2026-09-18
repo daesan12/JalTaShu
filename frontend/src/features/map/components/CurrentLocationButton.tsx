@@ -1,3 +1,5 @@
+import { MAP_ROUND_BUTTON_CLASS } from '@/features/map/lib/controlStyles';
+
 interface CurrentLocationButtonProps {
   onClick: () => void;
   /** 위치 조회 중 — 연타를 막고 조회가 돌고 있다는 것을 보여준다 */
@@ -13,7 +15,7 @@ export function CurrentLocationButton({ onClick, loading = false }: CurrentLocat
       disabled={loading}
       aria-label="현재 위치로 이동"
       aria-busy={loading}
-      className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-gray-600 shadow-md transition-[scale,background-color] duration-75 active:scale-95 active:bg-gray-100 disabled:pointer-events-none disabled:opacity-60"
+      className={MAP_ROUND_BUTTON_CLASS}
     >
       <svg
         viewBox="0 0 24 24"
