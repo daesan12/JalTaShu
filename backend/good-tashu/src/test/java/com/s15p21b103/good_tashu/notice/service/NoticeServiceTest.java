@@ -1,6 +1,9 @@
 package com.s15p21b103.good_tashu.notice.service;
 
+import com.s15p21b103.good_tashu._util.service.S3Service;
 import com.s15p21b103.good_tashu.admin.domain.AdminEntity;
+import com.s15p21b103.good_tashu.admin.domain.PopupEntity;
+import com.s15p21b103.good_tashu.admin.repository.PopupRepository;
 import com.s15p21b103.good_tashu.notice.domain.NoticeEntity;
 import com.s15p21b103.good_tashu.notice.dto.res.NoticeListResponse;
 import com.s15p21b103.good_tashu.notice.exception.NoticeException;
@@ -22,6 +25,8 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class NoticeServiceTest {
     @Mock NoticeRepository noticeRepository;
+    @Mock PopupRepository popupRepository;
+    @Mock S3Service s3Service;
     @InjectMocks NoticeService noticeService;
 
     private final LocalDateTime createdAt = LocalDateTime.of(2026, 9, 10, 10, 0);
@@ -34,6 +39,23 @@ class NoticeServiceTest {
                 .content("공지 내용")
                 .createdAt(createdAt)
                 .build();
+    }
+
+    @Test
+    void popupListReturnsSignedPhotoUrlsAndLinkedNoticeIds() {
+        PopupEntity popup = new PopupEntity("팝업 제목", "images/photo-key", notice(7L),
+                AdminEntity.builder().id("admin01").build());
+        when(popupRepository.findAllByOrderByCreatedAtDescPopUpIdDesc()).thenReturn(List.of(popup));
+        when(s3Service.createDownloadUrl("images/photo-key"))
+                .thenReturn("https://example.com/signed-photo");
+
+        var result = noticeService.getPopupList();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().title()).isEqualTo("팝업 제목");
+        assertThat(result.getFirst().photoUrl()).isEqualTo("https://example.com/signed-photo");
+        assertThat(result.getFirst().noticeId()).isEqualTo(7L);
+        verify(s3Service).createDownloadUrl("images/photo-key");
     }
 
     @Test

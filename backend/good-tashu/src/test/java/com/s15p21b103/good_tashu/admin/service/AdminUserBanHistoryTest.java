@@ -32,7 +32,7 @@ class AdminUserBanHistoryTest {
 
     @BeforeEach
     void setUp() {
-        service = new AdminUserService(null, null, userRepository, banRecordRepository, null);
+        service = new AdminUserService(null, null, userRepository, banRecordRepository, null, null, null);
     }
 
     @Test
