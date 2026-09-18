@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { apiGet, apiPost, apiPut, setAccessToken } from '@/shared/api/client';
 import { ENV } from '@/shared/config/env';
 import { TERMS, type TermCode } from '@/shared/config/constants';
@@ -24,22 +25,35 @@ export function getMe(): Promise<Me> {
 }
 
 /**
- * 카카오 로그인 시작 — 백엔드 주도 OAuth라 전체 페이지 이동.
- * msw 모드에서는 실제 카카오로 갈 수 없으므로 mock 로그인 API를 호출한다.
- *
- * @returns mock 로그인으로 처리됐으면 true(SPA 흐름 계속), 카카오로 떠나는 중이면 false.
- * false면 호출한 쪽은 **아무것도 하면 안 된다** — location.href 대입은 페이지를 즉시
- * 떠나지 않아서, 이후에 라우터 내비게이션을 하면 브라우저가 대기 중인 카카오 이동을
- * 취소해 버린다(staging에서 /staging/으로 튕기던 버그).
+ * 카카오 로그인 결과.
+ * - completed: 로그인 흐름이 끝났으니 세션을 다시 확인하고 다음 화면으로 (msw mock·앱 인앱 로그인)
+ * - redirecting: 카카오로 페이지를 떠나는 중 — 호출한 쪽은 **아무것도 하면 안 된다**.
+ *   location.href 대입은 페이지를 즉시 떠나지 않아서, 이후에 라우터 내비게이션을 하면
+ *   브라우저가 대기 중인 카카오 이동을 취소해 버린다(staging에서 /staging/으로 튕기던 버그)
+ * - cancelled: 사용자가 인앱 로그인 창을 닫음 — 로그인 화면으로 복귀
  */
-export async function startKakaoLogin(): Promise<boolean> {
+export type KakaoLoginResult = 'completed' | 'redirecting' | 'cancelled';
+
+/**
+ * 카카오 로그인 시작 — 백엔드 주도 OAuth라 전체 페이지 이동.
+ * msw 모드에서는 실제 카카오로 갈 수 없으므로 mock 로그인 API를 호출하고,
+ * 앱(Capacitor)에서는 외부 브라우저로 나가면 쿠키가 앱 밖에 발급되므로
+ * 인앱 WebView 오버레이로 로그인을 진행한다(#94).
+ */
+export async function startKakaoLogin(): Promise<KakaoLoginResult> {
   if (ENV.ENABLE_MSW) {
     await apiPost<null>('/auth/mock-login');
-    return true;
+    return 'completed';
   }
-  // OAuth 경로는 API(/api)와 별개라 전용 env(VITE_AUTH_BASE_URL)를 사용 (staging에서 경로가 다름)
-  window.location.href = `${ENV.AUTH_BASE_URL}/oauth/kakao`;
-  return false;
+  // OAuth 경로는 API(/api)와 별개라 전용 env(VITE_AUTH_BASE_URL)를 사용 (staging에서 경로가 다름).
+  // 인앱 창은 절대 URL이 필요하다 — 웹 빌드의 상대 경로 env도 현재 오리진 기준으로 절대화
+  const oauthUrl = new URL(`${ENV.AUTH_BASE_URL}/oauth/kakao`, window.location.origin).toString();
+  if (Capacitor.isNativePlatform()) {
+    const { openKakaoLoginOverlay } = await import('@/features/auth/lib/inAppOAuth');
+    return openKakaoLoginOverlay(oauthUrl);
+  }
+  window.location.href = oauthUrl;
+  return 'redirecting';
 }
 
 /** PUT /api/users/me — 닉네임 변경 (백엔드 API 미정, msw 목업 기준 임시 스키마) */

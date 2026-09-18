@@ -17,6 +17,7 @@
     "@capacitor/camera": "^8.2.4",
     "@capacitor/core": "^8.5.2",
     "@capacitor/geolocation": "^8.2.2",
+    "@capacitor/inappbrowser": "^4.0.3",
     "@capacitor/local-notifications": "^8.3.1",
     "@capacitor/toast": "^8.0.1",
     "@tailwindcss/vite": "^4.3.3",
