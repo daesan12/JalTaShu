@@ -47,6 +47,7 @@ class UserMyInfoServiceTest {
 
         UserMeResponse result = userService.getMyInfo(1L);
 
+        assertThat(result.userId()).isEqualTo(1L);
         assertThat(result.nickname()).isEqualTo("타슈러버");
         assertThat(result.monthlyMoveCnt()).isEqualTo(12L);
         assertThat(result.monthlyMoveDis()).isEqualByComparingTo("38.2");

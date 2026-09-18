@@ -54,7 +54,7 @@ public class UserService {
         }
 
         long timeMinutes = statistics.getMonthlyTimeSeconds() / 60;
-        return new UserMeResponse(user.getNickname(), statistics.getMonthlyMoveCnt(),
+        return new UserMeResponse(userId, user.getNickname(), statistics.getMonthlyMoveCnt(),
                 distanceKm, timeMinutes);
     }
 
