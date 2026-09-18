@@ -22,6 +22,7 @@ import { RouteDetailSheet } from '@/features/map/components/RouteDetailSheet';
 import { RouteGuideCard } from '@/features/map/components/RouteGuideCard';
 import { RouteGuideSheet } from '@/features/map/components/RouteGuideSheet';
 import { SearchBar } from '@/features/map/components/SearchBar';
+import { StationRefreshButton } from '@/features/map/components/StationRefreshButton';
 import { StationSheet } from '@/features/map/components/StationSheet';
 import { Toast } from '@/features/map/components/Toast';
 import { UpdatedBadge } from '@/features/map/components/UpdatedBadge';
@@ -96,11 +97,28 @@ export function MapHomePage() {
   }
 
   // 마커와 갱신 배지가 같은 목록을 쓴다
-  const { data: stations } = useQuery({
+  const {
+    data: stations,
+    dataUpdatedAt,
+    isFetching: stationsFetching,
+    refetch: refetchStations,
+  } = useQuery({
     queryKey: BIKE_STATIONS_QUERY_KEY,
     queryFn: getBikeStations,
   });
-  const updatedAt = stations?.[0]?.updatedAt;
+
+  /**
+   * 대여소 잔여 대수를 지금 다시 받아온다. 성공하면 `dataUpdatedAt`이 새로 찍혀 갱신 배지도 0초로 돌아간다.
+   * 실패해도 지도에 이미 그려진 대여소는 그대로 둔다 — 화면을 비우는 것보다 오래된 값이라도 보이는 편이 낫다.
+   */
+  async function refreshStations() {
+    try {
+      // throwOnError를 켜야 실패가 예외로 온다 — 기본값은 이미 받아둔 데이터가 있으면 성공처럼 보인다
+      await refetchStations({ throwOnError: true });
+    } catch {
+      showToast('대여소 정보를 새로 불러오지 못했습니다.');
+    }
+  }
 
   const popup = useNoticePopup();
   const rental = useRentalSheets(stations);
@@ -313,7 +331,12 @@ export function MapHomePage() {
           <div className="pointer-events-auto w-full">
             <NoticeBanner onClick={() => navigate(NOTICES_PATH)} />
           </div>
-          {updatedAt && <UpdatedBadge updatedAt={updatedAt} />}
+          {/* Figma대로 오른쪽 끝에 붙인다 — 대여소를 아직 못 받았으면 보여줄 시각도 없다 */}
+          {stations && (
+            <div className="self-end">
+              <UpdatedBadge updatedAt={dataUpdatedAt} />
+            </div>
+          )}
         </div>
       )}
 
@@ -322,6 +345,7 @@ export function MapHomePage() {
         <div
           className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${liftClass}`}
         >
+          <StationRefreshButton onClick={refreshStations} refreshing={stationsFetching} />
           <CurrentLocationButton onClick={focusCurrentLocation} loading={location.loading} />
           {showRentButton ? (
             <Button full onClick={rental.openRentSheet}>
@@ -334,6 +358,7 @@ export function MapHomePage() {
       <StationSheet
         station={rental.selectedStation}
         snap={rental.stationSnap}
+        updatedAt={dataUpdatedAt}
         onSnapChange={rental.setStationSnap}
         onClose={() => rental.selectStation(null)}
         onReturn={rental.openReturnSheet}
