@@ -6,6 +6,8 @@ import { TopHeader } from '@/shared/ui/TopHeader';
 import { getBikeStatus } from '@/features/rental/api/bikes';
 import { BikeDiagram } from '@/features/rental/components/BikeDiagram';
 import { BikeReportCard } from '@/features/rental/components/BikeReportCard';
+import { ClaimReportSheet } from '@/features/rental/components/ClaimReportSheet';
+import { useClaimReport } from '@/features/rental/hooks/useClaimReport';
 
 /** 18 화면에 노출할 최근 제보 수 (전체는 20 제보 리스트에서) */
 const RECENT_REPORT_COUNT = 3;
@@ -19,6 +21,7 @@ export function BikeStatusPage() {
     queryFn: () => getBikeStatus(code),
     enabled: code.length > 0,
   });
+  const claimReport = useClaimReport();
 
   return (
     <div className="flex h-full flex-col">
@@ -74,8 +77,14 @@ export function BikeStatusPage() {
                 <p className="mt-3 text-sm text-gray-400">아직 제보가 없어요.</p>
               ) : (
                 <ul className="mt-3 space-y-3">
-                  {bike.reports.slice(0, RECENT_REPORT_COUNT).map((report, i) => (
-                    <BikeReportCard key={i} report={report} />
+                  {bike.reports.slice(0, RECENT_REPORT_COUNT).map((report) => (
+                    <BikeReportCard
+                      key={report.claimId}
+                      report={report}
+                      onReport={claimReport.open}
+                      reported={claimReport.isReported(report.claimId)}
+                      exhausted={claimReport.exhausted}
+                    />
                   ))}
                 </ul>
               )}
@@ -100,6 +109,14 @@ export function BikeStatusPage() {
           </button>
         </div>
       )}
+
+      <ClaimReportSheet
+        target={claimReport.target}
+        bikeCode={code}
+        usedCount={claimReport.usedCount}
+        onClose={claimReport.close}
+        onReported={claimReport.markReported}
+      />
     </div>
   );
 }
