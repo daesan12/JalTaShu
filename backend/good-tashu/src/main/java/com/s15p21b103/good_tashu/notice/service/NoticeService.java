@@ -1,8 +1,11 @@
 package com.s15p21b103.good_tashu.notice.service;
 
+import com.s15p21b103.good_tashu._util.service.S3Service;
+import com.s15p21b103.good_tashu.admin.repository.PopupRepository;
 import com.s15p21b103.good_tashu.notice.domain.NoticeEntity;
 import com.s15p21b103.good_tashu.notice.dto.res.NoticeDetailResponse;
 import com.s15p21b103.good_tashu.notice.dto.res.NoticeListResponse;
+import com.s15p21b103.good_tashu.notice.dto.res.PopupListResponse;
 import com.s15p21b103.good_tashu.notice.exception.NoticeException;
 import com.s15p21b103.good_tashu.notice.repository.NoticeRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +20,18 @@ import static com.s15p21b103.good_tashu.notice.exception.NoticeErrorCode.NOT_EXI
 @RequiredArgsConstructor
 public class NoticeService {
     private final NoticeRepository noticeRepository;
+    private final PopupRepository popupRepository;
+    private final S3Service s3Service;
+
+    @Transactional(readOnly = true)
+    public List<PopupListResponse> getPopupList() {
+        return popupRepository.findAllByOrderByCreatedAtDescPopUpIdDesc().stream()
+                .map(popup -> new PopupListResponse(
+                        popup.getTitle(),
+                        s3Service.createDownloadUrl(popup.getPhotoUrl()),
+                        popup.getNotice().getNoticeId()))
+                .toList();
+    }
 
     @Transactional(readOnly = true)
     public List<NoticeListResponse> getNoticeList() {

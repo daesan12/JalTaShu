@@ -28,7 +28,7 @@ class AdminUserBanReleaseTest {
 
     @BeforeEach
     void setUp() {
-        service = new AdminUserService(null, null, null, banRecordRepository, null);
+        service = new AdminUserService(null, null, null, banRecordRepository, null, null, null);
     }
 
     @Test
