@@ -30,11 +30,9 @@ public class MapController {
     private final MapService mapService;
     private final BikeStationService bikeStationService;
 
-    // range는 중심점에서 동서남북 각 방향으로 확장할 거리(m)이며 조회 영역은 사각형이다.
     @GetMapping("/bike-station")
-    public ApiResponse<List<BikeStationListItem>> getBikeStations(
-            @RequestParam BigDecimal lat, @RequestParam BigDecimal lng, @RequestParam Integer range) {
-        return ApiResponse.success(bikeStationService.list(lat, lng, range));
+    public ApiResponse<List<BikeStationListItem>> getBikeStations() {
+        return ApiResponse.success(bikeStationService.list());
     }
 
     @GetMapping("/bike-station/{stationId}")

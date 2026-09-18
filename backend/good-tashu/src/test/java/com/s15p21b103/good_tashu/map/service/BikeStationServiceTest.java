@@ -3,7 +3,6 @@ package com.s15p21b103.good_tashu.map.service;
 import com.s15p21b103.good_tashu.cycle.domain.StationEntity;
 import com.s15p21b103.good_tashu.cycle.repository.StationRepository;
 import com.s15p21b103.good_tashu.map.dto.res.BikeStationForecastPoint;
-import com.s15p21b103.good_tashu.map.exception.MapException;
 import com.s15p21b103.good_tashu.map.repository.BikeStationRealtimeRepository;
 import com.s15p21b103.good_tashu.map.repository.BikeStationRealtimeRepository.CurrentStation;
 import com.s15p21b103.good_tashu.map.repository.StationPredictionRepository;
@@ -16,7 +15,6 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 class BikeStationServiceTest {
@@ -41,26 +39,28 @@ class BikeStationServiceTest {
     }
 
     @Test
-    void listUsesSquareMeterRangeAndKeepsMysqlMetadataAndRedisCount() {
-        // Both axes are within 500 m, while the diagonal is longer than 500 m.
-        StationEntity corner = master("ST0001", "36.3540", "127.3850");
-        List<StationEntity> masters = List.of(corner,
-                master("ST0002", "36.3600", "127.3800"),
-                master("ST0003", "36.3500", "127.3900"));
+    void listReturnsAllMysqlStationsWithAvailableRedisCounts() {
+        StationEntity first = master("ST0001", "36.3540", "127.3850");
+        List<StationEntity> masters = List.of(master("ST0003", "36.3500", "127.3900"),
+                first, master("ST0002", "36.3600", "127.3800"));
         when(stations.findAll()).thenReturn(masters);
-        when(realtime.findAll(List.of(corner))).thenReturn(Map.of(
-                "ST0001", current("ST0001", "36.3500")));
+        when(realtime.findAll(masters)).thenReturn(Map.of(
+                "ST0001", current("ST0001", "36.3500"),
+                "ST0003", current("ST0003", "36.3500")));
 
-        var result = service.list(new BigDecimal("36.3500"), new BigDecimal("127.3800"), 500);
+        var result = service.list();
 
-        assertThat(result).hasSize(1);
+        assertThat(result).extracting(item -> item.stationId())
+                .containsExactly("ST0001", "ST0002", "ST0003");
         assertThat(result.getFirst().stationId()).isEqualTo("ST0001");
         assertThat(result.getFirst().yPos()).isEqualByComparingTo("36.3540");
         assertThat(result.getFirst().xPos()).isEqualByComparingTo("127.3850");
         assertThat(result.getFirst().address()).isEqualTo("MySQL address");
         assertThat(result.getFirst().time()).isEqualTo("2026-09-18T12:30:00+09:00");
         assertThat(result.getFirst().currentCnt()).isEqualTo(4);
-        verify(realtime).findAll(List.of(corner));
+        assertThat(result.get(1).currentCnt()).isNull();
+        assertThat(result.get(1).time()).isNull();
+        verify(realtime).findAll(masters);
     }
 
     @Test
@@ -78,10 +78,4 @@ class BikeStationServiceTest {
         assertThat(result.futureData()).containsExactly(point);
     }
 
-    @Test
-    void invalidRangeIsRejectedBeforeRedisRead() {
-        assertThatThrownBy(() -> service.list(new BigDecimal("36.35"), new BigDecimal("127.38"), 0))
-                .isInstanceOf(MapException.class);
-        verifyNoInteractions(stations, realtime, predictions);
-    }
 }

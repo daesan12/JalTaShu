@@ -7,7 +7,6 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum MapErrorCode {
-    INVALID_BIKE_STATION_RANGE(HttpStatus.BAD_REQUEST, "대여소 조회 좌표 또는 반경이 올바르지 않습니다."),
     BIKE_STATION_NOT_FOUND(HttpStatus.NOT_FOUND, "대여소를 찾을 수 없습니다."),
     BIKE_STATION_DATA_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "대여소 실시간 데이터가 없습니다."),
     INVALID_REROUTE_REQUEST(HttpStatus.BAD_REQUEST, "현재 상태, 탐색 유형 또는 이동에 필요한 정류소 ID가 올바르지 않습니다."),
