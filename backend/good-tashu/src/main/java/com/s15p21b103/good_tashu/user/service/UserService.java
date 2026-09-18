@@ -7,6 +7,7 @@ import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import com.s15p21b103.good_tashu.user.domain.UserRole;
 import com.s15p21b103.good_tashu.user.domain.UserTermEntity;
 import com.s15p21b103.good_tashu.user.dto.req.InitUserRequestDto;
+import com.s15p21b103.good_tashu.user.dto.req.UserNicknameRequestDto;
 import com.s15p21b103.good_tashu.user.dto.res.UserMeResponse;
 import com.s15p21b103.good_tashu.user.exception.UserErrorCode;
 import com.s15p21b103.good_tashu.user.exception.UserException;
@@ -72,7 +73,7 @@ public class UserService {
     }
 
 
-    // 회원가입
+    // 회원가입(AuthService에서 호출하여 refresh token rotate)
     @Transactional
     public void signUp(Long userId, InitUserRequestDto request) {
         // 첫 번째 항목(동의한 약관의 코드)만 가져와서 필수 동의항목에 모두 동의했는지 확인
@@ -103,5 +104,14 @@ public class UserService {
 
         // 닉네임과 권한을 설정했으므로 USER권한으로 올림
         user.setRole(UserRole.USER);
+    }
+
+    // 닉네임 수정
+    @Transactional
+    public void updateNickname(Long userId, UserNicknameRequestDto requestDto) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserException(UserErrorCode.NOT_EXISTS_USER));
+
+        user.setNickname(requestDto.nickname());
     }
 }
