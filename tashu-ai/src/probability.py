@@ -104,7 +104,7 @@ def predict_horizons(
     lambda_rates: Mapping[pd.Timestamp, float],
     mu_rates: Mapping[pd.Timestamp, float],
     horizons_min: tuple[int, ...] = config.HORIZONS_MIN,
-    tail_correction: float = 1.0,
+    tail_correction: float = config.TAIL_CORRECTION,
 ) -> dict[int, dict[str, float]]:
     """한 대여소의 지평별 (예상 잔여, 고갈 확률) — predict 1회분 율로 지평 3개는 산수.
 
