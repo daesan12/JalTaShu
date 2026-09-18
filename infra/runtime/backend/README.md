@@ -11,6 +11,7 @@ Server A에서 ECR의 Backend runtime image를 staging MySQL과 Redis에 연결�
 | `scripts/deploy-staging.sh` | 미리 pull한 immutable ECR image로 staging 컨테이너 교체 | Git 추적, Secret 없음 |
 | `/etc/tashu/backend-staging/oauth.env` | Backend 팀의 Kakao·Frontend OAuth 설정 | Server A 전용, Git 금지 |
 | `/etc/tashu/backend-staging/jwt.env` | JWT 서명키, access·refresh 만료시간과 Secure cookie 여부 | Server A 전용, Git 금지 |
+| `/etc/tashu/backend-common/naver-place.env` | Naver Place API Hub의 Client ID와 Client Secret | Server A 전용, Git 금지 |
 | `/etc/tashu/backend-staging/runtime.env` | 컨테이너에 전달할 최종 환경변수 | Server A 전용, Git 금지 |
 
 ## 연결 구조
@@ -43,6 +44,7 @@ sudo /opt/tashu/infra/runtime/backend/scripts/render-staging-env.sh
 - `/etc/tashu/redis/runtime.env`
 - `/etc/tashu/backend-staging/jwt.env`
 - `/etc/tashu/backend-staging/oauth.env`
+- `/etc/tashu/backend-common/naver-place.env`
 
 실제 값은 출력하지 않고 최종 파일의 변수 이름과 권한만 표시한다.
 
