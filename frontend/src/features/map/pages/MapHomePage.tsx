@@ -120,6 +120,13 @@ export function MapHomePage() {
     }
   }
 
+  /*
+   * 배지에 쓸 기준 시각. 서버가 대여소마다 관측 시각(`time`)을 주므로 그걸 먼저 쓴다 —
+   * 스냅샷 한 건에서 나오는 값이라 대여소끼리 같고, 값이 없는 대여소(실시간 정보 없음)는 건너뛴다.
+   * 전부 없으면 "우리가 목록을 받아온 시각"으로 떨어진다(#96에서 쓰던 방식).
+   */
+  const snapshotAt = stations?.find((s) => s.updatedAt !== null)?.updatedAt ?? null;
+
   const popup = useNoticePopup();
   const rental = useRentalSheets(stations);
   const journey = useJourneyPlanner({ location, showToast, viewedCenterAsStart });
@@ -334,7 +341,7 @@ export function MapHomePage() {
           {/* Figma대로 오른쪽 끝에 붙인다 — 대여소를 아직 못 받았으면 보여줄 시각도 없다 */}
           {stations && (
             <div className="self-end">
-              <UpdatedBadge updatedAt={dataUpdatedAt} />
+              <UpdatedBadge updatedAt={snapshotAt ?? dataUpdatedAt} />
             </div>
           )}
         </div>
@@ -358,7 +365,6 @@ export function MapHomePage() {
       <StationSheet
         station={rental.selectedStation}
         snap={rental.stationSnap}
-        updatedAt={dataUpdatedAt}
         onSnapChange={rental.setStationSnap}
         onClose={() => rental.selectStation(null)}
         onReturn={rental.openReturnSheet}

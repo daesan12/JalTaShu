@@ -3,11 +3,10 @@ import { formatTimeAgo } from '@/shared/lib/format';
 
 interface UpdatedBadgeProps {
   /**
-   * 대여소 목록을 마지막으로 받아온 시각 (epoch ms — react-query의 `dataUpdatedAt`).
-   * 서버가 "이 데이터는 몇 시 기준"인지 알려주지 않기 때문에 **우리가 받아온 시각**을 기준으로 삼는다.
-   * 나중에 응답에 갱신 시각이 생기면 그 값을 넘기도록 호출부만 바꾸면 된다.
+   * 기준 시각 — 서버가 준 관측 시각(ISO 8601 문자열)이 있으면 그것,
+   * 없으면 우리가 목록을 받아온 시각(epoch ms, react-query `dataUpdatedAt`). 고르는 쪽은 호출부다.
    */
-  updatedAt: number;
+  updatedAt: string | number;
 }
 
 /**

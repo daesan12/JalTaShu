@@ -30,6 +30,7 @@ const BIKES_TEXT_CLASS: Record<StationStatus, string> = {
   high: 'text-status-high',
   mid: 'text-status-mid',
   low: 'text-status-low',
+  unknown: 'text-gray-500',
 };
 
 const START_LABEL = '바로 안내 시작';

@@ -1,21 +1,21 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { BikeStation } from '@/shared/api/types';
+import { formatTimeAgo } from '@/shared/lib/format';
 import { BottomSheet, type SnapPoint } from '@/shared/ui/BottomSheet';
 import { Button } from '@/shared/ui/Button';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { toStationStatus } from '@/shared/ui/stationStatus';
+import { bikeStationDetailKey, getBikeStationDetail } from '@/features/map/api/stations';
 import { StationForecastChart } from '@/features/map/components/StationForecastChart';
-import { UpdatedBadge } from '@/features/map/components/UpdatedBadge';
 
-/** 대여소 시트는 두 단계만 쓴다 — 요약(peek) ↔ 대수 추이까지 보이는 확장(half) */
+/** 대여소 시트는 두 단계만 쓴다 — 요약(peek) ↔ 대수 추이가 보이는 확장(half) */
 export type StationSnap = 'peek' | 'half';
 
 interface StationSheetProps {
   /** null이면 닫힌 상태 */
   station: BikeStation | null;
   snap: StationSnap;
-  /** 대여소 목록을 마지막으로 받아온 시각 (epoch ms) — 갱신 배지에 그대로 넘긴다 */
-  updatedAt: number;
   onSnapChange: (snap: StationSnap) => void;
   onClose: () => void;
   /** "반납하기" — 지금 이 대여소를 반납 대여소로 삼아 번호 입력 시트를 연다 */
@@ -25,12 +25,11 @@ interface StationSheetProps {
 /**
  * 마커를 탭했을 때 07 위에 얹는 대여소 시트.
  * 요약만 보다가 위로 끌면 예상 대수 추이 그래프가 나온다(2-1).
- * 예측 값이 아직 없는 대여소도 있어(모델 미완성) 그래프 자리는 안내 문구로 대체한다.
+ * 예상 대수는 목록이 아니라 **상세 API**에만 있어서, 확장했을 때만 그 대여소 하나를 부른다.
  */
 export function StationSheet({
   station,
   snap,
-  updatedAt,
   onSnapChange,
   onClose,
   onReturn,
@@ -39,12 +38,27 @@ export function StationSheet({
   const [shown, setShown] = useState(station);
   if (station !== null && station !== shown) setShown(station);
 
+  const expanded = snap === 'half' && station !== null;
+  const {
+    data: detail,
+    isPending: detailPending,
+    isError: detailFailed,
+  } = useQuery({
+    queryKey: bikeStationDetailKey(shown?.stationId ?? ''),
+    queryFn: () => getBikeStationDetail(shown!.stationId),
+    // 시트를 확장했을 때만 부른다 — 마커를 훑어보는 동안에는 요청하지 않는다
+    enabled: expanded && shown !== null,
+  });
+
   // 공용 시트는 네 단계를 돌려주지만 여기서는 peek 아니면 확장으로만 본다
   function changeSnap(next: SnapPoint) {
     onSnapChange(next === 'peek' ? 'peek' : 'half');
   }
 
-  const forecast = shown?.futureData ?? [];
+  const forecast = detail?.futureData ?? [];
+  // 상세를 이미 받았으면 그쪽 대수가 더 최신이다
+  const currentBikes = detail?.currentBikes ?? shown?.currentBikes ?? null;
+  const measuredAt = detail?.updatedAt ?? shown?.updatedAt ?? null;
 
   return (
     <BottomSheet
@@ -60,14 +74,22 @@ export function StationSheet({
             <div className="min-w-0">
               <p className="truncate text-base font-semibold text-gray-900">{shown.name}</p>
               <p className="mt-0.5 text-sm text-gray-500">
-                현재{' '}
-                <span className="tabular-nums font-semibold text-gray-900">
-                  {shown.currentBikes}
-                </span>
-                대
+                {currentBikes === null ? (
+                  '실시간 정보 없음'
+                ) : (
+                  <>
+                    현재{' '}
+                    <span className="tabular-nums font-semibold text-gray-900">{currentBikes}</span>
+                    대
+                  </>
+                )}
+                {/* 이 대수가 몇 시 기준인지 — 서버가 준 관측 시각(time)이다 */}
+                {measuredAt === null ? null : (
+                  <span className="text-gray-400"> · {formatTimeAgo(measuredAt)} 기준</span>
+                )}
               </p>
             </div>
-            <StatusBadge status={toStationStatus(shown.currentBikes)} className="shrink-0" />
+            <StatusBadge status={toStationStatus(currentBikes)} className="shrink-0" />
           </div>
 
           {/*
@@ -80,19 +102,20 @@ export function StationSheet({
                 반납하기
               </Button>
 
-              <div className="mt-4 flex items-baseline justify-between gap-2">
-                <h2 className="text-[15px] font-semibold text-gray-900">예상 대수</h2>
-                <UpdatedBadge updatedAt={updatedAt} />
-              </div>
+              <h2 className="mt-4 text-[15px] font-semibold text-gray-900">예상 대수</h2>
               <p className="mt-1 text-xs text-gray-500">
                 시간대별로 이 대여소에 남아 있을 자전거 대수입니다.
               </p>
               <div className="mt-4">
                 {forecast.length > 0 ? (
-                  <StationForecastChart points={forecast} currentBikes={shown.currentBikes} />
+                  <StationForecastChart points={forecast} currentBikes={currentBikes} />
                 ) : (
                   <p className="py-8 text-center text-sm text-gray-400">
-                    아직 예상 대수를 제공하지 않는 대여소입니다.
+                    {detailPending
+                      ? '예상 대수를 불러오는 중입니다.'
+                      : detailFailed
+                        ? '예상 대수를 불러오지 못했습니다.'
+                        : '아직 예상 대수를 제공하지 않는 대여소입니다.'}
                   </p>
                 )}
               </div>
