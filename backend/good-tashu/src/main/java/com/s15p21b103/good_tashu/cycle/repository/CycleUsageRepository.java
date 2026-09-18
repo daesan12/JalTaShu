@@ -45,7 +45,26 @@ public interface CycleUsageRepository extends JpaRepository<CycleUsageEntity, Lo
             CycleEntity cycleEntity
     );
 
+    // 반납 시간 기준 최신
     Optional<CycleUsageEntity> findFirstByUserEntity_UserIdAndReturnAtIsNotNullOrderByReturnAtDescCycleUsageIdDesc(
             Long userId
     );
+
+    // 대여 시간 기준 최신
+    Optional<CycleUsageEntity> findFirstByUserEntity_UserIdAndRentalAtIsNotNullOrderByReturnAtDescCycleUsageIdDesc(
+            Long userId
+    );
+
+    // 이용 횟수
+    Integer countByUserEntity_UserId(Long userId);
+    
+    // 누적 이용 시간
+    @Query(value= """
+            SELECT SUM(TIMESTAMPDIFF(MINUTE, cu.rental_at, cu.return_at))
+            FROM cycle_usages cu
+            WHERE cu.userId = :userId AND cu.return_at IS NOT NULL
+            """,
+            nativeQuery = true
+    )
+    Long sumUsageTimeByUserEntity_UserId(Long userId);
 }

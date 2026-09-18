@@ -1,13 +1,23 @@
 package com.s15p21b103.good_tashu.admin.service;
 
+import com.s15p21b103.good_tashu.admin.dto.res.AdminUserDetailResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminUserListResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminUserBanHistoryResponse;
+import com.s15p21b103.good_tashu.admin.dto.res.AdminUserPathHistoryResponse;
 import com.s15p21b103.good_tashu.admin.repository.AdminUserRepository;
 import com.s15p21b103.good_tashu.admin.repository.AdminRepository;
 import com.s15p21b103.good_tashu.admin.repository.UserBanRecordRepository;
 import com.s15p21b103.good_tashu.admin.domain.UserBanRecordEntity;
 import com.s15p21b103.good_tashu.admin.domain.AdminEntity;
 import com.s15p21b103.good_tashu.admin.dto.req.UserBanRequest;
+import com.s15p21b103.good_tashu.cycle.domain.CycleUsageEntity;
+import com.s15p21b103.good_tashu.cycle.exception.CycleErrorCode;
+import com.s15p21b103.good_tashu.cycle.exception.CycleException;
+import com.s15p21b103.good_tashu.cycle.repository.CycleUsageRepository;
+import com.s15p21b103.good_tashu.path.repository.PathRepository;
+import com.s15p21b103.good_tashu.user.domain.UserEntity;
+import com.s15p21b103.good_tashu.user.exception.UserErrorCode;
+import com.s15p21b103.good_tashu.user.exception.UserException;
 import com.s15p21b103.good_tashu.user.repository.UserRepository;
 import com.s15p21b103.good_tashu.admin.exception.AdminException;
 import static com.s15p21b103.good_tashu.admin.exception.AdminErrorCode.*;
@@ -31,6 +41,8 @@ public class AdminUserService {
     private final UserRepository userRepository;
     private final UserBanRecordRepository userBanRecordRepository;
     private final PasswordEncoder passwordEncoder;
+    private final CycleUsageRepository cycleUsageRepository;
+    private final PathRepository pathRepository;
 
     //초기화 코드 전용. 이미 등록된 ID는 그대로 유지하며 비밀번호를 재설정하지 않음
     @Transactional
@@ -85,15 +97,17 @@ public class AdminUserService {
 
     // 가장 최근 제재 기록 한 건을 조회한다. 조기 해제했다면 실제 해제 시각을 종료 시각으로 사용한다.
     @Transactional(readOnly = true)
-    public AdminUserBanHistoryResponse getUserBanHistory(Long userId) {
+    public List<AdminUserBanHistoryResponse> getUserBanHistory(Long userId) {
         if (!userRepository.existsById(userId)) {
             throw new AdminException(NOT_EXISTS_USER);
         }
 
-        UserBanRecordEntity ban = userBanRecordRepository
-                .findFirstByUser_UserIdOrderByStartedAtDescIdDesc(userId)
-                .orElseThrow(() -> new AdminException(NOT_EXISTS_BAN_RECORD));
-
+        return userBanRecordRepository.findAllByUser_UserIdOrderByStartedAtDescIdDesc(userId).stream()
+                .map(this::toBanHistoryResponse)
+                .toList();
+    }
+    private AdminUserBanHistoryResponse toBanHistoryResponse(UserBanRecordEntity ban) {
+        // 조기 해제했다면 예정 시각보다 실제 해제 시각을 종료 시각으로 사용한다.
         LocalDateTime endAt = ban.getScheduledEndAt();
         if (ban.getReleasedAt() != null && ban.getReleasedAt().isBefore(endAt)) {
             endAt = ban.getReleasedAt();
@@ -138,5 +152,57 @@ public class AdminUserService {
             throw new AdminException(INVALID_ORDER);
         }
         return value;
+    }
+
+    // 사용자 경로 기록 조회
+    @Transactional(readOnly = true)
+    public AdminUserPathHistoryResponse getUserPathHistory(Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new AdminException(NOT_EXISTS_USER);
+        }
+
+        var rows = pathRepository.findHistoryRowsByUserId(userId);
+        Long totalDistance = rows.stream().anyMatch(row -> row.getTotalDistance() == null)
+                ? null
+                : Long.valueOf(rows.stream().mapToLong(row -> row.getTotalDistance()).sum());
+
+        // 대여 일시를 기준으로 이용일시 선택
+        var paths = rows.stream()
+                .map(row -> new AdminUserPathHistoryResponse.PathInfo(
+                        row.getRentalAt(), row.getStartingPoint(), row.getEndPoint(), row.getCycleId(),
+                        pathDurationSeconds(row.getCreatedAt(), row.getFinishedAt()),
+                        pathDurationSeconds(row.getRentalAt(), row.getReturnAt())))
+                .toList();
+        return new AdminUserPathHistoryResponse(totalDistance, paths);
+    }
+
+    // 전체 경로 시간과 자전거 대여~반납 시간을 초 단위로 반환한다.
+    private Integer pathDurationSeconds(LocalDateTime start, LocalDateTime end) {
+        if (start == null || end == null) {
+            return null;
+        }
+        return Math.toIntExact(ChronoUnit.SECONDS.between(start, end)) / 60;
+    }
+
+    // 유저 상세 조회
+    @Transactional(readOnly = true)
+    public AdminUserDetailResponse getUserDetail(Long userId) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserException(UserErrorCode.NOT_EXISTS_USER));
+
+        // 현재 정책은 대여시간 기준 최신(최종 사용 일시)
+        CycleUsageEntity cycleUsage = cycleUsageRepository.findFirstByUserEntity_UserIdAndRentalAtIsNotNullOrderByReturnAtDescCycleUsageIdDesc(userId)
+                .orElseGet(()->null);
+
+        // 총 이용 횟수
+        return new AdminUserDetailResponse(
+                user.getNickname(),
+                user.getCreatedAt(),
+                cycleUsage == null ? null : cycleUsage.getRentalAt(),
+                // 누적 이용 횟수
+                cycleUsageRepository.countByUserEntity_UserId(userId),
+                // 누적 이용 시간
+                cycleUsageRepository.sumUsageTimeByUserEntity_UserId(userId)
+        );
     }
 }

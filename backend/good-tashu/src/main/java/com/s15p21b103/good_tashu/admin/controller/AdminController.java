@@ -1,7 +1,9 @@
 package com.s15p21b103.good_tashu.admin.controller;
 
+import com.s15p21b103.good_tashu.admin.dto.res.AdminUserDetailResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminUserListResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminUserBanHistoryResponse;
+import com.s15p21b103.good_tashu.admin.dto.res.AdminUserPathHistoryResponse;
 import com.s15p21b103.good_tashu.admin.service.AdminUserService;
 import com.s15p21b103.good_tashu.admin.service.AdminAuthService;
 import com.s15p21b103.good_tashu.admin.dto.req.AdminLoginRequest;
@@ -78,9 +80,21 @@ public class AdminController {
             @RequestParam(defaultValue = "newest") String order) {
         return ApiResponse.success(adminUserService.getUserList(statement, order));
     }
-    //TODO: 경로 구현하고 구현
     //특정 사용자 상세조회
-
+    @GetMapping("/user/{userId}")
+    public ApiResponse<AdminUserDetailResponse> getUserDetail(
+            @CurrentAdminId Long adminId,
+            @PathVariable Long userId) {
+        return ApiResponse.success(adminUserService.getUserDetail(userId));
+    }
+    
+    // 특정 사용자 기록 조회
+    @GetMapping("/user/{userId}/path")
+    public ApiResponse<AdminUserPathHistoryResponse> getUserPathHistory(
+            @CurrentAdminId Long adminId,
+            @PathVariable Long userId) {
+        return ApiResponse.success(adminUserService.getUserPathHistory(userId));
+    }
     //사용자 밴
     @PostMapping("/user/{userId}/ban")
     public ApiResponse<Void> banUser(@CurrentAdminId Long adminId,
@@ -91,7 +105,7 @@ public class AdminController {
     }
     //사용자 밴 기록 확인
     @GetMapping("/user/{userId}/ban")
-    public ApiResponse<AdminUserBanHistoryResponse> getUserBanHistory(
+    public ApiResponse<List<AdminUserBanHistoryResponse>> getUserBanHistory(
             @CurrentAdminId Long adminId,
             @PathVariable Long userId) {
         return ApiResponse.success(adminUserService.getUserBanHistory(userId));
