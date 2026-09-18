@@ -6,7 +6,10 @@ import com.s15p21b103.good_tashu.map.domain.TravelStatus;
 import com.s15p21b103.good_tashu.map.dto.res.PathResponseDto;
 import com.s15p21b103.good_tashu.map.dto.res.PlaceSearchRecentListResponse;
 import com.s15p21b103.good_tashu.map.dto.res.PlaceSearchResultListResponse;
+import com.s15p21b103.good_tashu.map.dto.res.BikeStationListItem;
+import com.s15p21b103.good_tashu.map.dto.res.BikeStationDetailResponse;
 import com.s15p21b103.good_tashu.map.service.MapService;
+import com.s15p21b103.good_tashu.map.service.BikeStationService;
 import com.s15p21b103.good_tashu.map.dto.req.RecentPlaceRequest;
 import jakarta.validation.Valid;
 import com.s15p21b103.good_tashu.user.annotation.CurrentUserId;
@@ -25,6 +28,19 @@ import java.util.List;
 @RequestMapping("/api/map")
 public class MapController {
     private final MapService mapService;
+    private final BikeStationService bikeStationService;
+
+    // range는 중심점에서 동서남북 각 방향으로 확장할 거리(m)이며 조회 영역은 사각형이다.
+    @GetMapping("/bike-station")
+    public ApiResponse<List<BikeStationListItem>> getBikeStations(
+            @RequestParam BigDecimal lat, @RequestParam BigDecimal lng, @RequestParam Integer range) {
+        return ApiResponse.success(bikeStationService.list(lat, lng, range));
+    }
+
+    @GetMapping("/bike-station/{stationId}")
+    public ApiResponse<BikeStationDetailResponse> getBikeStation(@PathVariable String stationId) {
+        return ApiResponse.success(bikeStationService.detail(stationId));
+    }
 
     // 최근 선택한 장소 최근 검색어에 등록
     @PostMapping("/location/recent")
