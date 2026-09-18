@@ -6,7 +6,10 @@ import com.s15p21b103.good_tashu.map.domain.TravelStatus;
 import com.s15p21b103.good_tashu.map.dto.res.PathResponseDto;
 import com.s15p21b103.good_tashu.map.dto.res.PlaceSearchRecentListResponse;
 import com.s15p21b103.good_tashu.map.dto.res.PlaceSearchResultListResponse;
+import com.s15p21b103.good_tashu.map.dto.res.BikeStationListItem;
+import com.s15p21b103.good_tashu.map.dto.res.BikeStationDetailResponse;
 import com.s15p21b103.good_tashu.map.service.MapService;
+import com.s15p21b103.good_tashu.map.service.BikeStationService;
 import com.s15p21b103.good_tashu.map.dto.req.RecentPlaceRequest;
 import jakarta.validation.Valid;
 import com.s15p21b103.good_tashu.user.annotation.CurrentUserId;
@@ -25,6 +28,17 @@ import java.util.List;
 @RequestMapping("/api/map")
 public class MapController {
     private final MapService mapService;
+    private final BikeStationService bikeStationService;
+
+    @GetMapping("/bike-station")
+    public ApiResponse<List<BikeStationListItem>> getBikeStations() {
+        return ApiResponse.success(bikeStationService.list());
+    }
+
+    @GetMapping("/bike-station/{stationId}")
+    public ApiResponse<BikeStationDetailResponse> getBikeStation(@PathVariable String stationId) {
+        return ApiResponse.success(bikeStationService.detail(stationId));
+    }
 
     // 최근 선택한 장소 최근 검색어에 등록
     @PostMapping("/location/recent")
