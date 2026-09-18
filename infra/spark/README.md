@@ -123,6 +123,40 @@ sudo /opt/tashu/spark/scripts/submit-data-job.sh jobs/streaming_consumer.py
 Python 파일은 submit container에 read-only로 연결된다. 작업이 쓰는 결과와 checkpoint는 기존
 `/srv/tashu/data/spark` 하위 경로를 사용한다.
 
+장시간 실행하는 Kafka → MySQL Structured Streaming 작업은 터미널에서 직접 유지하지 않고
+`tashu-kafka-mysql-streaming.service`가 관리한다. 병합된 작업 파일을 인자로 한 번 설치한다.
+
+```bash
+sudo /opt/tashu/spark/scripts/install-kafka-mysql-streaming-service.sh \
+  /tmp/tashu-streaming/data-pipeline/streaming/jobs/kafka_mysql_streaming.py
+```
+
+설치 script는 작업 파일을 `/srv/tashu/workspace/data/jobs/`에 배치하고 systemd unit을 설치한 뒤
+즉시 활성화한다. 서비스는 전용 `tashu-kafka-mysql-streaming` submit container만 사용하며 실패하면
+15초 뒤 재시작한다. 서버 재부팅 뒤에도 자동 시작한다.
+
+```bash
+sudo systemctl status tashu-kafka-mysql-streaming --no-pager -l
+sudo journalctl -u tashu-kafka-mysql-streaming -n 100 --no-pager
+sudo docker ps --filter name=tashu-kafka-mysql-streaming
+```
+
+checkpoint와 dead-letter는 container 밖의 다음 경로에 남으므로 서비스와 container를 재시작해도
+유지된다.
+
+```text
+/srv/tashu/data/spark/checkpoints/kafka-mysql-v1/station
+/srv/tashu/data/spark/checkpoints/kafka-mysql-v1/weather
+/srv/tashu/data/spark/output/dead-letter/kafka-mysql-v1/
+```
+
+운영 중 checkpoint를 삭제하지 않는다. 서비스를 되돌릴 때는 작업을 중지·비활성화하되 checkpoint와
+dead-letter는 보존한다.
+
+```bash
+sudo systemctl disable --now tashu-kafka-mysql-streaming
+```
+
 관리자용 cache 명령은 Spark 4.1.3과 같은 버전의 공식 Kafka connector
 `org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.3`을 Maven Central에서 한 번 받아
 `/srv/tashu/data/spark/ivy`에 보관한다. 데이터 담당자의 제출 명령은 외부에서 library를 다시
