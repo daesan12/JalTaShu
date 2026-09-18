@@ -117,3 +117,29 @@ describe('도메인 간 저장소 공유', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('가입 흐름 (users/me 계약)', () => {
+  it('가입 전에는 me가 403, 가입 후에는 닉네임과 월간 통계를 준다', async () => {
+    // 첫 카카오 로그인 = GUEST — 실서버처럼 me가 권한 403
+    await post('/api/auth/mock-login');
+    expect((await get('/api/users/me')).status).toBe(403);
+
+    // 필수 약관 동의 + 닉네임으로 가입 완료 (agrees는 [code, version] 쌍)
+    const signUp = await post('/api/auth/sign-up', {
+      agrees: [
+        ['SERVICE', '1.0'],
+        ['PRIVACY', '1.0'],
+        ['LOCATION', '1.0'],
+      ],
+      nickname: '잘타슈',
+    });
+    expect(signUp.status).toBe(200);
+
+    const me = await get('/api/users/me');
+    expect(me.status).toBe(200);
+    const { data } = await me.json();
+    expect(data.nickname).toBe('잘타슈');
+    expect(data).toHaveProperty('monthlyMoveCnt');
+    expect(data).toHaveProperty('monthlyTime');
+  });
+});
