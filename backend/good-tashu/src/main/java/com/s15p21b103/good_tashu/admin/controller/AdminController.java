@@ -91,7 +91,7 @@ public class AdminController {
     }
     //사용자 밴 기록 확인
     @GetMapping("/user/{userId}/ban")
-    public ApiResponse<AdminUserBanHistoryResponse> getUserBanHistory(
+    public ApiResponse<List<AdminUserBanHistoryResponse>> getUserBanHistory(
             @CurrentAdminId Long adminId,
             @PathVariable Long userId) {
         return ApiResponse.success(adminUserService.getUserBanHistory(userId));

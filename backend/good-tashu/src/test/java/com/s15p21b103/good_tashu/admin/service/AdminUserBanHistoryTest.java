@@ -13,9 +13,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.List;
 
-import static com.s15p21b103.good_tashu.admin.exception.AdminErrorCode.NOT_EXISTS_BAN_RECORD;
 import static com.s15p21b103.good_tashu.admin.exception.AdminErrorCode.NOT_EXISTS_USER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -37,28 +36,36 @@ class AdminUserBanHistoryTest {
     }
 
     @Test
-    void latestBanReturnsScheduledEndAndOriginalPeriod() {
-        // 아직 해제되지 않은 기록은 예정 종료 시각과 예정 제재 일수를 반환한다.
+    void allBansReturnNewestFirstWithOriginalPeriod() {
+        // 전체 기록을 최신순으로 반환하고 예정 제재 일수를 유지한다.
         LocalDateTime start = LocalDateTime.of(2026, 9, 15, 10, 0);
         LocalDateTime scheduledEnd = start.plusDays(7);
+        UserBanRecordEntity olderBan = org.mockito.Mockito.mock(UserBanRecordEntity.class);
         when(userRepository.existsById(7L)).thenReturn(true);
-        when(banRecordRepository.findFirstByUser_UserIdOrderByStartedAtDescIdDesc(7L))
-                .thenReturn(Optional.of(ban));
+        when(banRecordRepository.findAllByUser_UserIdOrderByStartedAtDescIdDesc(7L))
+                .thenReturn(List.of(ban, olderBan));
         when(ban.getStartedAt()).thenReturn(start);
         when(ban.getId()).thenReturn(12L);
         when(ban.getScheduledEndAt()).thenReturn(scheduledEnd);
         when(ban.getComment()).thenReturn("장난성 제보");
         when(ban.getAdmin()).thenReturn(admin);
         when(admin.getAdminId()).thenReturn(3L);
+        when(olderBan.getId()).thenReturn(9L);
+        when(olderBan.getStartedAt()).thenReturn(start.minusDays(20));
+        when(olderBan.getScheduledEndAt()).thenReturn(start.minusDays(13));
+        when(olderBan.getAdmin()).thenReturn(admin);
 
-        AdminUserBanHistoryResponse response = service.getUserBanHistory(7L);
+        List<AdminUserBanHistoryResponse> responses = service.getUserBanHistory(7L);
+        AdminUserBanHistoryResponse response = responses.getFirst();
 
+        assertThat(responses).hasSize(2);
         assertThat(response.banRecordId()).isEqualTo(12L);
         assertThat(response.banStartedAt()).isEqualTo(start);
         assertThat(response.banEndAt()).isEqualTo(scheduledEnd);
         assertThat(response.period()).isEqualTo(7);
         assertThat(response.comment()).isEqualTo("장난성 제보");
         assertThat(response.adminId()).isEqualTo(3L);
+        assertThat(responses.get(1).banRecordId()).isEqualTo(9L);
     }
 
     @Test
@@ -67,15 +74,15 @@ class AdminUserBanHistoryTest {
         LocalDateTime start = LocalDateTime.of(2026, 9, 15, 10, 0);
         LocalDateTime released = start.plusDays(2);
         when(userRepository.existsById(7L)).thenReturn(true);
-        when(banRecordRepository.findFirstByUser_UserIdOrderByStartedAtDescIdDesc(7L))
-                .thenReturn(Optional.of(ban));
+        when(banRecordRepository.findAllByUser_UserIdOrderByStartedAtDescIdDesc(7L))
+                .thenReturn(List.of(ban));
         when(ban.getStartedAt()).thenReturn(start);
         when(ban.getScheduledEndAt()).thenReturn(start.plusDays(7));
         when(ban.getReleasedAt()).thenReturn(released);
         when(ban.getAdmin()).thenReturn(admin);
         when(admin.getAdminId()).thenReturn(3L);
 
-        AdminUserBanHistoryResponse response = service.getUserBanHistory(7L);
+        AdminUserBanHistoryResponse response = service.getUserBanHistory(7L).getFirst();
 
         assertThat(response.banEndAt()).isEqualTo(released);
         assertThat(response.period()).isEqualTo(7);
@@ -91,11 +98,9 @@ class AdminUserBanHistoryTest {
     }
 
     @Test
-    void userWithoutBanReturnsNotFound() {
-        // 사용자는 있으나 제재 이력이 없다면 별도 404 오류를 반환한다.
+    void userWithoutBanReturnsEmptyList() {
+        // 사용자는 있으나 제재 이력이 없다면 빈 배열을 반환한다.
         when(userRepository.existsById(7L)).thenReturn(true);
-        assertThatThrownBy(() -> service.getUserBanHistory(7L))
-                .isInstanceOfSatisfying(AdminException.class,
-                        e -> assertThat(e.getErrorCode()).isEqualTo(NOT_EXISTS_BAN_RECORD));
+        assertThat(service.getUserBanHistory(7L)).isEmpty();
     }
 }

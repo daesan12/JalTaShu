@@ -4,10 +4,12 @@ import com.s15p21b103.good_tashu.admin.domain.UserBanRecordEntity;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface UserBanRecordRepository extends JpaRepository<UserBanRecordEntity, Long> {
-    Optional<UserBanRecordEntity> findFirstByUser_UserIdOrderByStartedAtDescIdDesc(Long userId);
+    @EntityGraph(attributePaths = "admin")
+    List<UserBanRecordEntity> findAllByUser_UserIdOrderByStartedAtDescIdDesc(Long userId);
 
     Optional<UserBanRecordEntity> findFirstByUser_UserIdAndReleasedAtIsNullAndScheduledEndAtAfter(
             Long userId, LocalDateTime now);
