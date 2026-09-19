@@ -1,6 +1,6 @@
 # Redis runtime
 
-Server A에서 Backend의 Refresh Token과 AI 예측 캐시를 저장할 Redis 한 개를 실행한다. Backend는 기존 Docker network `tashu-app`으로 접근하고, Server B의 AI 서비스는 Server A 사설 주소로만 접근한다. 새 Redis instance를 추가하지 않는다.
+Server A에서 Backend의 Refresh Token, 실시간 대여소·날씨 상태와 AI 예측 캐시를 저장할 Redis 한 개를 실행한다. Backend는 기존 Docker network `tashu-app`으로 접근하고, Server A의 Collector와 Server B의 AI 서비스는 Server A 사설 주소로만 접근한다. 새 Redis instance를 추가하지 않는다.
 
 ## 파일 역할
 
@@ -23,7 +23,15 @@ Server B AI serving ── private network + UFW ──> tashu-redis:6379
                                            tashu-redis-data volume
 ```
 
-현재 한 Redis instance를 사용하되 staging과 production Backend에는 서로 다른 database index를 주입한다. Blue/Green production 컨테이너는 동일한 production Redis 논리 DB를 바라봐야 배포 전환 중 로그인 상태가 유지된다.
+현재 한 Redis instance를 사용하되 용도별로 database index를 나눈다. Blue/Green production 컨테이너는 동일한 production Redis 논리 DB를 바라봐야 배포 전환 중 로그인 상태가 유지된다.
+
+| DB | 용도 |
+| --- | --- |
+| `0` | production 인증 데이터와 Collector가 발행하는 실시간 대여소·날씨 키 |
+| `1` | staging 인증 데이터 |
+| `2` | AI가 발행하는 `pred:*` 예측 키 |
+
+staging Backend는 일반 인증 연결에는 DB 1을 사용하지만, `stationRealtimeRedisTemplate`에는 DB 0을 명시해 production과 같은 실시간 대여소·날씨 키를 읽는다.
 
 ## Server A 적용
 
@@ -60,6 +68,17 @@ SPRING_DATA_REDIS_PASSWORD=<서버 Secret에서 주입>
 SPRING_DATA_REDIS_DATABASE=1   # staging
 SPRING_DATA_REDIS_DATABASE=0   # production
 ```
+
+staging의 실시간 데이터 전용 연결에는 다음 값을 별도로 주입한다. 비밀번호는 같은 Redis Secret에서 읽는다.
+
+```text
+TASHU_STATION_REDIS_HOST=tashu-redis
+TASHU_STATION_REDIS_PORT=6379
+TASHU_STATION_REDIS_PASSWORD=<서버 Secret에서 주입>
+TASHU_STATION_REDIS_DATABASE=0
+```
+
+대여소 Collector와 날씨 Collector도 DB 0을 사용한다. 두 Collector는 호스트에서 실행되므로 Docker DNS 이름 대신 Server A 사설 주소로 Redis에 접속한다. 날씨 Redis 발행 코드는 데이터 파트 구현·병합 후 활성화한다.
 
 ## AI 연결 계약
 
