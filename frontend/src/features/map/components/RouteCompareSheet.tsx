@@ -149,14 +149,60 @@ export function RouteCompareSheet({
   );
 }
 
+/** 일반 경로 — 현재 프로젝트의 인라인 SVG 아이콘 방식에 맞춘 나침반 */
+function CompassIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="h-3.5 w-3.5 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8 4.8-2.2Z" />
+    </svg>
+  );
+}
+
+/** 오르막 회피 경로 — 급경사가 아닌 완만한 상승선을 표현한다 */
+function GentleSlopeIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="h-3.5 w-3.5 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 17h3.5c1.2 0 2.1-.5 2.8-1.5l3.1-4.4c.7-1 1.6-1.5 2.8-1.5H21" />
+      <path d="m18 6.6 3 3-3 3" />
+    </svg>
+  );
+}
+
 /** 후보 종류 라벨 — 서버가 준 `type` 그대로 */
 function TypePill({ type }: { type: RouteType }) {
   const { label, dotClass, pillClass } = ROUTE_TYPE_STYLE[type];
+  const visualClass = type === 'UPHILL' ? 'bg-primary-light text-primary' : pillClass;
+
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold ${pillClass}`}
+      className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold ${visualClass}`}
     >
-      <span aria-hidden className={`h-1 w-3 rounded-full ${dotClass}`} />
+      {type === 'BIKE' ? (
+        <CompassIcon />
+      ) : type === 'UPHILL' ? (
+        <GentleSlopeIcon />
+      ) : (
+        <span aria-hidden className={`h-1 w-3 rounded-full ${dotClass}`} />
+      )}
       {label}
     </span>
   );

@@ -5,15 +5,15 @@ import { posToLatLng } from '@/shared/lib/coords';
 /** 목적지 하나가 화면에 크게 들어오는 줌 단계 */
 const DESTINATION_ZOOM = 16;
 
-/** 핀 크기(px). anchor는 핀 끝(아래 중앙) */
-const PIN_WIDTH = 32;
-const PIN_HEIGHT = 40;
+/** 시안의 목적지 핀 크기(px). anchor는 핀 끝(아래 중앙) */
+const PIN_WIDTH = 42;
+const PIN_HEIGHT = 52;
 
 /**
- * 목적지 핀 — 색은 index.css 토큰(text-primary)에서 온다.
+ * 목적지 핀 — 검정색과 흰색 중심점만 사용해 지도 글자와 겹치지 않게 한다.
  * 네이버 마커 content는 DOM 문자열/요소만 받으므로 정적 SVG 문자열을 쓴다.
  */
-const PIN_SVG = `<svg viewBox="0 0 32 40" width="${PIN_WIDTH}" height="${PIN_HEIGHT}" aria-hidden="true" class="text-primary drop-shadow-md"><path d="M16 39s-13-12.4-13-23A13 13 0 1 1 29 16c0 10.6-13 23-13 23Z" fill="currentColor" stroke="#fff" stroke-width="2"/><circle cx="16" cy="16" r="5" fill="#fff"/></svg>`;
+const PIN_SVG = `<svg viewBox="0 0 42 52" width="${PIN_WIDTH}" height="${PIN_HEIGHT}" aria-hidden="true" style="filter:drop-shadow(0 2px 3px rgb(0 0 0 / 0.28))"><path d="M21 51S4 35.2 4 20.5C4 11.4 11.6 4 21 4s17 7.4 17 16.5C38 35.2 21 51 21 51Z" fill="#18181B" stroke="#fff" stroke-width="2.5"/><circle cx="21" cy="20" r="5" fill="#fff"/></svg>`;
 
 interface DestinationMarkerProps {
   map: naver.maps.Map;
@@ -44,8 +44,8 @@ export function DestinationMarker({ map, destination }: DestinationMarkerProps) 
           size: new naver.maps.Size(PIN_WIDTH, PIN_HEIGHT),
           anchor: new naver.maps.Point(PIN_WIDTH / 2, PIN_HEIGHT),
         },
-        // 대여소 마커(선택 시 1)보다 위에 둔다
-        zIndex: 2,
+        // 경로의 출발·대여·반납 마커보다 위에 둔다.
+        zIndex: 4,
       });
     } else {
       markerRef.current.setPosition(position);
