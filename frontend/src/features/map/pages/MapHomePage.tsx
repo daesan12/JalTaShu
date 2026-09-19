@@ -28,6 +28,7 @@ import { Toast } from '@/features/map/components/Toast';
 import { UpdatedBadge } from '@/features/map/components/UpdatedBadge';
 import { LOCATION_ERROR_TEXT, useCurrentLocation } from '@/features/map/hooks/useCurrentLocation';
 import { useJourneyPlanner } from '@/features/map/hooks/useJourneyPlanner';
+import { useMapPick } from '@/features/map/hooks/useMapPick';
 import { useNoticePopup } from '@/features/map/hooks/useNoticePopup';
 import { useRentalSheets } from '@/features/map/hooks/useRentalSheets';
 import { useRouteGuide } from '@/features/map/hooks/useRouteGuide';
@@ -151,6 +152,9 @@ export function MapHomePage() {
   const destinationSheetOpen =
     destination !== null && !stationSheetOpen && !searchOpen && !compareActive && !pickActive;
 
+  // 선택 모드의 지도 조작 — 탭한 지점으로 지도를 옮기고, 멈추면 그 지점의 주소를 읽는다
+  const pickAddress = useMapPick({ mapRef, active: pickActive });
+
   const guide = useRouteGuide({
     guideActive,
     detailRoute,
@@ -218,7 +222,12 @@ export function MapHomePage() {
       showToast('지도를 아직 불러오지 못했습니다.');
       return;
     }
-    journey.applyPickedPos(latLngToPos({ lat: center.lat(), lng: center.lng() }), startFieldInUrl);
+    // 주소는 지도가 멈춰 있는 동안 읽어 둔 것이다 — 움직이는 중이면 null이라 좌표만 넘어간다
+    journey.applyPickedPos(
+      latLngToPos({ lat: center.lat(), lng: center.lng() }),
+      startFieldInUrl,
+      pickAddress.place,
+    );
     // 정상 흐름은 검색(1)+선택(1) 두 push를 함께 닫는 -2가 맞지만, 새로고침·딥링크로
     // 이 상태에 바로 들어오면 히스토리가 부족해 앱 밖으로 나가 버린다 — 그때는 파라미터만 걷어낸다
     const historyIdx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
@@ -299,11 +308,17 @@ export function MapHomePage() {
         currentLocation={location.position}
         locationFocusToken={locationFocusToken}
         followLocation={guideActive}
+        pickActive={pickActive}
         onMapReady={handleMapReady}
       />
 
       {pickActive ? (
-        <MapPickLayer onCancel={cancelMapPick} onConfirm={confirmMapPick} />
+        <MapPickLayer
+          isStart={startFieldInUrl}
+          address={pickAddress}
+          onCancel={cancelMapPick}
+          onConfirm={confirmMapPick}
+        />
       ) : guideActive && guide.guideProgress !== null ? (
         <RouteGuideCard
           progress={guide.guideProgress}

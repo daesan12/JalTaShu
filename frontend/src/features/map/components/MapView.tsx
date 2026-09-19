@@ -56,6 +56,8 @@ interface MapViewProps {
   locationFocusToken: number;
   /** 경로 안내 중 — 지도가 현재 위치를 계속 따라간다 */
   followLocation: boolean;
+  /** 08 "지도에서 선택" 모드 — 대여소 마커를 탭해도 대여소를 고르지 않고 그 지점으로 지도를 옮긴다 */
+  pickActive: boolean;
   /**
    * 지도 인스턴스를 페이지로 올린다(사라지면 null).
    * 위치 권한을 거절했을 때 **검색을 열던 시점의 지도 중심**을 경로 출발지로 쓰기 위해서다.
@@ -75,6 +77,7 @@ export function MapView({
   currentLocation,
   locationFocusToken,
   followLocation,
+  pickActive,
   onMapReady,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -133,6 +136,7 @@ export function MapView({
           stations={stations}
           selectedStationId={selectedStationId}
           onSelectStation={onSelectStation}
+          pickActive={pickActive}
         />
       ) : null}
 
