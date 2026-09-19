@@ -65,6 +65,10 @@ trap 'rm -f "${temporary_file:-}"; unset kakao_rest_api_key kakao_client_secret 
   printf 'SPRING_DATA_REDIS_PORT=%s\n' '6379'
   printf 'SPRING_DATA_REDIS_PASSWORD=%s\n' "${redis_password}"
   printf 'SPRING_DATA_REDIS_DATABASE=%s\n' '1'
+  printf 'TASHU_STATION_REDIS_HOST=%s\n' 'tashu-redis'
+  printf 'TASHU_STATION_REDIS_PORT=%s\n' '6379'
+  printf 'TASHU_STATION_REDIS_PASSWORD=%s\n' "${redis_password}"
+  printf 'TASHU_STATION_REDIS_DATABASE=%s\n' '0'
   printf 'NAVER_CLIENT_ID=%s\n' "${naver_client_id}"
   printf 'NAVER_CLIENT_SECRET=%s\n' "${naver_client_secret}"
   printf 'KAKAO_REST_API_KEY=%s\n' "${kakao_rest_api_key}"
