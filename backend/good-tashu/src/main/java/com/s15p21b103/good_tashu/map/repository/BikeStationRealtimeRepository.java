@@ -27,21 +27,47 @@ public class BikeStationRealtimeRepository {
     private final ObjectMapper mapper;
     private final String keyPattern;
     private final String snapshotKey;
+    private final String lastKnownKey;
 
     public BikeStationRealtimeRepository(
             @Qualifier("stationRealtimeRedisTemplate") RedisTemplate<String, String> redis,
             ObjectMapper mapper,
             @Value("${tashu.station.redis.key-pattern:station:{stationId}}") String keyPattern,
-            @Value("${tashu.station.redis.snapshot-key:tashu:station-availability:latest:v1}") String snapshotKey) {
+            @Value("${tashu.station.redis.snapshot-key:tashu:station-availability:latest:v1}") String snapshotKey,
+            @Value("${tashu.station.redis.last-known-key:tashu:station-availability:last-known:v1}") String lastKnownKey) {
         this.redis = redis;
         this.mapper = mapper;
         this.keyPattern = keyPattern;
         this.snapshotKey = snapshotKey;
+        this.lastKnownKey = lastKnownKey;
     }
 
     public Map<String, CurrentStation> findAll(List<StationEntity> stations) {
         // 수집기는 TTL이 있는 전체 snapshot 한 건을 원자적으로 갱신한다.
-        if (!snapshotKey.isBlank()) return readSnapshot(redis.opsForValue().get(snapshotKey), stations);
+        if (!snapshotKey.isBlank()) {
+            Map<String, CurrentStation> current = readSnapshot(redis.opsForValue().get(snapshotKey), stations);
+            // 최신 snapshot 전체가 만료됐거나 일부 정류소가 빠졌으면 마지막 성공값을 사용한다.
+            List<StationEntity> missing = stations.stream()
+                    .filter(station -> !current.containsKey(station.getStationId()))
+                    .toList();
+            if (!missing.isEmpty() && !lastKnownKey.isBlank()) {
+                List<Object> missingIds = missing.stream()
+                        .map(station -> (Object) station.getStationId()).toList();
+                List<Object> values = redis.opsForHash().multiGet(lastKnownKey, missingIds);
+                if (values != null) {
+                    for (int i = 0; i < Math.min(values.size(), missing.size()); i++) {
+                        if (values.get(i) == null) continue;
+                        try {
+                            CurrentStation fallback = parse(mapper.readTree(values.get(i).toString()), missing.get(i), null);
+                            if (fallback != null) current.put(fallback.stationId(), fallback);
+                        } catch (Exception ex) {
+                            log.warn("Invalid last-known station value for ID {}", missing.get(i).getStationId(), ex);
+                        }
+                    }
+                }
+            }
+            return current;
+        }
         if (stations.isEmpty()) return Map.of();
         List<String> keys = stations.stream()
                 .map(s -> keyPattern.replace("{stationId}", s.getStationId())).toList();
