@@ -25,6 +25,11 @@ interface StationMarkersProps {
   selectedStationId: string | null;
   /** 마커 탭 → 대여소 id, 지도 빈 곳 탭 → null */
   onSelectStation: (stationId: string | null) => void;
+  /**
+   * 08 "지도에서 선택" 모드 — 마커를 탭해도 대여소를 고르지 않고 그 자리로 지도를 옮긴다.
+   * 마커가 지도 클릭을 가로채는 탓에, 이걸 안 하면 대여소 위에서는 핀이 움직이지 않는다.
+   */
+  pickActive: boolean;
 }
 
 /**
@@ -37,6 +42,7 @@ export function StationMarkers({
   stations,
   selectedStationId,
   onSelectStation,
+  pickActive,
 }: StationMarkersProps) {
   const entriesRef = useRef(new Map<string, MarkerEntry>());
   // 포털을 붙일 요소 목록. 마커를 만든 뒤에야 알 수 있어 이펙트에서 채운다
@@ -44,6 +50,12 @@ export function StationMarkers({
 
   // 콜백이 바뀌어도 마커 리스너를 다시 달지 않도록 이펙트 이벤트로 감싼다
   const select = useEffectEvent((stationId: string | null) => onSelectStation(stationId));
+
+  /** 마커 탭 — 선택 모드에서는 지도를 그 대여소 위로 옮겨 중앙 핀이 거기 놓이게 한다 */
+  const tapMarker = useEffectEvent((marker: naver.maps.Marker, stationId: string) => {
+    if (pickActive) map.panTo(marker.getPosition());
+    else onSelectStation(stationId);
+  });
 
   // 대여소 목록 ↔ 마커 인스턴스 동기화
   useEffect(() => {
@@ -70,7 +82,7 @@ export function StationMarkers({
           anchor: new Point(MARKER_BOX / 2, MARKER_BOX / 2),
         },
       });
-      Event.addListener(marker, 'click', () => select(station.stationId));
+      Event.addListener(marker, 'click', () => tapMarker(marker, station.stationId));
       entries.set(station.stationId, { marker, el });
     }
 

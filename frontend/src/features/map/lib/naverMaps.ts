@@ -16,6 +16,12 @@ export type MapLoadResult =
 const SCRIPT_URL = 'https://oapi.map.naver.com/openapi/v3/maps.js';
 
 /**
+ * 역지오코딩(`naver.maps.Service`)은 기본 번들에 없다 — 이 서브모듈을 붙여야 로드된다.
+ * 08 "지도에서 선택"에서 고른 지점의 주소를 읽는 데 쓴다.
+ */
+const SUBMODULES = 'geocoder';
+
+/**
  * SDK는 앱 전체에서 한 번만 받는다.
  * Promise를 모듈 스코프에 두면 StrictMode의 이펙트 2회 실행이나 화면 재진입에도
  * `<script>`가 중복으로 붙지 않는다.
@@ -56,7 +62,7 @@ function startLoading(): Promise<MapLoadResult> {
   return new Promise((resolve) => {
     const script = document.createElement('script');
     // 파라미터 이름은 ncpKeyId. 구 자료의 ncpClientId는 더 이상 동작하지 않는다
-    script.src = `${SCRIPT_URL}?ncpKeyId=${encodeURIComponent(clientId)}`;
+    script.src = `${SCRIPT_URL}?ncpKeyId=${encodeURIComponent(clientId)}&submodules=${SUBMODULES}`;
     script.async = true;
     script.onload = () => {
       const maps = window.naver?.maps;
