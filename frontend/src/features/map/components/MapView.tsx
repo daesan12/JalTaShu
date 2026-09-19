@@ -3,6 +3,7 @@ import type { BikeStation, PlaceSearchResult, Pos, RouteCandidate } from '@/shar
 import { CurrentLocationMarker } from '@/features/map/components/CurrentLocationMarker';
 import { DestinationMarker } from '@/features/map/components/DestinationMarker';
 import { RoutePolylines } from '@/features/map/components/RoutePolylines';
+import { RouteLandmarkMarkers } from '@/features/map/components/RouteLandmarkMarkers';
 import { RouteTurnMarkers } from '@/features/map/components/RouteTurnMarkers';
 import { SelectedRoutePolyline } from '@/features/map/components/SelectedRoutePolyline';
 import { StationMarkers } from '@/features/map/components/StationMarkers';
@@ -159,6 +160,9 @@ export function MapView({
 
       {/* 회전 지점은 **지금 보고 있는 경로 하나**에만 찍는다 — 후보를 전부 찍으면 지도가 지저분해진다 */}
       {map === null ? null : <RouteTurnMarkers map={map} route={shownRoute} />}
+
+      {/* 선택 경로의 출발·대여·반납 지점. 최종 도착은 DestinationMarker가 맡는다. */}
+      {map === null ? null : <RouteLandmarkMarkers map={map} route={shownRoute} />}
 
       {failure === null ? null : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-background px-8 text-center">
