@@ -2,6 +2,7 @@ package com.s15p21b103.good_tashu.map.dto.res;
 
 import com.s15p21b103.good_tashu.map.domain.RouteType;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /** Distances/altitudes are metres, times are seconds, locations are [longitude, latitude]. */
@@ -10,7 +11,7 @@ public record PathResponseDto(List<Route> routes) {
 
     public record Station(String stationId, String name, List<Double> location) {}
 
-    public record Route(RouteType type, Station startStation, Station endStation,
+    public record Route(RouteType type, Station startStation, Station endStation, BigDecimal expectedBikeCnt,
                         double totalDistance, double totalTime, List<Leg> legs) {}
 
     /** A service leg is a travel-mode section, not an OSRM waypoint leg. */
