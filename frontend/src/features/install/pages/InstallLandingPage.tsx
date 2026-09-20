@@ -203,9 +203,11 @@ function PhoneScrollHero() {
       <motion.div className="jt-phone-title" style={{ y: reduced ? 0 : titleY }}>
         <p className="jt-eyebrow">대전의 일상에, 잘타슈</p>
         <h1>
-          도착할 때도,
+          도착할 때의
           <br />
-          <em>탈 수 있도록.</em>
+          <em>자전거 수를</em>
+          <br />
+          미리 확인하세요.
         </h1>
         <p className="jt-intro">
           자전거가 남아 있을 대여소부터 오르막이 적은 길까지.
@@ -499,29 +501,18 @@ function VoiceFeature() {
           <br />
           회전할 곳을 음성으로 안내받아요.
         </p>
-        <ul className="jt-voice-points">
-          <li>
-            <span>01</span>회전할 곳을 미리 안내
-          </li>
-          <li>
-            <span>02</span>가까워지면 한 번 더 안내
-          </li>
-          <li>
-            <span>03</span>필요할 때 음성 켜기·끄기
-          </li>
-        </ul>
         <p className="jt-voice-limit">
           기기·브라우저에 따라 음성 지원이 달라요. 화면 잠금·백그라운드 상태의 안내는 보장되지
           않아요. 출발 전에 확인하고, 조작이 필요하면 안전한 곳에 멈춰 주세요.
         </p>
       </Reveal>
       <Reveal className="jt-voice-scene">
+        <MediaSlot name="navigation" label="음성 경로 안내 앱 화면" />
         <div className="jt-voice-illustration">
           <div className="jt-voice-orbit" aria-hidden="true">
             <span />
             <span />
             <span />
-            <div className="jt-voice-turn">↱</div>
           </div>
           <div className="jt-voice-bubble">
             <span className="jt-voice-tag">음성 안내 예시 · 실제 소리는 재생하지 않아요</span>
@@ -543,7 +534,17 @@ function VoiceFeature() {
             </div>
           </div>
         </div>
-        <MediaSlot name="navigation" label="음성 경로 안내 앱 화면" />
+        <ul className="jt-voice-points">
+          <li>
+            <span>01</span>회전할 곳을 미리 안내
+          </li>
+          <li>
+            <span>02</span>가까워지면 한 번 더 안내
+          </li>
+          <li>
+            <span>03</span>필요할 때 음성 켜기·끄기
+          </li>
+        </ul>
       </Reveal>
     </section>
   );
@@ -638,9 +639,9 @@ function InstallSteps({ platform }: { platform: keyof typeof installScreens }) {
 
 const chapters = [
   { id: 'top', label: '서비스 소개' },
-  { id: 'features', label: '자전거 예측' },
+  { id: 'features', label: '자전거 수 예측' },
   { id: 'routes', label: '경로 비교' },
-  { id: 'map', label: '지도 탐색' },
+  { id: 'map', label: '장소·대여소' },
   { id: 'navigation', label: '음성 길 안내' },
   { id: 'install', label: '이용·설치' },
 ];
@@ -650,30 +651,25 @@ function ChapterNavigation() {
     let frame = 0;
     const update = () => {
       frame = 0;
+      const marker = window.scrollY + window.innerHeight * 0.42;
+      const tops = chapters.map(({ id }) => {
+        const section = document.getElementById(id);
+        return section ? section.getBoundingClientRect().top + window.scrollY : Infinity;
+      });
       let active = 0;
-      chapters.forEach((chapter, index) => {
-        if (
-          (document.getElementById(chapter.id)?.getBoundingClientRect().top ?? Infinity) <=
-          window.innerHeight * 0.4
-        )
-          active = index;
+      tops.forEach((top, index) => {
+        if (top <= marker) active = index;
       });
       if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4)
         active = chapters.length - 1;
-      const currentTop =
-        document.getElementById(chapters[active].id)?.getBoundingClientRect().top ?? 0;
-      const nextTop = document
-        .getElementById(chapters[active + 1]?.id ?? '')
-        ?.getBoundingClientRect().top;
+      const currentTop = tops[active] ?? marker;
+      const nextTop = tops[active + 1];
       const fraction =
-        nextTop === undefined
+        nextTop === undefined || !Number.isFinite(nextTop)
           ? 0
           : Math.min(
               1,
-              Math.max(
-                0,
-                (window.innerHeight * 0.4 - currentTop) / Math.max(1, nextTop - currentTop),
-              ),
+              Math.max(0, (marker - currentTop) / Math.max(1, nextTop - currentTop)),
             );
       const percent = Math.round(((active + fraction) / (chapters.length - 1)) * 100);
       setPosition((previous) =>
@@ -683,6 +679,19 @@ function ChapterNavigation() {
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
+    const moveToHash = () => {
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      const index = chapters.findIndex((chapter) => chapter.id === id);
+      const section = index >= 0 ? document.getElementById(id) : null;
+      if (index >= 0) {
+        setPosition({
+          active: index,
+          percent: Math.round((index / (chapters.length - 1)) * 100),
+        });
+      }
+      section?.scrollIntoView({ block: 'start' });
+      schedule();
+    };
     const observer = new ResizeObserver(schedule);
     observer.observe(document.documentElement);
     chapters.forEach(({ id }) => {
@@ -691,12 +700,16 @@ function ChapterNavigation() {
     });
     window.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
+    window.addEventListener('hashchange', moveToHash);
     update();
+    const hashFrame = requestAnimationFrame(() => requestAnimationFrame(moveToHash));
     return () => {
+      cancelAnimationFrame(hashFrame);
       cancelAnimationFrame(frame);
       observer.disconnect();
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
+      window.removeEventListener('hashchange', moveToHash);
     };
   }, []);
   return (
@@ -714,6 +727,17 @@ function ChapterNavigation() {
                 href={'#' + chapter.id}
                 aria-current={position.active === index ? 'location' : undefined}
                 aria-label={chapter.label}
+                onClick={(event) => {
+                  event.preventDefault();
+                  setPosition({
+                    active: index,
+                    percent: Math.round((index / (chapters.length - 1)) * 100),
+                  });
+                  window.history.replaceState(null, '', '#' + chapter.id);
+                  document
+                    .getElementById(chapter.id)
+                    ?.scrollIntoView({ behavior: 'auto', block: 'start' });
+                }}
               >
                 <span className="jt-chapter-dot" aria-hidden="true" />
                 <span className="jt-chapter-label">{chapter.label}</span>
@@ -1022,11 +1046,11 @@ export function InstallLandingPage() {
           <Bike large />
           <span className="jt-arrived">도착! 이제 직접 달려볼까요?</span>
         </div>
-        <p className="jt-eyebrow">YOUR NEXT RIDE STARTS HERE</p>
+        <p className="jt-eyebrow">잘타슈와 함께하는 자전거 여정</p>
         <h2>
-          대전의 다음 장면을
+          이제 잘타슈와 함께
           <br />
-          <em>만나러 가요.</em>
+          <em>출발해 보세요.</em>
         </h2>
         <div className="jt-actions">
           <a className="jt-button" href={appHref}>
