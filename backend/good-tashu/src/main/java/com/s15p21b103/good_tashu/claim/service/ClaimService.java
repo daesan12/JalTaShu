@@ -130,7 +130,7 @@ public class ClaimService {
         claimReportRepository.save(ClaimReportEntity.builder()
                 .claimEntity(claimEntity)
                 .userEntity(userEntity)
-                .claimCategory(claimCategory)
+                .reportCategory(claimCategory)
                 .build());
 
     }
