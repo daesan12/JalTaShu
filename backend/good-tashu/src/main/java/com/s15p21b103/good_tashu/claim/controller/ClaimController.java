@@ -5,7 +5,7 @@ import com.s15p21b103.good_tashu.claim.dto.req.ClaimReportRequest;
 import com.s15p21b103.good_tashu.claim.dto.req.CycleClaimRequest;
 import com.s15p21b103.good_tashu.claim.dto.req.AbandonedClaimRequest;
 import com.s15p21b103.good_tashu.claim.dto.req.EtcClaimRequest;
-import com.s15p21b103.good_tashu.claim.dto.res.CycleClaimListResponse;
+import com.s15p21b103.good_tashu.claim.dto.res.ClaimListResponse;
 import com.s15p21b103.good_tashu.claim.dto.res.ClaimResponse;
 import com.s15p21b103.good_tashu.claim.service.ClaimService;
 import com.s15p21b103.good_tashu.user.annotation.BlockBanUser;
@@ -60,14 +60,15 @@ public class ClaimController {
 
     //자전거 제보리스트 조회
     @GetMapping("/list")
-    public ApiResponse<List<CycleClaimListResponse>> getCycleClaims(
+    public ApiResponse<List<ClaimListResponse>> getCycleClaims(
+            @CurrentUserId Long userId,
             @RequestParam(name = "cycleId") String cycleId) {
-        List<CycleClaimListResponse> response = claimService.getCycleClaims(cycleId);
+        List<ClaimListResponse> response = claimService.getCycleClaims(cycleId);
         return ApiResponse.success(response);
     }
 
     //자전거 상태제보 신고
-    @PostMapping(value = "/claims/{claimId}/reports")
+    @PostMapping(value = "/{claimId}/report")
     public ResponseEntity<ApiResponse<Void>> reportCycleClaim(
             @CurrentUserId Long userId,
             @PathVariable(name = "claimId") Long claimId,
@@ -75,4 +76,6 @@ public class ClaimController {
         claimService.reportClaim(userId, claimId, request.claimCategory());
         return ResponseEntity.ok(ApiResponse.success("신고가 접수되었습니다."));
     }
+
+    //
 }

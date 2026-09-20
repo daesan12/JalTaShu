@@ -3,8 +3,9 @@ package com.s15p21b103.good_tashu.cycle.controller;
 import com.s15p21b103.good_tashu._util.exception.GlobalExceptionHandler;
 import com.s15p21b103.good_tashu.claim.domain.ClaimCategory;
 import com.s15p21b103.good_tashu.claim.domain.ClaimReportCategory;
+import com.s15p21b103.good_tashu.claim.domain.ClaimType;
 import com.s15p21b103.good_tashu.claim.dto.req.CycleClaimRequest;
-import com.s15p21b103.good_tashu.claim.dto.res.CycleClaimListResponse;
+import com.s15p21b103.good_tashu.claim.dto.res.ClaimListResponse;
 import com.s15p21b103.good_tashu.claim.dto.res.ClaimResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CyclePointResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleStatisticsResponse;
@@ -130,8 +131,8 @@ class CycleControllerTest {
 
     @Test
     void listBindsCycleIdAndReturnsSpecifiedFields() throws Exception {
-        when(claimService.getCycleClaims("C1")).thenReturn(List.of(new CycleClaimListResponse(
-                10L, "타슈이용자", ClaimCategory.TIRE, "타이어 펑크", LocalDateTime.of(2026, 9, 10, 10, 0))));
+        when(claimService.getCycleClaims("C1")).thenReturn(List.of(new ClaimListResponse(
+                10L, ClaimType.CYCLE, "타슈이용자", ClaimCategory.TIRE, "타이어 펑크", LocalDateTime.of(2026, 9, 10, 10, 0))));
         mvc.perform(get("/api/claim/list").param("cycleId", "C1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].claimId").value(10))

@@ -7,7 +7,7 @@ import com.s15p21b103.good_tashu.claim.domain.ClaimStatus;
 import com.s15p21b103.good_tashu.claim.dto.req.CycleClaimRequest;
 import com.s15p21b103.good_tashu.claim.dto.req.AbandonedClaimRequest;
 import com.s15p21b103.good_tashu.claim.dto.req.EtcClaimRequest;
-import com.s15p21b103.good_tashu.claim.dto.res.CycleClaimListResponse;
+import com.s15p21b103.good_tashu.claim.dto.res.ClaimListResponse;
 import com.s15p21b103.good_tashu.claim.dto.res.ClaimResponse;
 import com.s15p21b103.good_tashu.claim.repository.ClaimReportRepository;
 import com.s15p21b103.good_tashu.claim.repository.ClaimRepository;
@@ -92,7 +92,7 @@ public class ClaimService {
     }
 
     @Transactional(readOnly = true)
-    public List<CycleClaimListResponse> getCycleClaims(String cycleId) {
+    public List<ClaimListResponse> getCycleClaims(String cycleId) {
         if (cycleId == null || cycleId.isBlank()) {
             throw new CycleException(CYCLE_ID_REQUIRED);
         }
@@ -103,8 +103,9 @@ public class ClaimService {
         return claimRepository
                 .findAllByCycleEntity_CycleIdOrderByCreatedAtDescClaimIdDesc(cycleId)
                 .stream()
-                .map(claim -> new CycleClaimListResponse(
+                .map(claim -> new ClaimListResponse(
                         claim.getClaimId(),
+                        claim.getClaimType(),
                         claim.getUserEntity().getNickname(),
                         claim.getClaimCategory(),
                         claim.getContent(),
