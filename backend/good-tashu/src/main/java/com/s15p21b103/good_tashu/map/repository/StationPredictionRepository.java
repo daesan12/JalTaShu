@@ -58,4 +58,23 @@ public class StationPredictionRepository {
         points.sort(Comparator.comparing(BikeStationForecastPoint::dateTime));
         return points;
     }
+
+    public BigDecimal findBikeCount(String stationId, int horizonMinutes) {
+        if (horizonMinutes < 1 || horizonMinutes > 15) return null;
+        String key = "pred:" + stationId + ":" + horizonMinutes;
+        String value = redis.opsForValue().get(key);
+        if (value == null) return null;
+        try {
+            JsonNode json = mapper.readTree(value);
+            OffsetDateTime updatedAt = OffsetDateTime.parse(json.path("updated_at").asText());
+            Instant target = updatedAt.plusMinutes(horizonMinutes).toInstant();
+            Instant now = Instant.now();
+            // 만료되지 않은 1~15분 범위 예측만 경로 응답에 사용한다.
+            if (!target.isAfter(now) || target.isAfter(now.plus(15, ChronoUnit.MINUTES))) return null;
+            return new BigDecimal(json.path("bikes").asText());
+        } catch (Exception ex) {
+            log.warn("Invalid prediction value for key {}", key, ex);
+            return null;
+        }
+    }
 }

@@ -9,6 +9,7 @@ import com.s15p21b103.good_tashu.map.domain.RouteType;
 import com.s15p21b103.good_tashu.map.domain.TravelStatus;
 import com.s15p21b103.good_tashu.map.dto.res.PathResponseDto;
 import com.s15p21b103.good_tashu.map.exception.MapException;
+import com.s15p21b103.good_tashu.map.repository.StationPredictionRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -29,13 +30,16 @@ public class PathService {
     private final StationRepository stationRepository;
     private final OsrmClient osrm;
     private final DemElevationService elevation;
+    private final StationPredictionRepository predictions;
     private final ExecutorService executor;
 
     public PathService(StationRepository stations, OsrmClient osrm, DemElevationService elevation,
+                       StationPredictionRepository predictions,
                        @Qualifier("osrmExecutor") ExecutorService executor) {
         this.stationRepository = stations;
         this.osrm = osrm;
         this.elevation = elevation;
+        this.predictions = predictions;
         this.executor = executor;
     }
 
@@ -71,7 +75,7 @@ public class PathService {
         // 가장 가까운 대여소와 반납소가 같으면 걸어가라
         if (sameStation(rankedStarts.getFirst().station, rankedEnds.getFirst().station)) {
             Leg walk = toLeg(TravelMode.WALK, osrm.route(FOOT, start, end));
-            return new PathResponseDto(List.of(combine(RouteType.WALK, null, null, List.of(walk))));
+            return new PathResponseDto(List.of(combine(RouteType.WALK, null, null, null, List.of(walk))));
         }
 
         // 각 대여소별 짝
@@ -107,10 +111,11 @@ public class PathService {
             Leg access = toLeg(TravelMode.WALK, first.join());
             Leg egress = toLeg(TravelMode.WALK, last.join());
             Station origin = stationDto(from), destination = stationDto(to);
+            BigDecimal expectedBikeCnt = expectedBikeCount(from.getStationId(), access.time());
             return new PathResponseDto(List.of(
-                    combine(RouteType.BIKE, origin, destination,
+                    combine(RouteType.BIKE, origin, destination, expectedBikeCnt,
                             List.of(access, toLeg(TravelMode.BICYCLE, bike.join()), egress)),
-                    combine(RouteType.UPHILL, origin, destination,
+                    combine(RouteType.UPHILL, origin, destination, expectedBikeCnt,
                             List.of(access, toLeg(TravelMode.BICYCLE, uphill.join()), egress))));
         }
         throw new MapException(PATH_NOT_FOUND);
@@ -127,7 +132,7 @@ public class PathService {
 
         if (routeType == RouteType.WALK || travelStatus == TravelStatus.WALK2) {
             var walk = toLeg(TravelMode.WALK, osrm.route(FOOT, start, end));
-            return new PathResponseDto(List.of(combine(RouteType.WALK, null, null, List.of(walk))));
+            return new PathResponseDto(List.of(combine(RouteType.WALK, null, null, null, List.of(walk))));
         }
 
         if (endStationId == null || endStationId.isBlank()
@@ -150,8 +155,11 @@ public class PathService {
         if (access != null) legs.add(toLeg(TravelMode.WALK, access.join()));
         legs.add(toLeg(TravelMode.BICYCLE, bike.join()));
         legs.add(toLeg(TravelMode.WALK, egress.join()));
+        BigDecimal expectedBikeCnt = origin == null ? null
+                : expectedBikeCount(origin.getStationId(), legs.getFirst().time());
         return new PathResponseDto(List.of(combine(routeType,
-                origin == null ? null : stationDto(origin), stationDto(destination), List.copyOf(legs))));
+                origin == null ? null : stationDto(origin), stationDto(destination), expectedBikeCnt,
+                List.copyOf(legs))));
     }
 
     private StationEntity requireStation(String stationId) {
@@ -225,9 +233,15 @@ public class PathService {
         };
     }
 
-    private Route combine(RouteType type, Station from, Station to, List<Leg> legs) {
-        return new Route(type, from, to, legs.stream().mapToDouble(Leg::distance).sum(),
+    private Route combine(RouteType type, Station from, Station to, BigDecimal expectedBikeCnt, List<Leg> legs) {
+        return new Route(type, from, to, expectedBikeCnt, legs.stream().mapToDouble(Leg::distance).sum(),
                 legs.stream().mapToDouble(Leg::time).sum(), legs);
+    }
+
+    private BigDecimal expectedBikeCount(String stationId, double walkingSeconds) {
+        if (!Double.isFinite(walkingSeconds) || walkingSeconds < 0) return null;
+        int horizonMinutes = Math.max(1, (int) Math.ceil(walkingSeconds / 60.0));
+        return predictions.findBikeCount(stationId, horizonMinutes);
     }
 
     private Station stationDto(StationEntity station) {

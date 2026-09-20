@@ -40,4 +40,32 @@ class StationPredictionRepositoryTest {
         assertThat(result.getFirst().bikeCnt()).isEqualByComparingTo("3.2");
         assertThat(result.getFirst().probOut()).isEqualByComparingTo("0.125");
     }
+
+    @Test
+    void returnsBikeCountForRequestedArrivalMinute() {
+        @SuppressWarnings("unchecked")
+        RedisTemplate<String, String> redis = mock(RedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> values = mock(ValueOperations.class);
+        when(redis.opsForValue()).thenReturn(values);
+        OffsetDateTime updatedAt = OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(10);
+        when(values.get("pred:ST0001:3")).thenReturn("""
+                {"bikes":4.2,"prob_out":0.2,"updated_at":"%s"}
+                """.formatted(updatedAt));
+
+        var result = new StationPredictionRepository(redis, new ObjectMapper())
+                .findBikeCount("ST0001", 3);
+
+        assertThat(result).isEqualByComparingTo("4.2");
+    }
+
+    @Test
+    void returnsNullWithoutReadingRedisWhenArrivalExceedsPredictionRange() {
+        @SuppressWarnings("unchecked")
+        RedisTemplate<String, String> redis = mock(RedisTemplate.class);
+
+        assertThat(new StationPredictionRepository(redis, new ObjectMapper())
+                .findBikeCount("ST0001", 16)).isNull();
+        verifyNoInteractions(redis);
+    }
 }
