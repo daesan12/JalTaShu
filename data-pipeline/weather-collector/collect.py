@@ -21,6 +21,7 @@ import pyarrow.parquet as pq
 import requests
 
 from kafka_publisher import WeatherKafkaError, WeatherKafkaOutbox, WeatherKafkaPublisher
+from redis_publisher import WeatherRedisPublishError, WeatherRedisPublisher
 
 
 API_URL = (
@@ -191,6 +192,10 @@ class WeatherCollector:
                 "WEATHER_KAFKA_SPOOL_DIR", str(DATA_ROOT / "kafka-spool")
             )
             self.kafka_outbox = WeatherKafkaOutbox(publisher, spool_dir)
+        self.redis_enabled = _env_bool("WEATHER_REDIS_ENABLED", False)
+        self.redis_publisher: WeatherRedisPublisher | None = None
+        if self.redis_enabled:
+            self.redis_publisher = WeatherRedisPublisher.from_env()
 
     def fetch(self, now: datetime | None = None) -> WeatherObservation:
         fetched_at = now.astimezone(KST) if now else datetime.now(KST)
@@ -300,6 +305,15 @@ class WeatherCollector:
             return
         self._replay_kafka()
 
+    def _publish_redis(self, observation: WeatherObservation) -> None:
+        if self.redis_publisher is None:
+            return
+        try:
+            self.redis_publisher.publish(observation)
+        except WeatherRedisPublishError:
+            # Redis는 최신 조회용 부가 경로다. 실패해도 원본 저장과 Kafka를 계속한다.
+            logging.exception("weather Redis publish failed")
+
     def collect_once(self, now: datetime | None = None) -> WeatherObservation:
         self._replay_kafka()
         last_error: Exception | None = None
@@ -307,6 +321,7 @@ class WeatherCollector:
             try:
                 observation = self.fetch(now)
                 path, created = self.save(observation)
+                self._publish_redis(observation)
                 self._enqueue_kafka(observation, created)
                 self._update_health(observation, path, created)
                 logging.info(
@@ -340,6 +355,8 @@ class WeatherCollector:
         self.session.close()
         if self.kafka_outbox is not None:
             self.kafka_outbox.close()
+        if self.redis_publisher is not None:
+            self.redis_publisher.close()
 
 
 def main() -> int:
