@@ -12,6 +12,7 @@ import redis
 
 
 DEFAULT_KEY = "tashu:station-availability:latest:v1"
+DEFAULT_LAST_KNOWN_KEY = "tashu:station-availability:last-known:v1"
 REQUIRED_COLUMNS = ("station_id", "bikes", "collected_at")
 
 
@@ -37,6 +38,7 @@ class RedisSnapshotPublisher:
     client: redis.Redis
     key: str
     ttl_seconds: int
+    last_known_key: str = DEFAULT_LAST_KNOWN_KEY
 
     @classmethod
     def from_env(cls) -> "RedisSnapshotPublisher":
@@ -52,6 +54,9 @@ class RedisSnapshotPublisher:
         key = os.environ.get("TASHU_REDIS_LATEST_KEY", DEFAULT_KEY).strip()
         if not key:
             raise RuntimeError("TASHU_REDIS_LATEST_KEY must not be empty")
+        last_known_key = os.environ.get("TASHU_REDIS_LAST_KNOWN_KEY", DEFAULT_LAST_KNOWN_KEY).strip()
+        if not last_known_key or last_known_key == key:
+            raise RuntimeError("TASHU_REDIS_LAST_KNOWN_KEY must differ from the latest key")
         ttl_seconds = _positive_int("TASHU_REDIS_TTL_SECONDS", 180)
         client = redis.Redis(
             host=host,
@@ -62,7 +67,7 @@ class RedisSnapshotPublisher:
             socket_timeout=2,
             decode_responses=True,
         )
-        return cls(client=client, key=key, ttl_seconds=ttl_seconds)
+        return cls(client=client, key=key, ttl_seconds=ttl_seconds, last_known_key=last_known_key)
 
     def publish(self, frame: pd.DataFrame, snapshot_id: str) -> None:
         missing = [name for name in REQUIRED_COLUMNS if name not in frame.columns]
@@ -118,8 +123,19 @@ class RedisSnapshotPublisher:
             ensure_ascii=False,
             separators=(",", ":"),
         )
+        last_known = {
+            station["station_id"]: json.dumps(
+                {"bikes": station["bikes"], "collected_at": station["collected_at"]},
+                separators=(",", ":"),
+            )
+            for station in stations
+        }
         try:
-            stored = self.client.set(self.key, payload, ex=self.ttl_seconds)
+            # 최신 snapshot과 정류소별 마지막 성공값을 함께 반영한다.
+            with self.client.pipeline(transaction=True) as pipe:
+                pipe.set(self.key, payload, ex=self.ttl_seconds)
+                pipe.hset(self.last_known_key, mapping=last_known)
+                stored, _ = pipe.execute()
         except redis.RedisError as exc:
             raise RedisPublishError("Redis snapshot publish failed") from exc
         if not stored:

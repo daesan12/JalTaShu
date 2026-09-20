@@ -27,6 +27,7 @@ import { BikeStatusPage } from '@/features/rental/pages/BikeStatusPage';
 import { QrScanPage } from '@/features/rental/pages/QrScanPage';
 import { MyReportsPage } from '@/features/report/pages/MyReportsPage';
 import { ReportPage } from '@/features/report/pages/ReportPage';
+import { InstallLandingPage } from '@/features/install/pages/InstallLandingPage';
 
 /** 배포 경로(예: /staging/)에서도 라우팅이 동작하도록 Vite base를 basename으로 사용 */
 const basename = import.meta.env.BASE_URL.replace(/\/+$/, '') || '/';
@@ -40,6 +41,8 @@ export const router = createBrowserRouter(
       // 노출되지 않게 전역에서 받아낸다
       errorElement: <RouteErrorPage />,
       children: [
+        // 서비스 소개·설치 안내 — 로그인 없이 접근하는 반응형 공개 페이지
+        { path: '/install', element: <InstallLandingPage /> },
         {
           // 메인 4탭 — 온보딩·로그인·가입을 통과해야 진입 (RequireAuth)
           element: <RequireAuth />,

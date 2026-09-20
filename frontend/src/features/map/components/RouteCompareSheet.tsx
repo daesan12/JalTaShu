@@ -5,10 +5,13 @@ import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
 import { toStationStatus, type StationStatus } from '@/shared/ui/stationStatus';
 import { ROUTE_TYPE_STYLE } from '@/features/map/lib/routeTypeStyle';
+import { formatBikes } from '@/features/map/lib/bikeCount';
 import {
+  bikesSortBlock,
   formatArrival,
   formatSecondsAsMinutes,
   sortSummaries,
+  type BikesSortBlock,
   type RouteSort,
   type RouteSummary,
 } from '@/features/map/lib/routeMetrics';
@@ -22,14 +25,26 @@ const SORT_LABEL: Record<RouteSort, string> = {
 };
 const SORT_ORDER: RouteSort[] = ['bikes', 'flat'];
 
-/** 예상 대수가 아직 응답에 없을 때, 그 값에 기대는 칩에 붙는 안내 */
-const BIKES_PENDING_NOTICE = '확보 우선은 예상 대수 준비 중이에요. 곧 켜집니다.';
+/**
+ * 확보 우선 칩을 못 쓸 때 **누르면** 띄우는 안내.
+ *
+ * 칩을 `disabled`로 두지 않는다 — 비활성 버튼은 포커스가 가지 않고 터치에서는 툴팁도 없어서
+ * 왜 못 쓰는지 알 방법이 칩 자체에 없다. 누를 수 있게 두고 정렬 대신 이유를 알려준다.
+ */
+const BIKES_BLOCK_NOTICE: Record<BikesSortBlock, string> = {
+  'no-data': '예상 대수를 받지 못해 확보 우선을 쓸 수 없어요.',
+  'all-equal': '같은 대여소에서 빌리는 경로라 확보 대수가 같아요.',
+};
+
+/** 칩 아래 설명 — 새로 보이기 시작한 "도착 시 N대"가 무슨 숫자인지 알려준다 */
+const BIKES_HINT = '예상 대수 = 내가 도착하는 시점에 남아 있을 자전거 대수';
 
 /** "도착 시 N대" 색 — 대여소 마커·뱃지와 같은 여유/보통/부족 판정을 쓴다 */
 const BIKES_TEXT_CLASS: Record<StationStatus, string> = {
   high: 'text-status-high',
   mid: 'text-status-mid',
   low: 'text-status-low',
+  unknown: 'text-gray-500',
 };
 
 const START_LABEL = '바로 안내 시작';
@@ -48,6 +63,8 @@ interface RouteCompareSheetProps {
   selectedIndex: number | null;
   onSelect: (index: number) => void;
   onStart: (index: number) => void;
+  /** 확보 우선 칩을 못 쓸 때 이유를 띄운다 */
+  showToast: (message: string) => void;
 }
 
 /**
@@ -68,11 +85,12 @@ export function RouteCompareSheet({
   selectedIndex,
   onSelect,
   onStart,
+  showToast,
 }: RouteCompareSheetProps) {
   const sorted = useMemo(() => sortSummaries(summaries, sort), [summaries, sort]);
   const selected = selectedIndex === null ? null : (summaries[selectedIndex] ?? null);
-  // 예상 대수가 하나도 안 오면(예측 모델 대기) 그 값으로 줄 세우는 칩은 아직 쓸 수 없다
-  const bikesReady = summaries.some((s) => s.expectedBikeCnt !== undefined);
+  // 값이 없거나 후보끼리 같으면 확보 우선으로 줄 세워도 순서가 바뀌지 않는다
+  const bikesBlock = useMemo(() => bikesSortBlock(summaries), [summaries]);
 
   /** 칩 하나를 켜고 끈다 — 우선순위가 예측 가능하도록 결과는 항상 SORT_ORDER 순서 */
   function toggleSort(kind: RouteSort) {
@@ -111,14 +129,17 @@ export function RouteCompareSheet({
             </p>
             <div className="flex gap-1.5">
               {SORT_ORDER.map((kind) => {
-                const pending = kind === 'bikes' && !bikesReady;
+                const blocked = kind === 'bikes' ? bikesBlock : null;
                 return (
                   <Chip
                     key={kind}
-                    selected={sort.includes(kind)}
-                    disabled={pending}
-                    className={pending ? 'opacity-50' : ''}
-                    onClick={() => toggleSort(kind)}
+                    selected={sort.includes(kind) && blocked === null}
+                    // disabled 대신 aria-disabled — 눌러서 이유를 들을 수 있어야 한다
+                    aria-disabled={blocked !== null}
+                    className={blocked === null ? '' : 'opacity-50'}
+                    onClick={() =>
+                      blocked === null ? toggleSort(kind) : showToast(BIKES_BLOCK_NOTICE[blocked])
+                    }
                   >
                     {SORT_LABEL[kind]}
                   </Chip>
@@ -126,11 +147,7 @@ export function RouteCompareSheet({
               })}
             </div>
           </div>
-          <p className="text-xs text-gray-500">
-            {bikesReady
-              ? '예상 대수 = 내가 도착하는 시점에 남아 있을 자전거 대수'
-              : BIKES_PENDING_NOTICE}
-          </p>
+          <p className="text-xs text-gray-500">{BIKES_HINT}</p>
           <ul className="flex flex-col gap-2.5">
             {sorted.map((summary) => (
               <RouteCard
@@ -148,14 +165,60 @@ export function RouteCompareSheet({
   );
 }
 
+/** 일반 경로 — 현재 프로젝트의 인라인 SVG 아이콘 방식에 맞춘 나침반 */
+function CompassIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="h-3.5 w-3.5 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8 4.8-2.2Z" />
+    </svg>
+  );
+}
+
+/** 오르막 회피 경로 — 급경사가 아닌 완만한 상승선을 표현한다 */
+function GentleSlopeIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="h-3.5 w-3.5 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 17h3.5c1.2 0 2.1-.5 2.8-1.5l3.1-4.4c.7-1 1.6-1.5 2.8-1.5H21" />
+      <path d="m18 6.6 3 3-3 3" />
+    </svg>
+  );
+}
+
 /** 후보 종류 라벨 — 서버가 준 `type` 그대로 */
 function TypePill({ type }: { type: RouteType }) {
   const { label, dotClass, pillClass } = ROUTE_TYPE_STYLE[type];
+  const visualClass = type === 'UPHILL' ? 'bg-primary-light text-primary' : pillClass;
+
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold ${pillClass}`}
+      className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold ${visualClass}`}
     >
-      <span aria-hidden className={`h-1 w-3 rounded-full ${dotClass}`} />
+      {type === 'BIKE' ? (
+        <CompassIcon />
+      ) : type === 'UPHILL' ? (
+        <GentleSlopeIcon />
+      ) : (
+        <span aria-hidden className={`h-1 w-3 rounded-full ${dotClass}`} />
+      )}
       {label}
     </span>
   );
@@ -166,7 +229,7 @@ function ExpectedBikes({ count, className = '' }: { count?: number; className?: 
   if (count === undefined) return null;
   return (
     <span className={`font-semibold ${BIKES_TEXT_CLASS[toStationStatus(count)]} ${className}`}>
-      도착 시 <span className="tabular-nums">{count}</span>대
+      도착 시 <span className="tabular-nums">{formatBikes(count)}</span>대
     </span>
   );
 }

@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum MapErrorCode {
+    BIKE_STATION_NOT_FOUND(HttpStatus.NOT_FOUND, "대여소를 찾을 수 없습니다."),
+    BIKE_STATION_DATA_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "대여소 실시간 데이터가 없습니다."),
     INVALID_REROUTE_REQUEST(HttpStatus.BAD_REQUEST, "현재 상태, 탐색 유형 또는 이동에 필요한 정류소 ID가 올바르지 않습니다."),
     INVALID_PATH_COORDINATES(HttpStatus.BAD_REQUEST, "출발지 또는 도착지 좌표가 올바르지 않습니다."),
     PATH_STATION_NOT_FOUND(HttpStatus.NOT_FOUND, "좌표가 있는 대여소를 찾을 수 없습니다."),

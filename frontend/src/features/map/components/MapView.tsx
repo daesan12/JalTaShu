@@ -3,6 +3,7 @@ import type { BikeStation, PlaceSearchResult, Pos, RouteCandidate } from '@/shar
 import { CurrentLocationMarker } from '@/features/map/components/CurrentLocationMarker';
 import { DestinationMarker } from '@/features/map/components/DestinationMarker';
 import { RoutePolylines } from '@/features/map/components/RoutePolylines';
+import { RouteLandmarkMarkers } from '@/features/map/components/RouteLandmarkMarkers';
 import { RouteTurnMarkers } from '@/features/map/components/RouteTurnMarkers';
 import { SelectedRoutePolyline } from '@/features/map/components/SelectedRoutePolyline';
 import { StationMarkers } from '@/features/map/components/StationMarkers';
@@ -56,6 +57,8 @@ interface MapViewProps {
   locationFocusToken: number;
   /** 경로 안내 중 — 지도가 현재 위치를 계속 따라간다 */
   followLocation: boolean;
+  /** 08 "지도에서 선택" 모드 — 대여소 마커를 탭해도 대여소를 고르지 않고 그 지점으로 지도를 옮긴다 */
+  pickActive: boolean;
   /**
    * 지도 인스턴스를 페이지로 올린다(사라지면 null).
    * 위치 권한을 거절했을 때 **검색을 열던 시점의 지도 중심**을 경로 출발지로 쓰기 위해서다.
@@ -75,6 +78,7 @@ export function MapView({
   currentLocation,
   locationFocusToken,
   followLocation,
+  pickActive,
   onMapReady,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -133,6 +137,7 @@ export function MapView({
           stations={stations}
           selectedStationId={selectedStationId}
           onSelectStation={onSelectStation}
+          pickActive={pickActive}
         />
       ) : null}
 
@@ -155,6 +160,9 @@ export function MapView({
 
       {/* 회전 지점은 **지금 보고 있는 경로 하나**에만 찍는다 — 후보를 전부 찍으면 지도가 지저분해진다 */}
       {map === null ? null : <RouteTurnMarkers map={map} route={shownRoute} />}
+
+      {/* 선택 경로의 출발·대여·반납 지점. 최종 도착은 DestinationMarker가 맡는다. */}
+      {map === null ? null : <RouteLandmarkMarkers map={map} route={shownRoute} />}
 
       {failure === null ? null : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-background px-8 text-center">

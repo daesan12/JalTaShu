@@ -13,7 +13,9 @@ event로 `tashu.station-availability.v1` topic에 발행합니다. Kafka는 실�
 Redis를 활성화하면 검증을 통과한 전체 snapshot을 JSON 하나로 원자적으로
 `tashu:station-availability:latest:v1`에 저장합니다. `stations`의 각 항목에는
 `station_id`, `bikes`, `collected_at`만 저장합니다. 키에는 TTL을 두므로 수집기가
-멈췄을 때 오래된 값을 실시간 값처럼 계속 노출하지 않습니다.
+멈췄을 때 오래된 값을 최신 snapshot으로 노출하지 않습니다. 같은 Redis 트랜잭션에서
+`tashu:station-availability:last-known:v1` hash에 정류소별 마지막 성공값도 보관합니다.
+백엔드는 최신값이 없을 때 이 값을 수집 시각과 함께 반환합니다.
 
 ## 환경변수
 
@@ -36,6 +38,7 @@ Redis를 활성화하면 검증을 통과한 전체 snapshot을 JSON 하나로 �
 | `TASHU_REDIS_DATABASE` | 아니요 | `0` | Backend와 같은 Redis 논리 DB index |
 | `TASHU_REDIS_PASSWORD` | 아니요 | 없음 | Redis 인증 비밀번호(서버 Secret으로 주입) |
 | `TASHU_REDIS_LATEST_KEY` | 아니요 | `tashu:station-availability:latest:v1` | 최신 snapshot key |
+| `TASHU_REDIS_LAST_KNOWN_KEY` | 아니요 | `tashu:station-availability:last-known:v1` | 정류소별 마지막 성공값을 보관하는 hash key (TTL 없음) |
 | `TASHU_REDIS_TTL_SECONDS` | 아니요 | `180` | 최신 snapshot TTL. 수집 간격보다 길게 설정 |
 | `DISCORD_WEBHOOK_URL` | 아니요 | 없음 | 시작, 종료, 장애 및 일일 요약 알림 |
 | `LOG_LEVEL` | 아니요 | `INFO` | Python 로그 레벨 |
