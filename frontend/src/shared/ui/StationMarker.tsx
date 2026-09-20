@@ -1,3 +1,4 @@
+import { stationMarkerSizeClass } from '@/shared/ui/stationMarkerSize';
 import type { StationStatus } from '@/shared/ui/stationStatus';
 
 /**
@@ -23,7 +24,7 @@ export function StationMarker({ status, count, selected = false }: StationMarker
     <div
       className={`tabular-nums flex items-center justify-center rounded-full font-bold text-white ring-2 ring-white shadow-md transition-[scale] duration-75 ${
         STATUS_BG[status]
-      } ${selected ? 'h-10 w-10 scale-110 text-base' : 'h-8 w-8 text-sm'}`}
+      } ${stationMarkerSizeClass(count)} ${selected ? 'scale-110 ring-[3px]' : ''}`}
     >
       {count ?? '-'}
     </div>
