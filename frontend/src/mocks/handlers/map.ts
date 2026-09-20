@@ -18,20 +18,27 @@ import { fail, ok, requireAuth } from '@/mocks/core';
 import { STATIONS } from '@/mocks/stations';
 
 /**
- * 대여소 예상 대수 목업 — 30분 간격 6칸(앞으로 3시간).
- * 대여소마다 다르게 보이도록 ID 끝자리로 오르내림을 바꾼다. 실제 값은 예측 모델이 완성되면 백엔드가 준다.
+ * 대여소 예상 대수 목업 — **1분 간격 15점**.
+ *
+ * 백엔드가 Redis `pred:{stationId}:{1..15}`를 그대로 읽어 주는 모양이다(`HORIZONS_MIN`).
+ * 예전 목업은 30분 간격 6칸이라는 옛 가정이었는데, 그 상태로는 칸이 좁아서 생기는 문제를
+ * 로컬에서 볼 수 없었다(#105에서 라벨 겹침을 실서버에서야 발견했다).
+ *
+ * 1분 간격이라 값이 완만하게 움직인다. 대여소마다 다르게 보이도록 ID 끝자리로 위상을 바꾼다.
  * 예측이 아직 없는 대여소도 화면에서 확인할 수 있게 ST0005는 비워 둔다.
  */
 function forecastFor(station: Station): StationForecastPoint[] {
   if (station.stationId === 'ST0005') return [];
   const seed = Number(station.stationId.slice(-1));
   const start = Date.now();
-  return Array.from({ length: 6 }, (_, i) => {
-    const swing = Math.sin((i + seed) / 1.6) * 3;
+  return Array.from({ length: 15 }, (_, i) => {
+    // 15분 동안 1~2대 안에서 완만하게 오르내린다 — 반올림 경계(2대)를 지나가야
+    // "같은 2대인데 색이 다른" 문제가 로컬에서 재현된다
+    const swing = Math.sin((i + seed * 3) / 7) * 1.5;
     // 실제 예측값은 소수로 온다(6.8 등) — 화면이 반올림을 제대로 하는지 목업에서도 확인한다
     const bikeCnt = Math.max(0, Math.round((station.currentBikes + swing) * 10) / 10);
     return {
-      dateTime: new Date(start + (i + 1) * 30 * 60_000).toISOString(),
+      dateTime: new Date(start + (i + 1) * 60_000).toISOString(),
       bikeCnt,
       probOut: bikeCnt < 1 ? 0.9 : bikeCnt < 3 ? 0.3 : 0.05,
     };
