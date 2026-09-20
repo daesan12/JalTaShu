@@ -4,7 +4,7 @@ import com.s15p21b103.good_tashu.claim.domain.ClaimStatus;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public record AdminCycleClaimDetailResponse(
+public record AdminClaimDetailResponse(
         Long claimId,
         String cycleId,
         Long userId,
@@ -14,6 +14,6 @@ public record AdminCycleClaimDetailResponse(
         ClaimStatus statement,
         String adminComment,
         String photoUrl,
-        List<AdminCycleClaimReportResponse> report
+        List<AdminClaimReportResponse> report
 ) {
 }

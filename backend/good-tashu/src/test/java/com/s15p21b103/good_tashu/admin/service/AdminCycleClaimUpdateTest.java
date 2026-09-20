@@ -1,7 +1,7 @@
 package com.s15p21b103.good_tashu.admin.service;
 
-import com.s15p21b103.good_tashu.admin.dto.req.AdminCycleClaimUpdateRequest;
-import com.s15p21b103.good_tashu.admin.dto.res.AdminCycleClaimUpdateResponse;
+import com.s15p21b103.good_tashu.admin.dto.req.AdminClaimUpdateRequest;
+import com.s15p21b103.good_tashu.admin.dto.res.AdminClaimUpdateResponse;
 import com.s15p21b103.good_tashu.admin.exception.AdminException;
 import com.s15p21b103.good_tashu.claim.domain.ClaimStatus;
 import com.s15p21b103.good_tashu.claim.domain.ClaimEntity;
@@ -34,8 +34,8 @@ class AdminCycleClaimUpdateTest {
                 .claimId(10L).status(ClaimStatus.READY).build();
         when(cycleClaimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        AdminCycleClaimUpdateResponse response = adminCycleService.updateCycleClaim(
-                10L, new AdminCycleClaimUpdateRequest(ClaimStatus.IN_PROGRESS, "수리 중"));
+        AdminClaimUpdateResponse response = adminCycleService.updateCycleClaim(
+                10L, new AdminClaimUpdateRequest(ClaimStatus.IN_PROGRESS, "수리 중"));
 
         assertThat(response.claimId()).isEqualTo(10L);
         assertThat(claim.getStatus()).isEqualTo(ClaimStatus.IN_PROGRESS);
@@ -49,7 +49,7 @@ class AdminCycleClaimUpdateTest {
         when(cycleClaimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
         adminCycleService.updateCycleClaim(
-                10L, new AdminCycleClaimUpdateRequest(ClaimStatus.COMPLETED, null));
+                10L, new AdminClaimUpdateRequest(ClaimStatus.COMPLETED, null));
 
         assertThat(claim.getStatus()).isEqualTo(ClaimStatus.COMPLETED);
         assertThat(claim.getAdminComment()).isEqualTo("수리 중");
@@ -58,7 +58,7 @@ class AdminCycleClaimUpdateTest {
     @Test
     void invalidClaimIdIsRejectedBeforeLookup() {
         assertThatThrownBy(() -> adminCycleService.updateCycleClaim(
-                0L, new AdminCycleClaimUpdateRequest(ClaimStatus.READY, null)))
+                0L, new AdminClaimUpdateRequest(ClaimStatus.READY, null)))
                 .isInstanceOfSatisfying(AdminException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(INVALID_CLAIM_ID));
         verifyNoInteractions(cycleClaimRepository);
@@ -67,7 +67,7 @@ class AdminCycleClaimUpdateTest {
     @Test
     void missingStatusIsRejectedBeforeLookup() {
         assertThatThrownBy(() -> adminCycleService.updateCycleClaim(
-                10L, new AdminCycleClaimUpdateRequest(null, null)))
+                10L, new AdminClaimUpdateRequest(null, null)))
                 .isInstanceOfSatisfying(AdminException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(INVALID_CLAIM_STATUS));
         verifyNoInteractions(cycleClaimRepository);
@@ -78,7 +78,7 @@ class AdminCycleClaimUpdateTest {
         when(cycleClaimRepository.findById(10L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> adminCycleService.updateCycleClaim(
-                10L, new AdminCycleClaimUpdateRequest(ClaimStatus.READY, null)))
+                10L, new AdminClaimUpdateRequest(ClaimStatus.READY, null)))
                 .isInstanceOfSatisfying(AdminException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(NOT_EXISTS_CLAIM));
     }

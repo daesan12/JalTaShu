@@ -4,7 +4,7 @@ import com.s15p21b103.good_tashu.claim.domain.ClaimCategory;
 import com.s15p21b103.good_tashu.claim.domain.ClaimStatus;
 import java.time.LocalDateTime;
 
-public record AdminCycleClaimListResponse(
+public record AdminClaimListResponse(
         Long claimId,
         String cycleId,
         String content,
