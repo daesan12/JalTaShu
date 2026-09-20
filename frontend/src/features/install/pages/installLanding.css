@@ -3721,3 +3721,136 @@
   .jt .jt-entrance-pending { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) { .jt #features .jt-feature-heading, .jt #features .jt-screen-gallery, .jt #features .jt-forecast-play, .jt #routes .jt-route-header, .jt #routes .jt-route-scene, .jt #map .jt-map-copy, .jt #map .jt-map-demo, .jt #navigation .jt-feature-heading, .jt #navigation .jt-voice-scene, .jt #install > *, .jt #install .jt-install-guide { opacity: 1 !important; translate: none !important; } }
+
+/* Keep chapter links aligned with the real reading position. */
+.jt section[id] {
+  scroll-margin-top: 76px;
+}
+.jt-chapters {
+  width: 128px;
+}
+
+/* The phone and its spoken instruction form one connected scene. */
+.jt-voice {
+  padding-block: 85px 95px;
+}
+.jt-voice-scene {
+  grid-template-columns: 205px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 28px;
+  min-height: 520px;
+  align-items: center;
+}
+.jt-voice-scene .jt-screen-gallery {
+  --screen-width: 205px;
+  grid-column: 1;
+  grid-row: 1 / 3;
+  margin: 0;
+  position: relative;
+  z-index: 2;
+}
+.jt-voice-scene .jt-portrait-card {
+  transform: rotate(-3deg);
+}
+.jt-voice-illustration {
+  grid-column: 2;
+  margin-left: 0;
+  z-index: 1;
+}
+.jt-voice-scene .jt-voice-points {
+  grid-column: 2;
+  grid-row: 2;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0 0;
+  position: relative;
+  z-index: 3;
+}
+.jt-voice-scene .jt-voice-points li {
+  min-height: 82px;
+  padding: 13px 10px;
+  border: 1px solid #dce7d2;
+  border-radius: 16px;
+  background: #ffffffcc;
+  font-size: 11px;
+  line-height: 1.45;
+  box-shadow: 0 12px 30px #40512d0a;
+}
+.jt-voice-scene .jt-voice-points span {
+  display: block;
+  margin: 0 0 8px;
+}
+.jt-voice-bubble {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  column-gap: 24px;
+  align-items: center;
+  padding: 30px 32px;
+  box-shadow: 0 24px 60px #40512d14;
+}
+.jt-voice-bubble .jt-voice-tag {
+  grid-column: 1 / -1;
+}
+.jt-voice-bubble strong {
+  grid-column: 1;
+}
+.jt-voice-bubble .jt-waveform {
+  grid-column: 2;
+  grid-row: 2;
+  width: 100%;
+  height: 86px;
+  justify-content: center;
+  align-self: center;
+}
+.jt-voice-orbit {
+  left: 43%;
+}
+
+@media (max-width: 760px) {
+  .jt-phone-title h1 {
+    font-size: 49px;
+  }
+  .jt-chapters {
+    width: auto;
+  }
+  .jt-voice-scene {
+    grid-template-columns: 132px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 12px;
+    min-height: 430px;
+    padding: 12px 0;
+  }
+  .jt-voice-scene .jt-screen-gallery {
+    --screen-width: 132px;
+    grid-row: 1;
+  }
+  .jt-voice-illustration {
+    margin-left: 0;
+  }
+  .jt-voice-scene .jt-voice-points {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin: 14px 0 0;
+    gap: 6px;
+  }
+  .jt-voice-scene .jt-voice-points li {
+    min-height: 76px;
+    padding: 11px 8px;
+    font-size: 10px;
+  }
+  .jt-voice-bubble {
+    display: block;
+    padding: 22px 14px;
+  }
+  .jt-voice-bubble .jt-waveform {
+    width: 100%;
+    height: 56px;
+    margin-top: 14px;
+    justify-content: flex-start;
+  }
+  .jt-voice-orbit {
+    left: 45%;
+    width: 180px;
+    height: 210px;
+  }
+}
