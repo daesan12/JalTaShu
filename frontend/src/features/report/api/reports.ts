@@ -21,6 +21,9 @@ export const REPORT_TAGS = [
 ] as const;
 export type ReportTag = (typeof REPORT_TAGS)[number];
 
+/** 상세내용 최대 길이 — 백엔드 CycleClaimRequest의 @Length(max = 500)에 맞춘 값 */
+export const REPORT_CONTENT_MAX = 500;
+
 /** 백엔드 API 미정 — msw 목업 기준 임시 스키마 (확정 시 이 파일만 수정) */
 export interface ReportSubmission {
   type: ReportType;
