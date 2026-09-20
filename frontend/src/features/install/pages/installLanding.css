@@ -1584,17 +1584,17 @@
 .jt {
   position: relative;
   background:
-    radial-gradient(ellipse 85% 700px at 95% 8%, #e7f2dcaa, transparent 75%),
-    radial-gradient(ellipse 90% 800px at 0% 47%, #e9f1e1a0, transparent 80%),
-    radial-gradient(ellipse 100% 850px at 90% 74%, #edf4e6b0, transparent 80%),
+    radial-gradient(ellipse 74% 620px at 95% 8%, #deedcfcc, transparent 68%),
+    radial-gradient(ellipse 82% 720px at 0% 47%, #e3edd7bd, transparent 72%),
+    radial-gradient(ellipse 88% 760px at 90% 74%, #dcebcfca, transparent 72%),
     linear-gradient(
       180deg,
       #fff 0%,
-      #fafcf8 25%,
-      #f6f9f2 48%,
-      #fafcf8 71%,
-      #edf5e5 93%,
-      #f7faf3 100%
+      #f7faf3 24%,
+      #edf5e6 47%,
+      #f9fbf6 70%,
+      #e4f0d8 92%,
+      #f4f8ee 100%
     );
 }
 .jt-phone-hero,
@@ -1617,7 +1617,7 @@
   right: -18vw;
   width: 80vw;
   height: 85vh;
-  background: radial-gradient(ellipse, #d6e9bd60, #eaf3df20 45%, transparent 70%);
+  background: radial-gradient(ellipse, #cfe4b477, #e3efd438 45%, transparent 68%);
 }
 .jt-nav {
   border-bottom-color: #4c8a120d;
