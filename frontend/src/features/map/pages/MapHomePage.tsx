@@ -417,6 +417,7 @@ export function MapHomePage() {
           selectedIndex={selectedRouteIndex}
           onSelect={journey.setSelectedRouteIndex}
           onStart={journey.openRouteDetail}
+          showToast={showToast}
         />
       )}
 

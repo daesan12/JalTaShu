@@ -1,4 +1,5 @@
 import type { StationForecastPoint } from '@/shared/api/types';
+import { formatBikes } from '@/features/map/lib/bikeCount';
 import {
   STATION_STATUS_LABEL,
   toStationStatus,
@@ -47,16 +48,6 @@ const TIME_FORMAT = new Intl.DateTimeFormat('ko-KR', {
 function formatTime(dateTime: string): string {
   const date = new Date(dateTime);
   return Number.isNaN(date.getTime()) ? '-' : TIME_FORMAT.format(date);
-}
-
-/**
- * 예상 대수 표기 — 소수 한 자리로 고정한다.
- *
- * 자리수가 흔들리면(2 / 2.4 / 2.45) 칸마다 글자 폭이 달라져 막대가 들쭉날쭉해 보인다.
- * `tabular-nums`와 함께 쓰면 15칸이 같은 폭으로 정렬된다.
- */
-function formatBikes(bikeCnt: number): string {
-  return bikeCnt.toFixed(1);
 }
 
 interface StationForecastChartProps {

@@ -6,6 +6,7 @@ import { Button } from '@/shared/ui/Button';
 import { ElevationChart } from '@/shared/ui/ElevationChart';
 import { WALK_COLOR } from '@/shared/ui/grade';
 import { toStationStatus, type StationStatus } from '@/shared/ui/stationStatus';
+import { formatBikes } from '@/features/map/lib/bikeCount';
 import { ROUTE_TYPE_STYLE } from '@/features/map/lib/routeTypeStyle';
 import { buildElevationProfile } from '@/features/map/lib/routeElevation';
 import { toLegs } from '@/features/map/lib/routeSegments';
@@ -93,7 +94,7 @@ export function RouteDetailSheet({
                 <span
                   className={`text-sm font-semibold ${BIKES_TEXT_CLASS[toStationStatus(summary.expectedBikeCnt)]}`}
                 >
-                  도착 시 <span className="tabular-nums">{summary.expectedBikeCnt}</span>대
+                  도착 시 <span className="tabular-nums">{formatBikes(summary.expectedBikeCnt)}</span>대
                 </span>
               )}
             </div>

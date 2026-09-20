@@ -386,8 +386,9 @@ function toLeg(
 /**
  * 경로 후보 목업 — 실제 서버처럼 **2개**(일반·오르막 회피)를 만든다.
  * 출발·도착 대여소가 같은 경우(도보 1개만)는 지금 화면에서 재현할 일이 없어 만들지 않는다.
- * `expectedBikeCnt`는 **일부러 넣지 않는다** — 실제 응답에 아직 없어서, 10의 "확보 우선" 칩이
- * 준비 중으로 막히는 상태를 그대로 확인할 수 있어야 한다.
+ * `expectedBikeCnt`는 **두 후보에 같은 값**을 준다. 백엔드가 그렇게 주기 때문이다 — 후보 둘은
+ * 같은 대여소에서 빌려 자전거 구간만 다른 것이라 도보 구간도 출발 대여소도 같다.
+ * 그래서 10의 "확보 우선" 칩이 막히는 상태가 로컬에서 그대로 재현된다.
  */
 const MOCK_ROUTE_VARIANTS: { type: RouteType; detour: number; hill: number }[] = [
   { type: 'BIKE', detour: 0.06, hill: 72 },
@@ -403,8 +404,20 @@ function stationIndexes(pointCount: number): { rent: number; return: number } {
   };
 }
 
+/**
+ * 대여 대여소 도착 시점 예상 대수 — 백엔드와 같은 방식으로 구한다.
+ * 도보 구간 시간을 올려 분으로 만들고 그 지평의 예측을 읽는다(`pred:{stationId}:{분}`).
+ * 지평이 1-15분이라 도보가 15분을 넘으면 값이 없다(`undefined`).
+ */
+function mockExpectedBikeCnt(walkSeconds: number): number | undefined {
+  const horizonMinutes = Math.max(1, Math.ceil(walkSeconds / 60));
+  if (horizonMinutes > 15) return undefined;
+  // 지평이 멀수록 조금씩 줄어드는 값. 소수로 온다
+  return Math.round(Math.max(0, 5.4 - horizonMinutes * 0.23) * 10) / 10;
+}
+
 function buildMockRoutes(start: Pos, end: Pos): RouteCandidate[] {
-  return MOCK_ROUTE_VARIANTS.map(({ type, detour, hill }) => {
+  const routes = MOCK_ROUTE_VARIANTS.map(({ type, detour, hill }) => {
     const { points: path, corners } = gridPath(start, end, detour);
     const points: RoutePoint[] = path.map((pos, i) => ({
       location: toGeo(pos),
@@ -431,6 +444,9 @@ function buildMockRoutes(start: Pos, end: Pos): RouteCandidate[] {
       legs,
     };
   });
+  // 후보마다 따로 계산하지 않는다 — 실제로도 같은 도보 구간에서 나온 한 값이 둘에 그대로 들어간다
+  const expectedBikeCnt = mockExpectedBikeCnt(routes[0].legs[0].time);
+  return routes.map((route) => ({ ...route, expectedBikeCnt }));
 }
 
 /** 최근 검색 목업 저장소 — 서버 `recent_places`처럼 고를 때마다 한 줄씩 쌓인다(중복 제거 없음) */

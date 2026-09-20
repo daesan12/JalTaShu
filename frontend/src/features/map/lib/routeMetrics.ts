@@ -63,6 +63,26 @@ const SORT_COMPARATORS: Record<RouteSort, (a: RouteSummary, b: RouteSummary) => 
   flat: (a, b) => a.ascentM - b.ascentM,
 };
 
+/** 확보 우선 칩을 못 쓰는 이유 — 쓸 수 있으면 `null` */
+export type BikesSortBlock = 'no-data' | 'all-equal';
+
+/**
+ * 확보 우선 정렬이 **실제로 순서를 바꿀 수 있는지** 판정한다.
+ *
+ * "값이 하나라도 있으면 켠다"로는 부족하다. 지금 후보 2개(`BIKE`·`UPHILL`)는 **같은 대여소에서
+ * 빌려** 자전거 구간만 다른 것이라 서버가 둘에 같은 예상 대수를 준다 — 켜 두면 눌러도 순서가
+ * 절대 안 바뀌는 버튼이 된다.
+ *
+ * 그래서 기준을 "값이 서로 다른가"로 둔다. 나중에 서버가 대여소 조합을 달리한 후보를 더 주면
+ * 값이 갈리면서 칩이 저절로 살아나고, 이 코드를 다시 고칠 일이 없다.
+ */
+export function bikesSortBlock(summaries: RouteSummary[]): BikesSortBlock | null {
+  if (summaries.every((s) => s.expectedBikeCnt === undefined)) return 'no-data';
+  // 후보가 하나뿐이면 비교 대상이 없어 여기서 'all-equal'로 떨어진다 — 정렬할 게 없는 건 같다
+  if (summaries.some((s) => s.expectedBikeCnt !== summaries[0].expectedBikeCnt)) return null;
+  return 'all-equal';
+}
+
 /**
  * 선택된 칩들을 순서대로 적용해 정렬한 새 배열.
  * 배열 앞의 기준이 1차, 뒤의 기준은 동점 처리. 아무것도 없거나 모두 같으면 빠른 경로가 앞.
