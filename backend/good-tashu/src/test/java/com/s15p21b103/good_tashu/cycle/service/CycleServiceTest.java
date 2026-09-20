@@ -304,7 +304,7 @@ class CycleServiceTest {
         verify(cycleClaimReportRepository).save(captor.capture());
         assertThat(captor.getValue().getUserEntity()).isSameAs(user);
         assertThat(captor.getValue().getClaimEntity()).isSameAs(claim);
-        assertThat(captor.getValue().getClaimCategory()).isEqualTo(category);
+        assertThat(captor.getValue().getReportCategory()).isEqualTo(category);
     }
 
     @Test

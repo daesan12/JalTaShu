@@ -23,13 +23,13 @@ public class ClaimEntity {
     @Column(name = "claim_id")
     private Long claimId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private UserEntity userEntity;
-
     @Column(name="type", nullable = false)
     @Enumerated(EnumType.STRING)
     private ClaimType claimType;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private UserEntity userEntity;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cycle_id")

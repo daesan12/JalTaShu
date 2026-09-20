@@ -32,8 +32,8 @@ public class ClaimReportEntity {
     private UserEntity userEntity;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "claim_category", nullable = false, length = 30)
-    private ClaimReportCategory claimCategory;
+    @Column(name = "report_category", nullable = false, length = 30)
+    private ClaimReportCategory reportCategory;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

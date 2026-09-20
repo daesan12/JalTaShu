@@ -59,16 +59,24 @@ public class AdminClaimService {
                     }
                     long cycleReportNum = claimReportRepository.countByClaimEntity_ClaimId(claim.getClaimId());
                     return new AdminClaimResponse(
-                            claim.getClaimId(), claimCycleId, claim.getContent(), claim.getClaimCategory(),
-                            nickname, userId, claim.getCreatedAt(), cycleReportNum,
-                            claim.getStatus(), hasComment);
+                            claim.getClaimId(),
+                            claim.getClaimType(),
+                            userId,
+                            nickname,
+                            claimCycleId,
+                            claim.getClaimCategory(),
+                            claim.getContent(),
+                            claim.getCreatedAt(),
+                            cycleReportNum,
+                            claim.getStatus(),
+                            hasComment);
                 })
                 .toList();
     }
 
 
     @Transactional(readOnly = true)
-    public AdminClaimDetailResponse getCycleClaimDetail(Long claimId) {
+    public AdminClaimDetailResponse getClaimDetail(Long claimId) {
         if (claimId == null || claimId <= 0) {
             throw new AdminException(INVALID_CLAIM_ID);
         }
@@ -92,21 +100,21 @@ public class AdminClaimService {
                 .stream()
                 .map(report -> new AdminClaimReportResponse(
                         report.getClaimReportId(),
-                        report.getClaimCategory(),
+                        report.getReportCategory(),
                         report.getCreatedAt(),
                         report.getUserEntity().getUserId(),
                         report.getUserEntity().getNickname()))
                 .toList();
 
         return new AdminClaimDetailResponse(
-                claim.getClaimId(), cycleId, userId, nickname, claim.getCreatedAt(),
+                claim.getClaimId(), claim.getClaimType(), cycleId, userId, nickname, claim.getCreatedAt(),
                 claim.getContent(), claim.getStatus(),
                 claim.getAdminComment(), photoUrl, reports);
     }
 
 
     @Transactional(readOnly = true)
-    public List<AdminClaimListResponse> getCycleClaimList(
+    public List<AdminClaimResponse> getClaimList(
             String nickname, String cycleId, String order, String status) {
         String nicknameFilter = normalizeSearchText(nickname);
         String cycleIdFilter = normalizeSearchText(cycleId);
@@ -144,13 +152,14 @@ public class AdminClaimService {
                     String comment = claim.getAdminComment();
                     boolean hasComment = comment != null && !comment.isBlank();
 
-                    return new AdminClaimListResponse(
+                    return new AdminClaimResponse(
                             claim.getClaimId(),
-                            claim.getCycleEntity() == null ? null : claim.getCycleEntity().getCycleId(),
-                            claim.getContent(),
-                            claim.getClaimCategory(),
-                            claim.getUserEntity().getNickname(),
+                            claim.getClaimType(),
                             claim.getUserEntity().getUserId(),
+                            claim.getUserEntity().getNickname(),
+                            claim.getCycleEntity() == null ? null : claim.getCycleEntity().getCycleId(),
+                            claim.getClaimCategory(),
+                            claim.getContent(),
                             claim.getCreatedAt(),
                             reportCount,
                             claim.getStatus(),
