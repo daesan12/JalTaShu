@@ -27,14 +27,14 @@ class AdminCycleClaimUpdateTest {
     @Mock
     ClaimRepository cycleClaimRepository;
     @InjectMocks AdminCycleService adminCycleService;
-
+    @InjectMocks AdminClaimService adminClaimService;
     @Test
     void updatesStatusAndComment() {
         ClaimEntity claim = ClaimEntity.builder()
                 .claimId(10L).status(ClaimStatus.READY).build();
         when(cycleClaimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        AdminClaimUpdateResponse response = adminCycleService.updateCycleClaim(
+        AdminClaimUpdateResponse response = adminClaimService.updateCycleClaim(
                 10L, new AdminClaimUpdateRequest(ClaimStatus.IN_PROGRESS, "수리 중"));
 
         assertThat(response.claimId()).isEqualTo(10L);
@@ -48,7 +48,7 @@ class AdminCycleClaimUpdateTest {
                 .claimId(10L).status(ClaimStatus.IN_PROGRESS).adminComment("수리 중").build();
         when(cycleClaimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        adminCycleService.updateCycleClaim(
+        adminClaimService.updateCycleClaim(
                 10L, new AdminClaimUpdateRequest(ClaimStatus.COMPLETED, null));
 
         assertThat(claim.getStatus()).isEqualTo(ClaimStatus.COMPLETED);
@@ -57,7 +57,7 @@ class AdminCycleClaimUpdateTest {
 
     @Test
     void invalidClaimIdIsRejectedBeforeLookup() {
-        assertThatThrownBy(() -> adminCycleService.updateCycleClaim(
+        assertThatThrownBy(() -> adminClaimService.updateCycleClaim(
                 0L, new AdminClaimUpdateRequest(ClaimStatus.READY, null)))
                 .isInstanceOfSatisfying(AdminException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(INVALID_CLAIM_ID));
@@ -66,7 +66,7 @@ class AdminCycleClaimUpdateTest {
 
     @Test
     void missingStatusIsRejectedBeforeLookup() {
-        assertThatThrownBy(() -> adminCycleService.updateCycleClaim(
+        assertThatThrownBy(() -> adminClaimService.updateCycleClaim(
                 10L, new AdminClaimUpdateRequest(null, null)))
                 .isInstanceOfSatisfying(AdminException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(INVALID_CLAIM_STATUS));
@@ -77,7 +77,7 @@ class AdminCycleClaimUpdateTest {
     void missingClaimIsRejected() {
         when(cycleClaimRepository.findById(10L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> adminCycleService.updateCycleClaim(
+        assertThatThrownBy(() -> adminClaimService.updateCycleClaim(
                 10L, new AdminClaimUpdateRequest(ClaimStatus.READY, null)))
                 .isInstanceOfSatisfying(AdminException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(NOT_EXISTS_CLAIM));
