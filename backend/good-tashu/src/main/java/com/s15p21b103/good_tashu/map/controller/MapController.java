@@ -8,8 +8,10 @@ import com.s15p21b103.good_tashu.map.dto.res.PlaceSearchRecentListResponse;
 import com.s15p21b103.good_tashu.map.dto.res.PlaceSearchResultListResponse;
 import com.s15p21b103.good_tashu.map.dto.res.BikeStationListItem;
 import com.s15p21b103.good_tashu.map.dto.res.BikeStationDetailResponse;
+import com.s15p21b103.good_tashu.map.dto.res.WeatherResponse;
 import com.s15p21b103.good_tashu.map.service.MapService;
 import com.s15p21b103.good_tashu.map.service.BikeStationService;
+import com.s15p21b103.good_tashu.map.service.WeatherService;
 import com.s15p21b103.good_tashu.map.dto.req.RecentPlaceRequest;
 import jakarta.validation.Valid;
 import com.s15p21b103.good_tashu.user.annotation.CurrentUserId;
@@ -29,6 +31,7 @@ import java.util.List;
 public class MapController {
     private final MapService mapService;
     private final BikeStationService bikeStationService;
+    private final WeatherService weatherService;
 
     @GetMapping("/bike-station")
     public ApiResponse<List<BikeStationListItem>> getBikeStations() {
@@ -38,6 +41,11 @@ public class MapController {
     @GetMapping("/bike-station/{stationId}")
     public ApiResponse<BikeStationDetailResponse> getBikeStation(@PathVariable String stationId) {
         return ApiResponse.success(bikeStationService.detail(stationId));
+    }
+
+    @GetMapping("/weather")
+    public ApiResponse<WeatherResponse> getWeather() {
+        return ApiResponse.success(weatherService.getLatest());
     }
 
     // 최근 선택한 장소 최근 검색어에 등록
