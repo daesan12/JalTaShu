@@ -40,4 +40,7 @@ public interface ClaimRepository extends JpaRepository<ClaimEntity, Long> {
             @Param("cycleId") String cycleId,
             @Param("status") ClaimStatus status,
             Sort sort);
+
+    // userId로 제보 조회
+    List<ClaimEntity> findByUserEntity_UserIdOrderByCreatedAtDescClaimIdDesc(Long userId);
 }

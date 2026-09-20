@@ -77,5 +77,11 @@ public class ClaimController {
         return ResponseEntity.ok(ApiResponse.success("신고가 접수되었습니다."));
     }
 
-    //
+    // 내 민원 내역 리스트 조회
+    @GetMapping("/list/me")
+    public ApiResponse<List<ClaimListResponse>> getMyCycleClaims(
+            @CurrentUserId Long userId) {
+        List<ClaimListResponse> response = claimService.getMyCycleClaims(userId);
+        return ApiResponse.success(response);
+    }
 }

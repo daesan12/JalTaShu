@@ -103,6 +103,7 @@ public class ClaimService {
         return claimRepository
                 .findAllByCycleEntity_CycleIdOrderByCreatedAtDescClaimIdDesc(cycleId)
                 .stream()
+                .filter(claim -> claim.getStatus() != ClaimStatus.COMPLETED)
                 .map(claim -> new ClaimListResponse(
                         claim.getClaimId(),
                         claim.getClaimType(),
@@ -133,6 +134,20 @@ public class ClaimService {
                 .userEntity(userEntity)
                 .reportCategory(claimCategory)
                 .build());
+    }
 
+    @Transactional(readOnly = true)
+    public List<ClaimListResponse> getMyCycleClaims(Long userId) {
+        return claimRepository
+                .findByUserEntity_UserIdOrderByCreatedAtDescClaimIdDesc(userId)
+                .stream()
+                .map(claim -> new ClaimListResponse(
+                        claim.getClaimId(),
+                        claim.getClaimType(),
+                        claim.getUserEntity().getNickname(),
+                        claim.getClaimCategory(),
+                        claim.getContent(),
+                        claim.getCreatedAt()))
+                .toList();
     }
 }
