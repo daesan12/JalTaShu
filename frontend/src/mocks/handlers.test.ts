@@ -141,9 +141,36 @@ describe('관리자 핸들러 등록 순서', () => {
     expect(data.pathsList[0].totalDuration).toBeGreaterThan(data.pathsList[0].cycleDuration);
   });
 
+  it('admin/notice/list가 관리자 공지 목록을 준다 (본문은 없다)', async () => {
+    await adminLogin();
+    const res = await get('/api/admin/notice/list');
+    expect(res.status).toBe(200);
+    const { data } = await res.json();
+    // 시드 17건 (기본 5 + 월별 점검 12) — NoticeListResponse라 content는 없다
+    expect(data).toHaveLength(17);
+    expect(data[0]).toHaveProperty('noticeId');
+    expect(data[0]).toHaveProperty('author');
+    expect(data[0]).not.toHaveProperty('content');
+  });
+
+  it('admin/notice/:id가 본문을 주고 /list에 잡아먹히지 않는다', async () => {
+    await adminLogin();
+    const res = await get('/api/admin/notice/1');
+    expect(res.status).toBe(200);
+    const { data } = await res.json();
+    // NoticeDetailResponse — noticeId 없이 본문이 온다
+    expect(data).toHaveProperty('content');
+    expect(data).not.toHaveProperty('noticeId');
+    expect((await get('/api/admin/notice/9999')).status).toBe(404);
+  });
+
   it('관리자 미로그인 요청은 401', async () => {
     const res = await get('/api/admin/cycle/list');
     expect(res.status).toBe(401);
+    const notice = await get('/api/admin/notice/list');
+    expect(notice.status).toBe(401);
+    const detail = await get('/api/admin/notice/1');
+    expect(detail.status).toBe(401);
   });
 
   it('공지 팝업은 실서버 경로(notice/pop-up)와 스키마로 응답한다', async () => {

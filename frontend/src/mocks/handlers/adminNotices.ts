@@ -66,16 +66,41 @@ function setMockNotices(notices: MockNotice[]) {
   }
 }
 
-/** 공지사항 — 목록·상세는 NoticeController 실측 스키마, 등록·삭제는 백엔드 구현 X라 목업 기준 */
+/** NoticeListResponse — 본문(content)은 목록에 없다 */
+function noticeList() {
+  return [...getMockNotices()]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(({ noticeId, title, author, createdAt }) => ({ noticeId, title, author, createdAt }));
+}
+
+/** NoticeDetailResponse — noticeId 없이 온다 */
+function noticeDetail({ title, author, createdAt, content }: MockNotice) {
+  return { title, author, createdAt, content };
+}
+
+/** 공지사항 — 목록·상세는 실측 스키마, 등록·삭제는 백엔드 구현 X라 목업 기준 */
 export const adminNoticeHandlers = [
+  // 관리자 목록 (AdminNoticeController) — 응답은 /notice/list와 같고 관리자 토큰만 받는다
+  http.get('/api/admin/notice/list', async () => {
+    await delay(300);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    return HttpResponse.json(ok(noticeList()));
+  }),
+
+  // 관리자 상세 (AdminNoticeController) — :noticeId 핸들러라 반드시 /list 뒤에 온다
+  http.get('/api/admin/notice/:noticeId', async ({ params }) => {
+    await delay(250);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const notice = getMockNotices().find((n) => n.noticeId === Number(params.noticeId));
+    if (!notice) return fail(404, '존재하지 않는 공지입니다.');
+    return HttpResponse.json(ok(noticeDetail(notice)));
+  }),
+
+  // 모바일 고객센터 목록 (NoticeController) — 로그인한 이용자면 조회 가능
   http.get('/api/notice/list', async () => {
     await delay(300);
     if (!anyLoggedIn()) return fail(401, '로그인이 필요합니다.');
-    // NoticeListResponse — 본문(content)은 목록에 없다
-    const notices = [...getMockNotices()]
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map(({ noticeId, title, author, createdAt }) => ({ noticeId, title, author, createdAt }));
-    return HttpResponse.json(ok(notices));
+    return HttpResponse.json(ok(noticeList()));
   }),
 
   http.get('/api/notice/:noticeId', async ({ params }) => {
@@ -83,15 +108,7 @@ export const adminNoticeHandlers = [
     if (!anyLoggedIn()) return fail(401, '로그인이 필요합니다.');
     const notice = getMockNotices().find((n) => n.noticeId === Number(params.noticeId));
     if (!notice) return fail(404, '존재하지 않는 공지입니다.');
-    // NoticeDetailResponse — noticeId 없이 온다
-    return HttpResponse.json(
-      ok({
-        title: notice.title,
-        author: notice.author,
-        createdAt: notice.createdAt,
-        content: notice.content,
-      }),
-    );
+    return HttpResponse.json(ok(noticeDetail(notice)));
   }),
 
   http.post('/api/admin/notice', async ({ request }) => {
