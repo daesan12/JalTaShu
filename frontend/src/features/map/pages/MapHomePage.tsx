@@ -26,6 +26,7 @@ import { StationRefreshButton } from '@/features/map/components/StationRefreshBu
 import { StationSheet } from '@/features/map/components/StationSheet';
 import { Toast } from '@/features/map/components/Toast';
 import { UpdatedBadge } from '@/features/map/components/UpdatedBadge';
+import { WeatherButton } from '@/features/map/components/WeatherButton';
 import { LOCATION_ERROR_TEXT, useCurrentLocation } from '@/features/map/hooks/useCurrentLocation';
 import { useJourneyPlanner } from '@/features/map/hooks/useJourneyPlanner';
 import { useMapPick } from '@/features/map/hooks/useMapPick';
@@ -367,6 +368,7 @@ export function MapHomePage() {
         <div
           className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${liftClass}`}
         >
+          <WeatherButton />
           <StationRefreshButton onClick={refreshStations} refreshing={stationsFetching} />
           <CurrentLocationButton onClick={focusCurrentLocation} loading={location.loading} />
           {showRentButton ? (

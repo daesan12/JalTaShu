@@ -38,7 +38,10 @@ export function StationSheet({
   const [shown, setShown] = useState(station);
   if (station !== null && station !== shown) setShown(station);
 
-  const expanded = snap === 'half' && station !== null;
+  // 스냅은 손을 뗀 뒤에야 바뀐다 — 끌어올리는 동안에도 펼친 모습이 따라 올라오도록 드래그를 함께 본다
+  const [dragging, setDragging] = useState(false);
+  const showDetail = (snap === 'half' || dragging) && station !== null;
+
   const {
     data: detail,
     isPending: detailPending,
@@ -46,8 +49,9 @@ export function StationSheet({
   } = useQuery({
     queryKey: bikeStationDetailKey(shown?.stationId ?? ''),
     queryFn: () => getBikeStationDetail(shown!.stationId),
-    // 시트를 확장했을 때만 부른다 — 마커를 훑어보는 동안에는 요청하지 않는다
-    enabled: expanded && shown !== null,
+    // 시트를 여는 순간 미리 받아 둔다 — 끌어올리는 짧은 사이에 그래프가 준비돼 있어야
+    // 손을 뗀 뒤 "불러오는 중"이 번쩍이지 않는다 (대여소 한 건짜리 조회다)
+    enabled: station !== null && shown !== null,
   });
 
   // 공용 시트는 네 단계를 돌려주지만 여기서는 peek 아니면 확장으로만 본다
@@ -67,6 +71,7 @@ export function StationSheet({
       onSnapChange={changeSnap}
       onClose={onClose}
       backdrop={false}
+      onDraggingChange={setDragging}
     >
       {shown === null ? null : (
         <div className="flex flex-col gap-4 pb-4">
@@ -93,10 +98,10 @@ export function StationSheet({
           </div>
 
           {/*
-            확장(half)했을 때만 그린다 — peek(110px)는 이름 줄만으로도 거의 차서
-            버튼까지 넣으면 잘린다. 반납은 마커 탭 → 살짝 끌어 올리는 한 동작 더로 충분하다고 봤다
+            peek에서는 그리지 않는다 — 110px는 이름 줄만으로도 거의 차서 버튼이 반쯤 잘려 보인다.
+            대신 **드래그가 시작되면 바로** 그려서, 끌어올리는 동안 이 내용이 그대로 따라 올라온다
           */}
-          {snap === 'half' ? (
+          {showDetail ? (
             <section>
               <Button full variant="line" onClick={onReturn}>
                 반납하기
