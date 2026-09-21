@@ -7,6 +7,7 @@ import com.s15p21b103.good_tashu.admin.dto.req.AdminNoticeUpdateRequest;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminNoticeCreateResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminPopupCreateResponse;
 import com.s15p21b103.good_tashu.admin.service.AdminNoticeService;
+import com.s15p21b103.good_tashu.notice.dto.res.NoticeDetailResponse;
 import com.s15p21b103.good_tashu.notice.dto.res.NoticeListResponse;
 import com.s15p21b103.good_tashu.notice.service.NoticeService;
 import jakarta.validation.Valid;
@@ -36,6 +37,13 @@ public class AdminNoticeController {
     public ApiResponse<List<NoticeListResponse>> getNoticeList(
             @CurrentAdminId Long adminId) {
         return ApiResponse.success(noticeService.getNoticeList());
+    }
+
+    @GetMapping("/notice/{noticeId}")
+    public ApiResponse<NoticeDetailResponse> getNoticeDetail(
+            @CurrentAdminId Long adminId,
+            @PathVariable(name = "noticeId") Long noticeId) {
+        return ApiResponse.success(noticeService.getNoticeDetail(noticeId));
     }
 
     @PostMapping("/notice")
