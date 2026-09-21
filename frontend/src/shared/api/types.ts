@@ -185,6 +185,10 @@ export interface RouteCandidate {
    * 서버는 없을 때 필드를 빼기도 하고 `null`로 주기도 한다(실서버 실측) — 둘 다 "없음"이다.
    */
   expectedBikeCnt?: number | null;
+  /** 대전시가 공개한 고정 추천 코스를 OSRM 도로 좌표로 미리 계산한 경로인지 여부 */
+  recommendedCourse?: boolean;
+  /** 고도 원본이 포함된 경로인지 여부. false면 상세 화면에서 고도 그래프를 숨긴다. */
+  elevationAvailable?: boolean;
 }
 
 /** `GET /map/path` 응답 — 후보 배열이 `routes` 한 겹 안에 들어 있다 */

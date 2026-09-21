@@ -265,10 +265,10 @@ function RouteCard({ summary, selected, onSelect }: RouteCardProps) {
         type="button"
         aria-pressed={selected}
         onClick={onSelect}
-        className={`flex w-full flex-col gap-2 rounded-2xl border p-4 text-left transition-[background-color,border-color] duration-150 motion-reduce:transition-none ${
+        className={`flex w-full flex-col gap-2 rounded-2xl border p-4 text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1 active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-none ${
           selected
             ? 'border-primary bg-primary-light ring-1 ring-primary/20'
-            : 'border-gray-200 bg-surface active:bg-gray-50'
+            : 'border-gray-200 bg-surface hover:border-primary/40 hover:bg-primary-light/35 active:bg-primary-light/60'
         }`}
       >
         <div className="flex items-center justify-between gap-2">
@@ -299,8 +299,13 @@ function RouteCard({ summary, selected, onSelect }: RouteCardProps) {
           {summary.totalDistanceM === undefined
             ? '거리 정보 없음'
             : formatDistance(summary.totalDistanceM)}{' '}
-          · 오르막 <span className="tabular-nums">{summary.ascentM}</span>m · 도보{' '}
-          <span className="tabular-nums">{formatSecondsAsMinutes(summary.walkSec)}</span>
+          · 오르막 <span className="tabular-nums">{summary.ascentM}</span>m
+          {summary.walkSec > 0 ? (
+            <>
+              {' '}
+              · 도보 <span className="tabular-nums">{formatSecondsAsMinutes(summary.walkSec)}</span>
+            </>
+          ) : null}
         </p>
       </button>
     </li>

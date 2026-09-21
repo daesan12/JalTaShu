@@ -127,7 +127,7 @@ export function StationSheet({
               onClick={() => onSnapChange('half')}
               className="flex min-h-6 items-center justify-center gap-1 rounded-lg text-xs font-medium text-primary active:bg-primary-light motion-reduce:transition-none"
             >
-              <span>위로 열어 15분 뒤 예상 대수 보기</span>
+              <span>위로 열어 향후 예상 대수 보기</span>
               <svg
                 viewBox="0 0 20 20"
                 aria-hidden="true"
@@ -155,7 +155,7 @@ export function StationSheet({
 
               <h2 className="mt-4 text-[15px] font-semibold text-gray-900">예상 자전거 수</h2>
               <p className="mt-1 text-xs text-gray-500">
-                현재와 5·10·15분 뒤에 남아 있을 것으로 예상되는 대수입니다.
+                시간 다이얼을 움직여 앞으로 남아 있을 것으로 예상되는 대수를 확인하세요.
               </p>
               <div className="mt-4">
                 {forecast.length > 0 ? (

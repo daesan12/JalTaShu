@@ -54,7 +54,11 @@ function RainIcon() {
  * 자전거를 탈지 정하는 데 실제로 필요한 값이 "비가 오는가"라서 아이콘이 그것부터 알린다.
  * 관측값이 없으면(수집기 정지 등) 버튼 자체를 그리지 않는다 — 고장난 컨트롤을 지도에 두지 않는다.
  */
-export function WeatherButton() {
+interface WeatherButtonProps {
+  inDock?: boolean;
+}
+
+export function WeatherButton({ inDock = false }: WeatherButtonProps) {
   const [open, setOpen] = useState(false);
   const { data: weather } = useQuery({
     queryKey: WEATHER_QUERY_KEY,
@@ -82,7 +86,7 @@ export function WeatherButton() {
 
       <div className="relative">
         {open && (
-          <div className="absolute right-0 bottom-full mb-2 w-56 rounded-2xl bg-surface p-4 shadow-lg">
+          <div className="absolute right-0 bottom-full mb-2 w-56 max-w-[calc(100vw-2rem)] rounded-2xl border border-line/70 bg-surface p-4 shadow-[0_14px_34px_rgba(24,33,21,0.18)]">
             <div className="flex items-center gap-2.5">
               {level === 'none' ? <SunIcon /> : <RainIcon />}
               <span className="tabular-nums text-2xl font-bold text-gray-900">
@@ -116,10 +120,14 @@ export function WeatherButton() {
           onClick={() => setOpen((prev) => !prev)}
           aria-expanded={open}
           aria-label={`현재 날씨 ${formatTemperature(weather.temperature)}, ${RAIN_LABEL[level]}`}
-          className="flex h-11 items-center gap-1.5 rounded-full bg-surface pr-3.5 pl-2.5 shadow-md transition-[scale,background-color] duration-75 active:scale-95 active:bg-gray-100"
+          className={
+            inDock
+              ? 'flex h-11 min-w-[62px] items-center justify-center gap-1.5 rounded-[14px] px-2 text-muted transition-[color,background-color,scale] duration-150 active:scale-95 active:bg-surface-soft active:text-ink'
+              : 'flex h-11 items-center gap-1.5 rounded-full bg-surface pr-3.5 pl-2.5 shadow-md transition-[scale,background-color] duration-75 active:scale-95 active:bg-gray-100'
+          }
         >
           {level === 'none' ? <SunIcon /> : <RainIcon />}
-          <span className="tabular-nums text-[15px] font-semibold text-gray-700">
+          <span className="tabular-nums text-sm font-semibold text-ink/80">
             {formatTemperature(weather.temperature)}
           </span>
         </button>

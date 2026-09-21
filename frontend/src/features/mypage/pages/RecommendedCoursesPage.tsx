@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { TopHeader } from '@/shared/ui/TopHeader';
+import { CourseRoutePreview } from '@/features/mypage/components/CourseRoutePreview';
 import { BIKE_ROADS, COURSES } from '@/features/mypage/lib/coursesData';
 
 /** 알약형 코스 선택 셀렉트 (모바일 네이티브 피커 사용) */
@@ -32,14 +33,28 @@ function CourseSelect({
         fill="none"
         aria-hidden
       >
-        <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d="m6 9 6 6 6-6"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     </div>
   );
 }
 
 /** 코스 정보 표 (코스정보·총 거리·소요시간) */
-function CourseInfoBox({ route, distance, duration }: { route: string; distance: string; duration: string }) {
+function CourseInfoBox({
+  route,
+  distance,
+  duration,
+}: {
+  route: string;
+  distance: string;
+  duration: string;
+}) {
   const rows = [
     { label: '코스정보', value: route },
     { label: '총 거리', value: distance },
@@ -119,12 +134,17 @@ export function RecommendedCoursesPage() {
             />
             <h2 className="mt-7 text-center text-xl font-bold text-primary">{course.name}</h2>
             <div className="mt-5">
-              <CourseInfoBox route={course.route} distance={course.distance} duration={course.duration} />
+              <CourseInfoBox
+                route={course.route}
+                distance={course.distance}
+                duration={course.duration}
+              />
             </div>
-            {/* 타슈 앱의 코스 지도 일러스트 자리 — 자체 일러스트 확보 후 교체 */}
-            <div className="mt-6 flex h-56 items-center justify-center rounded-2xl bg-primary-light/60 text-sm text-gray-400">
-              코스 지도 자리
-            </div>
+            <CourseRoutePreview
+              courseId={course.id}
+              startQuery={course.startQuery}
+              endQuery={course.endQuery}
+            />
           </>
         ) : (
           <>
@@ -144,7 +164,11 @@ export function RecommendedCoursesPage() {
             <section className="mt-8">
               <h3 className="text-[17px] font-bold text-primary">여행코스</h3>
               <div className="mt-3">
-                <CourseInfoBox route={road.route} distance={road.distance} duration={road.duration} />
+                <CourseInfoBox
+                  route={road.route}
+                  distance={road.distance}
+                  duration={road.duration}
+                />
               </div>
             </section>
             <GraySection title="찾아가는 길">{road.directions}</GraySection>

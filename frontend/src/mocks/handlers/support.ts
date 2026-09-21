@@ -1,13 +1,6 @@
 import { delay, http, HttpResponse } from 'msw';
 import { ok, requireAuth, fail } from '@/mocks/core';
 
-/** 공지 팝업 목업 이미지 — 실제 이미지가 없어 색·번호만 있는 SVG를 data URI로 만든다 */
-function placeholderImage(label: string, color: string): string {
-  // Figma 공지 이미지 크기(283 x 276)와 같은 비율
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="566" height="552"><rect width="566" height="552" fill="${color}"/><text x="283" y="296" font-family="sans-serif" font-size="52" fill="#ffffff" text-anchor="middle">${label}</text></svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
 /** 가짜 Open API 신청 내역 — 새로고침에도 유지되도록 localStorage 사용 */
 const OPEN_API_KEY = 'msw_openapi_requests';
 
@@ -80,11 +73,11 @@ export const supportHandlers = [
     if (authFail) return authFail;
     return HttpResponse.json(
       ok([
-        { title: '임시 폐쇄 대여소 안내', photoUrl: placeholderImage('공지 1', '#4c8a12'), noticeId: 5 },
-        { title: '공공 데이터 활용 설문조사', photoUrl: placeholderImage('공지 2', '#3c6e0e'), noticeId: 4 },
-        { title: '이용약관 개정 알림', photoUrl: placeholderImage('공지 3', '#f59e0b'), noticeId: 3 },
-        { title: '안전수칙 확인 절차 개선', photoUrl: placeholderImage('공지 4', '#0ea5e9'), noticeId: 2 },
-        { title: '대여소 반납 안내', photoUrl: placeholderImage('공지 5', '#7c3aed'), noticeId: 1 },
+        { title: '임시 폐쇄 대여소 안내', photoUrl: '/mock/notices/notice-01-temporary-closure.jpg', noticeId: 5 },
+        { title: '공공 데이터 활용 설문조사', photoUrl: '/mock/notices/notice-02-public-data-survey.jpg', noticeId: 4 },
+        { title: '이용약관 개정 알림', photoUrl: '/mock/notices/notice-03-terms-update.jpg', noticeId: 3 },
+        { title: '안전수칙 확인 절차 개선', photoUrl: '/mock/notices/notice-04-safety-check.jpg', noticeId: 2 },
+        { title: '대여소 반납 안내', photoUrl: '/mock/notices/notice-05-return-check.jpg', noticeId: 1 },
       ]),
     );
   }),
