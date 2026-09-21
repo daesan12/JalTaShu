@@ -44,6 +44,12 @@ interface RouteGuideDeps {
   clearJourney: () => void;
   /** 재탐색으로 받은 경로로 갈아끼운다 (journey.replaceRoutes) */
   replaceRoutes: (routes: RouteCandidate[]) => void;
+  /** 미리 계산된 추천 코스는 경유지를 보존해야 하므로 자동 재탐색을 끈다. */
+  rerouteEnabled: boolean;
+  /** 실제 위치에서 사용자가 고른 출발지로 먼저 이동 중인지 */
+  intermediateArrival: boolean;
+  /** 중간 목적지인 선택 출발지에 도착했을 때 원래 경로로 전환한다. */
+  onIntermediateArrival: () => boolean;
   showToast: (message: string) => void;
 }
 
@@ -62,6 +68,9 @@ export function useRouteGuide({
   location,
   clearJourney,
   replaceRoutes,
+  rerouteEnabled,
+  intermediateArrival,
+  onIntermediateArrival,
   showToast,
 }: RouteGuideDeps) {
   const navigate = useNavigate();
@@ -114,6 +123,11 @@ export function useRouteGuide({
     [detailRoute],
   );
 
+  // 재탐색 또는 중간 출발지 도착으로 안내 경로가 바뀌면 새 경로의 도착 판정을 다시 시작한다.
+  useEffect(() => {
+    arrivalHandledRef.current = false;
+  }, [detailRoute]);
+
   // 목적지 근처(30m 이내)에 오면 안내를 자동으로 끝내고 전체 화면 요약을 띄운다.
   // "안내 종료" 버튼으로 직접 끝낼 때는 요약을 보여주지 않는다 — 도착이 아니라 중단이라서다
   useEffect(() => {
@@ -130,6 +144,13 @@ export function useRouteGuide({
     )
       return;
     arrivalHandledRef.current = true;
+    if (intermediateArrival && onIntermediateArrival()) {
+      // 접근 경로는 실제 이용 완료가 아니므로 기록·도착 요약을 만들지 않는다.
+      spokenRef.current.clear();
+      lastRerouteAtRef.current = null;
+      guideStartAtRef.current = Date.now();
+      return;
+    }
     // 실제 GPS 궤적이 아니라 안내 중이던 경로의 거리다(원시 좌표를 쌓지 않는다)
     const guideLegs = toLegs(detailRoute);
     const totalDistanceM = guideLegs.reduce((sum, leg) => sum + leg.distance, 0);
@@ -156,7 +177,14 @@ export function useRouteGuide({
     });
     // savePath는 훅이 만든 안정적인 객체라 의존성에 넣지 않는다 — 넣으면 렌더마다 이펙트가 다시 돈다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guideActive, detailRoute, location.position, destinationTitle]);
+  }, [
+    guideActive,
+    detailRoute,
+    location.position,
+    destinationTitle,
+    intermediateArrival,
+    onIntermediateArrival,
+  ]);
 
   // 회전 안내 지점은 경로가 바뀔 때만 다시 만든다 — 위치가 들어올 때마다 다시 계산할 이유가 없다
   const guideCues = useMemo(
@@ -229,7 +257,7 @@ export function useRouteGuide({
   const requestReroute = reroute.mutate;
   const reroutePending = reroute.isPending;
   useEffect(() => {
-    if (!guideActive || detailRoute === null || guideProgress === null) return;
+    if (!rerouteEnabled || !guideActive || detailRoute === null || guideProgress === null) return;
     if (location.position === null || destinationPos === null) return;
     const now = Date.now();
     if (
@@ -252,6 +280,7 @@ export function useRouteGuide({
       routeType: detailRoute.type,
     });
   }, [
+    rerouteEnabled,
     guideActive,
     detailRoute,
     guideProgress,

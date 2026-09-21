@@ -18,7 +18,7 @@ import { fail, ok, requireAuth } from '@/mocks/core';
 import { STATIONS } from '@/mocks/stations';
 
 /**
- * 대여소 예상 대수 목업 — **1분 간격 15점**.
+ * 대여소 예상 대수 목업 — **1분 간격 60점**.
  *
  * 백엔드가 Redis `pred:{stationId}:{1..15}`를 그대로 읽어 주는 모양이다(`HORIZONS_MIN`).
  * 예전 목업은 30분 간격 6칸이라는 옛 가정이었는데, 그 상태로는 칸이 좁아서 생기는 문제를
@@ -31,8 +31,8 @@ function forecastFor(station: Station): StationForecastPoint[] {
   if (station.stationId === 'ST0005') return [];
   const seed = Number(station.stationId.slice(-1));
   const start = Date.now();
-  return Array.from({ length: 15 }, (_, i) => {
-    // 15분 동안 1~2대 안에서 완만하게 오르내린다 — 반올림 경계(2대)를 지나가야
+  return Array.from({ length: 60 }, (_, i) => {
+    // 60분 동안 1~2대 안에서 완만하게 오르내린다 — 반올림 경계(2대)를 지나가야
     // "같은 2대인데 색이 다른" 문제가 로컬에서 재현된다
     const swing = Math.sin((i + seed * 3) / 7) * 1.5;
     // 실제 예측값은 소수로 온다(6.8 등) — 화면이 반올림을 제대로 하는지 목업에서도 확인한다
@@ -114,6 +114,42 @@ const PLACES: PlaceSearchResult[] = [
     roadAddress: '대전광역시 서구 둔산대로 169',
     xPos: 127.3887,
     yPos: 36.3667,
+  },
+  // 추천 코스 미리보기용 장소. 로컬 MSW에서도 실서버의 네이버 장소 검색 흐름을 확인한다.
+  {
+    title: '금동고개',
+    address: '대전광역시 중구 금동',
+    roadAddress: '',
+    xPos: 127.4097,
+    yPos: 36.2571,
+  },
+  {
+    title: '동학사 주차장',
+    address: '충청남도 공주시 반포면 학봉리',
+    roadAddress: '충청남도 공주시 반포면 동학사1로 327-6',
+    xPos: 127.2231,
+    yPos: 36.3554,
+  },
+  {
+    title: '대청댐',
+    address: '대전광역시 대덕구 미호동',
+    roadAddress: '대전광역시 대덕구 대청로 618-136',
+    xPos: 127.4807,
+    yPos: 36.4774,
+  },
+  {
+    title: '뿌리공원',
+    address: '대전광역시 중구 침산동',
+    roadAddress: '대전광역시 중구 뿌리공원로 79',
+    xPos: 127.3883,
+    yPos: 36.2854,
+  },
+  {
+    title: '연구단지 체육공원',
+    address: '대전광역시 유성구 신성동',
+    roadAddress: '',
+    xPos: 127.3537,
+    yPos: 36.3855,
   },
   {
     title: '대전월드컵경기장',
@@ -407,11 +443,11 @@ function stationIndexes(pointCount: number): { rent: number; return: number } {
 /**
  * 대여 대여소 도착 시점 예상 대수 — 백엔드와 같은 방식으로 구한다.
  * 도보 구간 시간을 올려 분으로 만들고 그 지평의 예측을 읽는다(`pred:{stationId}:{분}`).
- * 지평이 1-15분이라 도보가 15분을 넘으면 값이 없다(`undefined`).
+ * 지평이 1-60분이라 도보가 60분을 넘으면 값이 없다(`undefined`).
  */
 function mockExpectedBikeCnt(walkSeconds: number): number | undefined {
   const horizonMinutes = Math.max(1, Math.ceil(walkSeconds / 60));
-  if (horizonMinutes > 15) return undefined;
+  if (horizonMinutes > 60) return undefined;
   // 지평이 멀수록 조금씩 줄어드는 값. 소수로 온다
   return Math.round(Math.max(0, 5.4 - horizonMinutes * 0.23) * 10) / 10;
 }

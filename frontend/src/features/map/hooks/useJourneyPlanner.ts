@@ -6,11 +6,7 @@ import type { PlaceSearchResult, Pos, RouteCandidate } from '@/shared/api/types'
 import { getRoutePaths } from '@/features/map/api/routes';
 import type { RouteCompareSnap } from '@/features/map/components/RouteCompareSheet';
 import type { useCurrentLocation } from '@/features/map/hooks/useCurrentLocation';
-import {
-  sortSummaries,
-  summarizeRoutes,
-  type RouteSort,
-} from '@/features/map/lib/routeMetrics';
+import { sortSummaries, summarizeRoutes, type RouteSort } from '@/features/map/lib/routeMetrics';
 import type { PickedPlace } from '@/features/map/lib/reverseGeocode';
 import { DETAIL_PARAM, ROUTES_PARAM } from '@/features/map/lib/urlParams';
 
@@ -34,6 +30,14 @@ interface RouteResult {
   fetchedAt: number;
 }
 
+/** 실제 위치에서 사용자가 고른 출발지까지 안내한 뒤 이어서 사용할 원래 경로. */
+interface PendingRouteAfterStart {
+  start: PlaceSearchResult;
+  destination: PlaceSearchResult;
+  route: RouteCandidate;
+  staticRouteActive: boolean;
+}
+
 interface JourneyPlannerDeps {
   location: ReturnType<typeof useCurrentLocation>;
   showToast: (message: string) => void;
@@ -45,7 +49,11 @@ interface JourneyPlannerDeps {
  * 출발지·목적지 선택(08)과 경로 후보 조회·비교(10) 상태.
  * 두 덩어리는 떼기 어렵다 — 비교 중(`routes=1`)에 출발·목적지를 고치면 그 자리에서 다시 조회하기 때문.
  */
-export function useJourneyPlanner({ location, showToast, viewedCenterAsStart }: JourneyPlannerDeps) {
+export function useJourneyPlanner({
+  location,
+  showToast,
+  viewedCenterAsStart,
+}: JourneyPlannerDeps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const compareInUrl = searchParams.get(ROUTES_PARAM) === '1';
@@ -57,6 +65,9 @@ export function useJourneyPlanner({ location, showToast, viewedCenterAsStart }: 
   const [routeSort, setRouteSort] = useState<RouteSort[]>(['bikes']);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null);
   const [compareSnap, setCompareSnap] = useState<RouteCompareSnap>('half');
+  const [staticRouteActive, setStaticRouteActive] = useState(false);
+  const [pendingRouteAfterStart, setPendingRouteAfterStart] =
+    useState<PendingRouteAfterStart | null>(null);
 
   // 후보 요약은 후보가 바뀔 때만 다시 계산한다. 후보 종류 라벨은 서버가 준 `type`을 그대로 쓴다
   const routeSummaries = useMemo(
@@ -107,6 +118,7 @@ export function useJourneyPlanner({ location, showToast, viewedCenterAsStart }: 
    * state를 다시 읽으면 아직 반영되지 않은 이전 값을 읽게 되기 때문이다(리액트 상태 갱신은 비동기).
    */
   function refetchRoutes(start: Pos, end: Pos) {
+    setStaticRouteActive(false);
     routeSearch.mutate({ start, end });
   }
 
@@ -125,6 +137,7 @@ export function useJourneyPlanner({ location, showToast, viewedCenterAsStart }: 
    */
   function replaceRoutes(routes: RouteCandidate[]) {
     if (routes.length === 0) return;
+    setStaticRouteActive(false);
     setRouteResult({ routes, fetchedAt: Date.now() });
     setSelectedRouteIndex(0);
   }
@@ -134,6 +147,8 @@ export function useJourneyPlanner({ location, showToast, viewedCenterAsStart }: 
     setDestination(null);
     setRouteResult(null);
     setCustomStart(null);
+    setStaticRouteActive(false);
+    setPendingRouteAfterStart(null);
   }
 
   /**
@@ -146,6 +161,20 @@ export function useJourneyPlanner({ location, showToast, viewedCenterAsStart }: 
     closeSearch();
     if (compareInUrl && destination !== null) refetchRoutes(place, destination);
     else setRouteResult(null);
+  }
+
+  /** 추천 코스 화면에서 넘어온 고정 경로를 상세 화면에 바로 연다. */
+  function openRecommendedRoute(
+    start: PlaceSearchResult,
+    end: PlaceSearchResult,
+    route: RouteCandidate,
+  ) {
+    setCustomStart(start);
+    setDestination(end);
+    setRouteResult({ routes: [route], fetchedAt: Date.now() });
+    setSelectedRouteIndex(0);
+    setStaticRouteActive(true);
+    setSearchParams({ [ROUTES_PARAM]: '1', [DETAIL_PARAM]: '1' }, { replace: true });
   }
 
   /**
@@ -227,6 +256,65 @@ export function useJourneyPlanner({ location, showToast, viewedCenterAsStart }: 
     refetchRoutes(start, { xPos: destination.xPos, yPos: destination.yPos });
   }
 
+  /** 안내 직전에 쓰는 경로 조회. 실패 문구는 routeSearch의 공통 onError가 보여준다. */
+  async function loadRoutesForGuide(start: Pos, end: Pos): Promise<boolean> {
+    try {
+      const routes = await routeSearch.mutateAsync({ start, end });
+      if (routes.length > 0) return true;
+      showToast('안내할 수 있는 경로를 찾지 못했습니다.');
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  /** 사용자가 고른 출발지를 버리고 실제 GPS 위치에서 목적지까지 다시 계산한다. */
+  async function startGuideFromCurrentLocation(current: Pos): Promise<boolean> {
+    if (destination === null) return false;
+    const loaded = await loadRoutesForGuide(current, destination);
+    if (!loaded) return false;
+    setCustomStart(null);
+    setStaticRouteActive(false);
+    setPendingRouteAfterStart(null);
+    return true;
+  }
+
+  /**
+   * 실제 위치 → 사용자가 고른 출발지 경로를 먼저 연다. 원래 선택한 경로는 보관했다가
+   * 출발지 도착 시 `continueAfterReachingStart`가 다시 설치한다.
+   */
+  async function startGuideToCustomStart(
+    current: Pos,
+    selectedRoute: RouteCandidate,
+  ): Promise<boolean> {
+    if (customStart === null || destination === null) return false;
+    const loaded = await loadRoutesForGuide(current, customStart);
+    if (!loaded) return false;
+    setPendingRouteAfterStart({
+      start: customStart,
+      destination,
+      route: selectedRoute,
+      staticRouteActive,
+    });
+    setDestination(customStart);
+    setCustomStart(null);
+    setStaticRouteActive(false);
+    return true;
+  }
+
+  /** 중간 목적지인 선택 출발지에 도착하면 원래 경로로 바꾸고 같은 안내 화면을 이어간다. */
+  function continueAfterReachingStart(): boolean {
+    if (pendingRouteAfterStart === null) return false;
+    setCustomStart(pendingRouteAfterStart.start);
+    setDestination(pendingRouteAfterStart.destination);
+    setRouteResult({ routes: [pendingRouteAfterStart.route], fetchedAt: Date.now() });
+    setSelectedRouteIndex(0);
+    setStaticRouteActive(pendingRouteAfterStart.staticRouteActive);
+    setPendingRouteAfterStart(null);
+    showToast('선택한 출발지에 도착했어요. 목적지 안내를 이어서 시작합니다.');
+    return true;
+  }
+
   // 정렬 칩이 바뀌면 이전 선택을 유지하지 않고 새 기준의 1순위 경로를 선택한다
   function changeRouteSort(next: RouteSort[]) {
     setRouteSort(next);
@@ -250,6 +338,8 @@ export function useJourneyPlanner({ location, showToast, viewedCenterAsStart }: 
     routeSummaries,
     routeSort,
     selectedRouteIndex,
+    staticRouteActive,
+    guidingToCustomStart: pendingRouteAfterStart !== null,
     setSelectedRouteIndex,
     compareSnap,
     setCompareSnap,
@@ -257,6 +347,7 @@ export function useJourneyPlanner({ location, showToast, viewedCenterAsStart }: 
     closeSearch,
     selectDestination,
     selectStart,
+    openRecommendedRoute,
     resetStartToCurrentLocation,
     swapStartAndDestination,
     clearDestination,
@@ -265,5 +356,8 @@ export function useJourneyPlanner({ location, showToast, viewedCenterAsStart }: 
     changeRouteSort,
     openRouteDetail,
     replaceRoutes,
+    startGuideFromCurrentLocation,
+    startGuideToCustomStart,
+    continueAfterReachingStart,
   };
 }

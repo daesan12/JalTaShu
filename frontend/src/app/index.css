@@ -29,6 +29,13 @@
   --color-background: #f5f6f8;
   --color-surface: #ffffff;
 
+  /* 사용자 앱 공통 화면 — 따뜻한 배경과 또렷한 정보 위계 */
+  --color-canvas: #f6f8f3;
+  --color-surface-soft: #eef2ea;
+  --color-line: #dfe6da;
+  --color-ink: #182115;
+  --color-muted: #667061;
+
   /* etc */
   --color-kakao: #fee500;
 
@@ -113,5 +120,65 @@
   /* 실시간으로 바뀌는 숫자(잔여 대수, 남은 시간)에 사용 — 자릿수 흔들림 방지 */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* 대여소 예측 시점 다이얼 — 네 단계 값은 그대로 두고 드래그 가능한 손잡이만 시각화 */
+  .forecast-range {
+    --forecast-progress: 0%;
+    height: 30px;
+    appearance: none;
+    cursor: ew-resize;
+    background: transparent;
+  }
+
+  .forecast-range::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      var(--color-primary) 0 var(--forecast-progress),
+      var(--color-line) var(--forecast-progress) 100%
+    );
+  }
+
+  .forecast-range::-webkit-slider-thumb {
+    width: 26px;
+    height: 26px;
+    margin-top: -10px;
+    appearance: none;
+    border: 7px solid var(--color-surface);
+    border-radius: 999px;
+    background: var(--color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 28%, transparent),
+      0 4px 12px rgb(24 33 21 / 18%);
+  }
+
+  .forecast-range::-moz-range-track {
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      var(--color-primary) 0 var(--forecast-progress),
+      var(--color-line) var(--forecast-progress) 100%
+    );
+  }
+
+  .forecast-range::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 7px solid var(--color-surface);
+    border-radius: 999px;
+    background: var(--color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 28%, transparent),
+      0 4px 12px rgb(24 33 21 / 18%);
+  }
+
+  .forecast-range:focus-visible {
+    outline: none;
+  }
+
+  .forecast-range:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 24%, transparent),
+      0 4px 12px rgb(24 33 21 / 18%);
   }
 }
