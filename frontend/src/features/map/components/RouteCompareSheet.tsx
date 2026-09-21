@@ -224,9 +224,9 @@ function TypePill({ type }: { type: RouteType }) {
   );
 }
 
-/** 예상 대수는 아직 안 올 수 있다 — 없으면 아무것도 그리지 않는다 */
-function ExpectedBikes({ count, className = '' }: { count?: number; className?: string }) {
-  if (count === undefined) return null;
+/** 예상 대수는 아직 안 올 수 있다 — 없으면 아무것도 그리지 않는다 (서버가 `null`로도 준다) */
+function ExpectedBikes({ count, className = '' }: { count?: number | null; className?: string }) {
+  if (count == null) return null;
   return (
     <span className={`font-semibold ${BIKES_TEXT_CLASS[toStationStatus(count)]} ${className}`}>
       도착 시 <span className="tabular-nums">{formatBikes(count)}</span>대
