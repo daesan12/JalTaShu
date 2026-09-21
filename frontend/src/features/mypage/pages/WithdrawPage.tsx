@@ -6,7 +6,7 @@ import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
 import { TopHeader } from '@/shared/ui/TopHeader';
 import { withdraw } from '@/features/auth/api/auth';
-import { getMyReports } from '@/features/report/api/reports';
+import { getMyClaims } from '@/features/report/api/reports';
 
 /** 탈퇴 사유 선택지 */
 const REASONS = [
@@ -25,7 +25,7 @@ export function WithdrawPage() {
   const [agreed, setAgreed] = useState(false);
 
   // 삭제될 데이터 건수 — 실제 보유 데이터에서 조회 (이동 기록 건수는 #20 머지 후 연동 가능)
-  const { data: reports } = useQuery({ queryKey: ['myReports'], queryFn: getMyReports });
+  const { data: claims } = useQuery({ queryKey: ['myClaims'], queryFn: getMyClaims });
 
   const mutation = useMutation({
     mutationFn: () => withdraw(reason),
@@ -45,7 +45,7 @@ export function WithdrawPage() {
 
   const deletions = [
     '모든 이동 기록',
-    reports ? `내 민원·제보 ${reports.length}건` : '내 민원·제보',
+    claims ? `내 민원·제보 ${claims.length}건` : '내 민원·제보',
     '계정·닉네임 정보',
   ];
 

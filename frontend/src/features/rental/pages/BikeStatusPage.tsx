@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { formatDate } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/Button';
 import { TopHeader } from '@/shared/ui/TopHeader';
+import { REPORT_TAGS, type ReportTag } from '@/features/report/api/reports';
 import { getBikeStatus } from '@/features/rental/api/bikes';
 import { BikeDiagram } from '@/features/rental/components/BikeDiagram';
 import { BikeReportCard } from '@/features/rental/components/BikeReportCard';
@@ -53,7 +54,10 @@ export function BikeStatusPage() {
 
             {/* 제보 부위 다이어그램 */}
             <BikeDiagram
-              highlighted={bike.reports.map((r) => r.tag)}
+              // 방치·기타 민원은 부위가 없어 배지 문구가 태그와 다르다 — 다이어그램에는 부위만 넘긴다
+              highlighted={bike.reports
+                .map((r) => r.tag)
+                .filter((tag): tag is ReportTag => (REPORT_TAGS as readonly string[]).includes(tag))}
               className="rounded-2xl border border-gray-100 px-6 py-3"
             />
 

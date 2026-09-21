@@ -36,7 +36,7 @@ export const authHandlers = [
     );
   }),
 
-  http.put('/api/users/me', async ({ request }) => {
+  http.patch('/api/users/me', async ({ request }) => {
     await delay(400);
     const authFail = requireAuth();
     if (authFail) return authFail;

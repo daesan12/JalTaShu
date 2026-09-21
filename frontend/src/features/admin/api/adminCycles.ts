@@ -76,7 +76,7 @@ export function getAdminCycleOwnStatics(cycleId: string): Promise<AdminCycleOwnS
 
 /** 자전거에 달린 제보 — 제보 관리(03)와 같은 데이터를 자전거 기준으로 거른 것 */
 export function getAdminCycleClaims(cycleId: string): Promise<AdminClaim[]> {
-  return apiGet<AdminClaim[]>(`/admin/cycle/${encodeURIComponent(cycleId)}/claim`, {
+  return apiGet<AdminClaim[]>(`/admin/claim/cycle/${encodeURIComponent(cycleId)}`, {
     skipAuthRedirect: true,
   });
 }

@@ -3,19 +3,19 @@ import { fail, getAuthState, ok, requireAuth } from '@/mocks/core';
 import { getMockClaims } from '@/mocks/handlers/adminClaims';
 import { STATIONS } from '@/mocks/stations';
 
-/** 가짜 민원 내역 — 새로고침에도 유지되도록 localStorage 사용 */
+/** 내가 접수한 민원 — 새로고침에도 유지되도록 localStorage 사용 */
 const REPORTS_KEY = 'msw_reports';
 
+/** 백엔드 ClaimListResponse와 같은 모양으로 저장한다 (자전거 코드는 18 목업에서만 쓴다) */
 interface MockReport {
-  id: number;
-  type: string;
-  bikeCode: string | null;
-  tag: string | null;
-  tagDetail: string | null;
+  claimId: number;
+  claimType: 'CYCLE' | 'ABANDONED' | 'ETC';
+  claimCategory: string | null;
   content: string;
   nickname: string;
-  status: string;
   createdAt: string;
+  /** 응답에는 없지만 18 자전거 상태 목업이 자전거별로 거르는 데 쓴다 */
+  cycleId: string | null;
 }
 
 function getMockReports(): MockReport[] {
@@ -44,39 +44,88 @@ export function setMockReports(reports: MockReport[]) {
  */
 const RENTED_CYCLE_IDS = ['22B01262'];
 
-/** 민원(17-x)·자전거 상태(18)·대여/반납 — 백엔드 API 미정, 임시 스키마 */
+/** 저장된 enum을 18 화면의 부위 태그로 되돌린다 */
+const CATEGORY_TO_TAG: Record<string, string> = {
+  BREAK: '브레이크',
+  TIRE: '타이어',
+  SADDLE: '안장',
+  CHAIN: '체인',
+  FRAME: '프레임',
+  ETC: '기타',
+};
+
+/** 접수 한 건을 저장하고 claimId를 돌려준다 (세 유형 공용) */
+function addClaim(
+  claimType: MockReport['claimType'],
+  content: string,
+  claimCategory: string | null,
+  cycleId: string | null,
+) {
+  const reports = getMockReports();
+  const claimId = Date.now();
+  reports.unshift({
+    claimId,
+    claimType,
+    claimCategory,
+    content,
+    nickname: getAuthState().nickname ?? '익명',
+    createdAt: new Date().toISOString(),
+    cycleId,
+  });
+  setMockReports(reports);
+  return claimId;
+}
+
+const CLAIM_CATEGORIES = ['BREAK', 'TIRE', 'SADDLE', 'CHAIN', 'FRAME', 'ETC'];
+
+/** 민원 접수(17-x)·자전거 상태(18)·대여/반납 */
 export const reportHandlers = [
-  http.post('/api/reports', async ({ request }) => {
+  // ── 고장 제보 (17-1) — multipart: cycleId·claimCategory·content·file ──────
+  http.post('/api/claim/cycle', async ({ request }) => {
     await delay(400);
-    const body = (await request.json()) as {
-      type?: string;
-      bikeCode?: string | null;
-      tag?: string | null;
-      tagDetail?: string | null;
-      content?: string;
-    };
-    if (!body.content?.trim()) return fail(400, '상세내용을 입력해 주세요.');
-    const reports = getMockReports();
-    reports.unshift({
-      id: Date.now(),
-      type: body.type ?? 'inquiry',
-      bikeCode: body.bikeCode ?? null,
-      tag: body.tag ?? null,
-      tagDetail: body.tagDetail ?? null,
-      content: body.content,
-      nickname: getAuthState().nickname ?? '익명',
-      status: '접수됨',
-      createdAt: new Date().toISOString(),
-    });
-    setMockReports(reports);
-    return HttpResponse.json({ code: 200, message: '민원이 접수되었습니다.', data: null });
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const form = await request.formData();
+    const cycleId = String(form.get('cycleId') ?? '').trim();
+    const content = String(form.get('content') ?? '').trim();
+    const category = String(form.get('claimCategory') ?? '');
+    if (!cycleId) return fail(400, '자전거 번호가 필요합니다.');
+    if (!content) return fail(400, '상세내용을 입력해 주세요.');
+    if (!CLAIM_CATEGORIES.includes(category)) return fail(400, '고장 부위를 선택해 주세요.');
+    return HttpResponse.json(ok({ claimId: addClaim('CYCLE', content, category, cycleId) }));
   }),
 
-  http.get('/api/reports/my', async () => {
+  // ── 방치 신고 (17-2) — multipart: cycleId·content·file ────────────────────
+  http.post('/api/claim/abandoned', async ({ request }) => {
+    await delay(400);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const form = await request.formData();
+    const cycleId = String(form.get('cycleId') ?? '').trim();
+    const content = String(form.get('content') ?? '').trim();
+    if (!cycleId) return fail(400, '자전거 번호가 필요합니다.');
+    if (!content) return fail(400, '상세내용을 입력해 주세요.');
+    return HttpResponse.json(ok({ claimId: addClaim('ABANDONED', content, null, cycleId) }));
+  }),
+
+  // ── 기타 문의 (17-3) — JSON: content ──────────────────────────────────────
+  http.post('/api/claim/etc', async ({ request }) => {
+    await delay(400);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const body = (await request.json()) as { content?: string };
+    const content = body.content?.trim() ?? '';
+    if (!content) return fail(400, '상세내용을 입력해 주세요.');
+    return HttpResponse.json(ok({ claimId: addClaim('ETC', content, null, null) }));
+  }),
+
+  // ── 내 민원 목록 (17-4) — 처리 상태·자전거 코드는 응답에 없다 ─────────────
+  http.get('/api/claim/list/me', async () => {
     await delay(300);
     const authFail = requireAuth();
     if (authFail) return authFail;
-    return HttpResponse.json(ok(getMockReports()));
+    const mine = getMockReports().map(({ cycleId: _cycleId, ...rest }) => rest);
+    return HttpResponse.json(ok(mine));
   }),
 
   // ── 자전거 (18 자전거 상태 — 백엔드 API 미정, 임시 스키마) ──────────
@@ -90,11 +139,12 @@ export const reportHandlers = [
     // 내가 접수한 고장신고 중 이 자전거에 달린 것 = 제보로 노출
     // claimId는 허위 제보 신고에 쓰인다 — 민원 id와 겹치지 않게 큰 수를 얹는다
     const myReports = getMockReports()
-      .filter((r) => r.type === 'broken' && r.bikeCode === code)
+      .filter((r) => r.claimType === 'CYCLE' && r.cycleId === code)
       .map((r) => ({
-        claimId: 100_000 + r.id,
-        tag: r.tag ?? '기타',
-        tagDetail: r.tagDetail ?? null,
+        claimId: r.claimId,
+        claimType: 'CYCLE' as const,
+        tag: CATEGORY_TO_TAG[r.claimCategory ?? 'ETC'] ?? '기타',
+        tagDetail: null,
         content: r.content,
         nickname: r.nickname,
         createdAt: r.createdAt,
@@ -106,6 +156,7 @@ export const reportHandlers = [
       : [
           {
             claimId: 9001,
+            claimType: 'CYCLE' as const,
             tag: '브레이크',
             tagDetail: null,
             content: '브레이크가 잘 안 잡혀요',
@@ -114,6 +165,7 @@ export const reportHandlers = [
           },
           {
             claimId: 9002,
+            claimType: 'CYCLE' as const,
             tag: '타이어',
             tagDetail: null,
             content: '앞바퀴 공기압이 낮아요',
@@ -122,6 +174,7 @@ export const reportHandlers = [
           },
           {
             claimId: 9003,
+            claimType: 'CYCLE' as const,
             tag: '안장',
             tagDetail: null,
             content: '안장 높이가 고정되지 않아요',
@@ -141,19 +194,21 @@ export const reportHandlers = [
     );
   }),
 
-  // ── 자전거 제보 리스트 (20 — CycleClaimListResponse 실측) ─────────────
+  // ── 자전거 제보 리스트 (20 — ClaimListResponse 실측) ──────────────────
   // 관리자 제보 저장소와 같은 데이터를 자전거 기준으로 거른다
-  http.get('/api/cycle/list', async ({ request }) => {
+  http.get('/api/claim/list', async ({ request }) => {
     await delay(300);
     const authFail = requireAuth();
     if (authFail) return authFail;
     const cycleId = new URL(request.url).searchParams.get('cycleId') ?? '';
     if (!cycleId) return fail(400, '자전거 번호가 필요합니다.');
     const claims = getMockClaims()
-      .filter((c) => c.cycleId.toUpperCase() === cycleId.toUpperCase())
+      // 기타 문의는 자전거가 없다(null) — 자전거 기준 목록에서는 빠진다
+      .filter((c) => c.cycleId?.toUpperCase() === cycleId.toUpperCase())
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((c) => ({
         claimId: c.claimId,
+        claimType: c.claimType,
         nickname: c.nickname,
         claimCategory: c.category,
         content: c.content,
@@ -163,11 +218,11 @@ export const reportHandlers = [
   }),
 
   /**
-   * 허위 제보 신고 (18·20) — 실서버 POST /cycle/claims/{claimId}/reports.
+   * 허위 제보 신고 (18·20) — 실서버 POST /claim/{claimId}/report.
    * 실서버는 없는 claimId에 404를 주지만, 18 자전거 상태가 아직 목업 시드(9001~)를 쓰므로
    * 여기서는 형식만 확인하고 받아 준다. 횟수 제한은 서버에 없다 — 화면 쪽 가드가 맡는다.
    */
-  http.post('/api/cycle/claims/:claimId/reports', async ({ params, request }) => {
+  http.post('/api/claim/:claimId/report', async ({ params, request }) => {
     await delay(400);
     const authFail = requireAuth();
     if (authFail) return authFail;

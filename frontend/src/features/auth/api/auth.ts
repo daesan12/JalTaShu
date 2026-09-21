@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { apiGet, apiPost, apiPut, setAccessToken } from '@/shared/api/client';
+import { apiGet, apiPatch, apiPost, setAccessToken } from '@/shared/api/client';
 import { ENV } from '@/shared/config/env';
 import { TERMS, type TermCode } from '@/shared/config/constants';
 
@@ -56,9 +56,9 @@ export async function startKakaoLogin(): Promise<KakaoLoginResult> {
   return 'redirecting';
 }
 
-/** PUT /api/users/me — 닉네임 변경 (백엔드 API 미정, msw 목업 기준 임시 스키마) */
+/** PATCH /api/users/me — 닉네임 변경 (백엔드 UserNicknameRequestDto 실측) */
 export function updateNickname(nickname: string): Promise<null> {
-  return apiPut<null>('/users/me', { nickname });
+  return apiPatch<null>('/users/me', { nickname });
 }
 
 /** POST /api/auth/logout — 서버가 refresh를 폐기하고 쿠키를 만료시킨다. 메모리 토큰도 지운다 */

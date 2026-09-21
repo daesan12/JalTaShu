@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import type { Pos, RouteCandidate } from '@/shared/api/types';
 import { getReRoutePaths } from '@/features/map/api/routes';
 import type { useCurrentLocation } from '@/features/map/hooks/useCurrentLocation';
+import { saveUsagePath } from '@/features/history/api/rides';
 import { useKeepAwake } from '@/features/map/hooks/useKeepAwake';
 import { useSpeech } from '@/features/map/hooks/useSpeech';
 import { readVoiceOn, writeVoiceOn } from '@/features/map/lib/guideVoicePref';
@@ -11,6 +12,7 @@ import { buildRouteCues, getNextCue } from '@/features/map/lib/routeCues';
 import { getRouteProgress, hasArrived } from '@/features/map/lib/routeProgress';
 import { shouldReRoute, toTravelStatus } from '@/features/map/lib/routeReroute';
 import { toLegs } from '@/features/map/lib/routeSegments';
+import { toUsagePath } from '@/features/map/lib/usagePath';
 import { ANNOUNCE, cueSpeech, spokenKey, voiceStage } from '@/features/map/lib/routeVoice';
 
 /**
@@ -63,6 +65,7 @@ export function useRouteGuide({
   showToast,
 }: RouteGuideDeps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   // 기본은 켜짐. 명시적으로 껐던 사람만 그 선택이 따라온다 (`guideVoicePref.ts`)
   const [voiceOn, setVoiceOn] = useState(readVoiceOn);
   // 이미 읽어 준 안내("3번째 회전의 far 단계") — 같은 문장을 반복하지 않으려고 기록한다
@@ -75,6 +78,22 @@ export function useRouteGuide({
   // 12 안내 시작 시각(도착 요약의 소요 시간 계산용)과 도착 처리 중복 방지 플래그 — 렌더에 쓰지 않아 ref로 둔다
   const guideStartAtRef = useRef<number | null>(null);
   const arrivalHandledRef = useRef(false);
+
+  /**
+   * 도착하면 안내하던 경로를 이용 기록에 붙인다.
+   * 서버가 가장 최근 반납 건에 붙이므로, 이 앱으로 대여·반납하지 않았으면 실패한다 —
+   * 사용자가 할 수 있는 일은 없지만 기록이 안 남았다는 건 알려야 해서 토스트로 띄운다.
+   */
+  const savePath = useMutation({
+    mutationFn: saveUsagePath,
+    onSuccess: () => {
+      // "나의 경로" 탭과 프로필 통계가 방금 이동을 바로 반영하도록
+      void queryClient.invalidateQueries({ queryKey: ['usageList'] });
+      void queryClient.invalidateQueries({ queryKey: ['usageStats'] });
+      void queryClient.invalidateQueries({ queryKey: ['me'] });
+    },
+    onError: () => showToast('이동 기록을 저장하지 못했어요.'),
+  });
 
   // 안내 중에는 화면이 꺼지지 않게 한다 — 꺼지면 WebView가 멈춰 안내도 음성도 같이 멎는다
   useKeepAwake(guideActive);
@@ -118,13 +137,25 @@ export function useRouteGuide({
       (sum, leg) => sum + (leg.mode === 'BICYCLE' ? leg.distance : 0),
       0,
     );
+    const startedAt = guideStartAtRef.current;
+    const finishedAt = Date.now();
     setArrivalSummary({
       destinationTitle,
-      elapsedSec: (Date.now() - guideStartAtRef.current) / 1000,
+      elapsedSec: (finishedAt - startedAt) / 1000,
       totalDistanceM,
       bikeDistanceM,
       route: detailRoute,
     });
+    // 서버는 미터 정수를 받는다(자전거 거리 ≤ 전체 거리 검증이 있어 반올림 순서를 맞춘다)
+    savePath.mutate({
+      pathInfo: { road: toUsagePath(detailRoute) },
+      createdAt: new Date(startedAt).toISOString(),
+      finishedAt: new Date(finishedAt).toISOString(),
+      totalDistance: Math.round(totalDistanceM),
+      bikeDistance: Math.min(Math.round(bikeDistanceM), Math.round(totalDistanceM)),
+    });
+    // savePath는 훅이 만든 안정적인 객체라 의존성에 넣지 않는다 — 넣으면 렌더마다 이펙트가 다시 돈다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guideActive, detailRoute, location.position, destinationTitle]);
 
   // 회전 안내 지점은 경로가 바뀔 때만 다시 만든다 — 위치가 들어올 때마다 다시 계산할 이유가 없다

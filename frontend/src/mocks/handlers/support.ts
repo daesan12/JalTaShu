@@ -71,20 +71,20 @@ export const supportHandlers = [
     return HttpResponse.json(ok(getOpenApiRequests()));
   }),
 
-  // ── 공지 팝업 (07-1 — 백엔드 API 미정, 임시 스키마) ───────────────
-  // 공지사항 목록과는 별개 데이터. 관리자 페이지에서 따로 CRUD하고, 등록 시 공지사항 하나를
-  // 연결할 수 있다(linkedNoticeId). 연결하지 않은 팝업은 눌러도 이동하지 않는다.
-  http.get('/api/notice-popups', async () => {
+  // ── 공지 팝업 (07-1 — 백엔드 PopupListResponse 실측) ──────────────
+  // 공지사항 목록과는 별개 데이터. 관리자가 팝업을 따로 등록하며, 등록할 때 공지 하나를
+  // 반드시 연결한다(PopupEntity.notice가 not null) — 그래서 모든 팝업이 누를 수 있다.
+  http.get('/api/notice/pop-up', async () => {
     await delay(300);
     const authFail = requireAuth();
     if (authFail) return authFail;
     return HttpResponse.json(
       ok([
-        { id: 1, imageUrl: placeholderImage('공지 1', '#4c8a12'), linkedNoticeId: 5 },
-        { id: 2, imageUrl: placeholderImage('공지 2', '#3c6e0e'), linkedNoticeId: null },
-        { id: 3, imageUrl: placeholderImage('공지 3', '#f59e0b'), linkedNoticeId: 4 },
-        { id: 4, imageUrl: placeholderImage('공지 4', '#0ea5e9'), linkedNoticeId: null },
-        { id: 5, imageUrl: placeholderImage('공지 5', '#7c3aed'), linkedNoticeId: 3 },
+        { title: '임시 폐쇄 대여소 안내', photoUrl: placeholderImage('공지 1', '#4c8a12'), noticeId: 5 },
+        { title: '공공 데이터 활용 설문조사', photoUrl: placeholderImage('공지 2', '#3c6e0e'), noticeId: 4 },
+        { title: '이용약관 개정 알림', photoUrl: placeholderImage('공지 3', '#f59e0b'), noticeId: 3 },
+        { title: '안전수칙 확인 절차 개선', photoUrl: placeholderImage('공지 4', '#0ea5e9'), noticeId: 2 },
+        { title: '대여소 반납 안내', photoUrl: placeholderImage('공지 5', '#7c3aed'), noticeId: 1 },
       ]),
     );
   }),

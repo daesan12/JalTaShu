@@ -5,6 +5,7 @@ import { formatDate } from '@/shared/lib/format';
 import { useToast } from '@/shared/lib/useToast';
 import {
   CLAIM_CATEGORY_LABEL,
+  CLAIM_TYPE_LABEL,
   CLAIM_STATUS_LABEL,
   getAdminClaimDetail,
   getAdminClaims,
@@ -65,7 +66,7 @@ export function AdminClaimsPage() {
       if (
         keyword &&
         !claim.nickname.toLowerCase().includes(keyword) &&
-        !claim.cycleId.toLowerCase().includes(keyword)
+        !(claim.cycleId ?? '').toLowerCase().includes(keyword)
       ) {
         return false;
       }
@@ -141,6 +142,7 @@ export function AdminClaimsPage() {
           <thead>
             <tr>
               <th className="w-24">제보 ID</th>
+              <th className="w-20">유형</th>
               <th className="w-32">자전거</th>
               <th className="w-28">부위</th>
               <th>제보 내용</th>
@@ -152,7 +154,7 @@ export function AdminClaimsPage() {
           </thead>
           <tbody>
             <AdminTableStatus
-              colSpan={8}
+              colSpan={9}
               isPending={isPending}
               isError={isError}
               onRetry={() => void refetch()}
@@ -162,8 +164,10 @@ export function AdminClaimsPage() {
             {pageItems.map((claim) => (
               <tr key={claim.claimId} onClick={() => setSelected(claim)}>
                 <td className="tabular-nums text-admin-muted">CL-{claim.claimId}</td>
-                <td className="tabular-nums">{claim.cycleId}</td>
-                <td>{CLAIM_CATEGORY_LABEL[claim.category]}</td>
+                <td>{CLAIM_TYPE_LABEL[claim.claimType]}</td>
+                {/* 기타 문의는 자전거가, 방치·기타는 부위가 없다 */}
+                <td className="tabular-nums">{claim.cycleId ?? '-'}</td>
+                <td>{claim.category === null ? '-' : CLAIM_CATEGORY_LABEL[claim.category]}</td>
                 <td className="truncate">{claim.content}</td>
                 <td className="truncate">{claim.nickname}</td>
                 <td
@@ -256,9 +260,13 @@ function ClaimDetailModal({ claim, onClose, onSaved }: ClaimDetailModalProps) {
     >
       <div className="flex flex-col gap-4">
         <dl className="grid grid-cols-4 gap-x-4 gap-y-2 text-sm">
-          <InfoItem label="자전거" value={claim.cycleId} />
+          <InfoItem label="유형" value={CLAIM_TYPE_LABEL[claim.claimType]} />
+          <InfoItem label="자전거" value={claim.cycleId ?? '-'} />
           <InfoItem label="제보자" value={claim.nickname} />
-          <InfoItem label="부위" value={CLAIM_CATEGORY_LABEL[claim.category]} />
+          <InfoItem
+            label="부위"
+            value={claim.category === null ? '-' : CLAIM_CATEGORY_LABEL[claim.category]}
+          />
           <InfoItem label="작성일" value={formatDate(claim.createdAt)} />
         </dl>
 

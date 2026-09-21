@@ -15,6 +15,15 @@ export const CLAIM_STATUS_LABEL: Record<ClaimStatus, '미해결' | '처리중' |
   COMPLETED: '해결됨',
 };
 
+/** 민원 유형(ClaimType 실측) — 고장 / 방치 / 기타 문의 */
+export type ClaimType = 'CYCLE' | 'ABANDONED' | 'ETC';
+
+export const CLAIM_TYPE_LABEL: Record<ClaimType, string> = {
+  CYCLE: '고장',
+  ABANDONED: '방치',
+  ETC: '기타',
+};
+
 /** 서버 enum(ClaimCategory 실측) — 고장 부위 */
 export type ClaimCategory = 'BREAK' | 'TIRE' | 'SADDLE' | 'CHAIN' | 'FRAME' | 'ETC';
 
@@ -27,12 +36,15 @@ export const CLAIM_CATEGORY_LABEL: Record<ClaimCategory, string> = {
   ETC: '기타',
 };
 
-/** 목록 한 건 (AdminCycleClaimListResponse 실측) */
+/** 목록 한 건 (AdminClaimListResponse 실측) */
 export interface AdminClaim {
   claimId: number;
-  cycleId: string;
+  claimType: ClaimType;
+  /** 기타 문의는 자전거와 무관해 null */
+  cycleId: string | null;
   content: string;
-  category: ClaimCategory;
+  /** 고장(CYCLE)에만 있다 — 방치·기타는 부위가 없어 null */
+  category: ClaimCategory | null;
   /** 제보자 */
   nickname: string;
   userId: number;
@@ -53,16 +65,14 @@ export interface AdminClaimReport {
   nickname: string;
 }
 
-/** 상세 (AdminCycleClaimDetailResponse 실측) — 목록에 없는 처리 내용·사진·이용 시각이 온다 */
+/** 상세 (AdminClaimDetailResponse 실측) — 목록에 없는 처리 내용·사진·신고 내역이 온다 */
 export interface AdminClaimDetail {
   claimId: number;
-  cycleId: string;
+  claimType: ClaimType;
+  cycleId: string | null;
   userId: number;
   nickname: string;
   createdAt: string;
-  recordId: number | null;
-  rentalAt: string | null;
-  returnAt: string | null;
   content: string;
   statement: ClaimStatus;
   adminComment: string | null;
@@ -75,20 +85,20 @@ export interface AdminClaimDetail {
  * "닉네임 또는 자전거 ID" 한 칸이라 전체를 받아 클라이언트에서 거른다.
  */
 export function getAdminClaims(): Promise<AdminClaim[]> {
-  return apiGet<AdminClaim[]>('/admin/cycle/claim', { skipAuthRedirect: true });
+  return apiGet<AdminClaim[]>('/admin/claim/list', { skipAuthRedirect: true });
 }
 
-/** GET /admin/cycle/claim/{claimId} — 상세 모달용 */
+/** GET /admin/claim/{claimId} — 상세 모달용 */
 export function getAdminClaimDetail(claimId: number): Promise<AdminClaimDetail> {
-  return apiGet<AdminClaimDetail>(`/admin/cycle/claim/${claimId}`, { skipAuthRedirect: true });
+  return apiGet<AdminClaimDetail>(`/admin/claim/${claimId}`, { skipAuthRedirect: true });
 }
 
-/** PATCH /admin/cycle/claim/{claimId} — 처리 상태·처리 내용(≤255자) 변경. 응답은 claimId뿐 */
+/** PATCH /admin/claim/{claimId} — 처리 상태·처리 내용(≤255자) 변경. 응답은 claimId뿐 */
 export function updateAdminClaim(
   claimId: number,
   input: { statement: ClaimStatus; content: string },
 ): Promise<{ claimId: number }> {
-  return apiPatch<{ claimId: number }>(`/admin/cycle/claim/${claimId}`, input, {
+  return apiPatch<{ claimId: number }>(`/admin/claim/${claimId}`, input, {
     skipAuthRedirect: true,
   });
 }
