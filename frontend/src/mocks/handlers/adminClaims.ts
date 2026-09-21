@@ -6,14 +6,17 @@ const ADMIN_CLAIMS_KEY = 'msw_admin_claims';
 
 export type MockClaimStatus = 'READY' | 'IN_PROGRESS' | 'COMPLETED';
 export type MockClaimCategory = 'BREAK' | 'TIRE' | 'SADDLE' | 'CHAIN' | 'FRAME' | 'ETC';
+export type MockClaimType = 'CYCLE' | 'ABANDONED' | 'ETC';
 
 /** 목록·상세 응답을 모두 만들 수 있게 상세 전용 필드까지 한 저장소에 둔다 */
 export interface MockClaim {
   claimId: number;
-  cycleId: string;
-  recordId: number;
+  claimType: MockClaimType;
+  /** 기타 문의는 자전거와 무관해 null */
+  cycleId: string | null;
   content: string;
-  category: MockClaimCategory;
+  /** 고장(CYCLE)에만 있다 */
+  category: MockClaimCategory | null;
   nickname: string;
   userId: number;
   createdAt: string;
@@ -21,8 +24,6 @@ export interface MockClaim {
   status: MockClaimStatus;
   adminComment: string | null;
   photoUrl: string | null;
-  rentalAt: string;
-  returnAt: string;
 }
 
 const CLAIM_SEEDS: { category: MockClaimCategory; content: string }[] = [
@@ -45,12 +46,16 @@ function seedClaims(): MockClaim[] {
     const status = statuses[i % statuses.length];
     // 최신 제보가 위로 오게 약 하루 간격으로 과거로 펼친다
     const createdAt = Date.now() - (i * 26 + 3) * 3600_000;
+    /* 세 유형이 목록에 섞여 보이도록 5개마다 방치·기타를 끼워 넣는다 */
+    const claimType: MockClaimType = i % 5 === 3 ? 'ABANDONED' : i % 5 === 4 ? 'ETC' : 'CYCLE';
     return {
       claimId: 26 - i,
-      cycleId: `DJ-1${String((i * 7) % 90).padStart(4, '0')}`,
-      recordId: 5000 + i,
+      claimType,
+      // 기타 문의는 자전거가 없다
+      cycleId: claimType === 'ETC' ? null : `DJ-1${String((i * 7) % 90).padStart(4, '0')}`,
       content: seed.content,
-      category: seed.category,
+      // 부위는 고장에만 있다
+      category: claimType === 'CYCLE' ? seed.category : null,
       nickname: CLAIM_NICKNAMES[i % CLAIM_NICKNAMES.length],
       userId: (i % 30) + 1,
       createdAt: new Date(createdAt).toISOString(),
@@ -58,9 +63,6 @@ function seedClaims(): MockClaim[] {
       status,
       adminComment: status === 'COMPLETED' ? '점검 완료 후 재배치했습니다.' : null,
       photoUrl: null,
-      // 제보는 이용 기록에 달리므로 그 직전 이용 시각을 함께 만들어 둔다
-      rentalAt: new Date(createdAt - 40 * 60_000).toISOString(),
-      returnAt: new Date(createdAt - 5 * 60_000).toISOString(),
     };
   });
 }
@@ -86,20 +88,19 @@ function setMockClaims(claims: MockClaim[]) {
   }
 }
 
-/** 목록 응답 — 상세 전용 필드(처리 내용·사진·이용 시각)는 hasComment로 요약된다. adminCycles도 쓴다 */
+/** 목록 응답 — 상세 전용 필드(처리 내용·사진)는 hasComment로 요약된다. adminCycles도 쓴다 */
 export function toListItem(claim: MockClaim) {
-  const { adminComment, photoUrl: _photoUrl, rentalAt: _rentalAt, returnAt: _returnAt, ...rest } =
-    claim;
+  const { adminComment, photoUrl: _photoUrl, ...rest } = claim;
   return { ...rest, hasComment: adminComment !== null };
 }
 
 /**
- * 관리자 제보 관리 (03 — AdminCycleController 실측 스키마).
- * ⚠ 고정 경로(cycle/claim, cycle/claim/:claimId)는 adminCycles의 :cycleId 핸들러보다
- * 먼저 등록해야 한다 (배럴에서 adminClaimHandlers가 adminCycleHandlers 앞).
+ * 관리자 제보 관리 (03 — AdminClaimController 실측 스키마).
+ * 경로가 /admin/claim/… 으로 독립해 adminCycles의 :cycleId와 더는 겹치지 않는다.
+ * 다만 고정 경로(claim/list)는 claim/:claimId보다 먼저 등록해야 한다.
  */
 export const adminClaimHandlers = [
-  http.get('/api/admin/cycle/claim', async () => {
+  http.get('/api/admin/claim/list', async () => {
     await delay(350);
     if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
     const claims = [...getMockClaims()]
@@ -108,7 +109,7 @@ export const adminClaimHandlers = [
     return HttpResponse.json(ok(claims));
   }),
 
-  http.get('/api/admin/cycle/claim/:claimId', async ({ params }) => {
+  http.get('/api/admin/claim/:claimId', async ({ params }) => {
     await delay(300);
     if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
     const claim = getMockClaims().find((c) => c.claimId === Number(params.claimId));
@@ -116,13 +117,11 @@ export const adminClaimHandlers = [
     return HttpResponse.json(
       ok({
         claimId: claim.claimId,
+        claimType: claim.claimType,
         cycleId: claim.cycleId,
         userId: claim.userId,
         nickname: claim.nickname,
         createdAt: claim.createdAt,
-        recordId: claim.recordId,
-        rentalAt: claim.rentalAt,
-        returnAt: claim.returnAt,
         content: claim.content,
         statement: claim.status,
         adminComment: claim.adminComment,
@@ -132,7 +131,7 @@ export const adminClaimHandlers = [
     );
   }),
 
-  http.patch('/api/admin/cycle/claim/:claimId', async ({ params, request }) => {
+  http.patch('/api/admin/claim/:claimId', async ({ params, request }) => {
     await delay(400);
     if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
     const body = (await request.json()) as { statement?: MockClaimStatus; content?: string };

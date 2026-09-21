@@ -155,7 +155,7 @@ export function AdminBikePage() {
                 {claims.data?.map((claim) => (
                   <tr key={claim.claimId}>
                     <td className="tabular-nums text-admin-muted">CL-{claim.claimId}</td>
-                    <td>{CLAIM_CATEGORY_LABEL[claim.category]}</td>
+                    <td>{claim.category === null ? '-' : CLAIM_CATEGORY_LABEL[claim.category]}</td>
                     <td className="truncate">{claim.content}</td>
                     <td className="truncate">{claim.nickname}</td>
                     <td>

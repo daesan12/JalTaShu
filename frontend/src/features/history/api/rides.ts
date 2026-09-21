@@ -1,4 +1,4 @@
-import { apiGet } from '@/shared/api/client';
+import { apiGet, apiPost } from '@/shared/api/client';
 
 /**
  * 이동 기록 — 백엔드 실구현(CycleController /cycle/usage·statics) 스키마.
@@ -63,4 +63,25 @@ export function getUsageList(): Promise<UsageSummary[]> {
 
 export function getUsageDetail(usageId: string): Promise<UsageDetail> {
   return apiGet<UsageDetail>(`/cycle/usage/${usageId}`);
+}
+
+/**
+ * 안내가 끝난 경로를 이용 기록에 붙인다 — 백엔드 `POST /cycle/usage`.
+ *
+ * 서버가 **가장 최근에 반납한 이용 기록**에 알아서 붙이므로 usageId를 보내지 않는다.
+ * 그래서 이 앱으로 대여·반납하지 않았거나(NOT_EXIST_USAGE) 이미 경로가 저장된
+ * 기록이면(PATH_ALREADY_EXISTS) 실패한다 — 호출한 쪽이 실패를 삼키지 말고 알려야 한다.
+ */
+export interface SaveUsagePathInput {
+  pathInfo: { road: UsagePathPoint[] };
+  /** 안내 시작·종료 시각 (ISO 8601) */
+  createdAt: string;
+  finishedAt: string;
+  /** 미터, 0 이상. 자전거 거리는 전체 거리를 넘을 수 없다(서버 검증) */
+  totalDistance: number;
+  bikeDistance: number;
+}
+
+export function saveUsagePath(input: SaveUsagePathInput): Promise<null> {
+  return apiPost<null>('/cycle/usage', input);
 }

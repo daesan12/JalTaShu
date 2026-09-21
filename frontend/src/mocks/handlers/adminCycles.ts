@@ -89,7 +89,7 @@ export const adminCycleHandlers = [
     );
   }),
 
-  http.get('/api/admin/cycle/:cycleId/claim', async ({ params }) => {
+  http.get('/api/admin/claim/cycle/:cycleId', async ({ params }) => {
     await delay(300);
     if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
     const cycleId = String(params.cycleId);

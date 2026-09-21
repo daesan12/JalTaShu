@@ -1,11 +1,16 @@
 import { apiGet, apiPost } from '@/shared/api/client';
 import type { ReportTag } from '@/features/report/api/reports';
 
-/** 자전거에 달린 제보(자전거 코드가 연결된 고장신고) — 18·20 화면 표시용 */
+/** 민원 유형 — 백엔드 ClaimType 실측 (고장 / 방치 / 기타 문의) */
+export type ClaimType = 'CYCLE' | 'ABANDONED' | 'ETC';
+
+/** 자전거에 달린 제보 — 18·20 화면 표시용 */
 export interface BikeReport {
-  /** 허위 제보 신고(POST /cycle/claims/{claimId}/reports)에 쓰는 제보 id */
+  /** 허위 제보 신고(POST /claim/{claimId}/report)에 쓰는 제보 id */
   claimId: number;
-  tag: ReportTag;
+  claimType: ClaimType;
+  /** 배지에 그대로 찍는 표시용 문구 — 고장은 부위, 그 외는 유형 이름 */
+  tag: string;
   /** '기타' 태그의 직접 입력 부위명 */
   tagDetail: string | null;
   content: string;
@@ -51,26 +56,37 @@ const CLAIM_CATEGORY_TO_TAG: Record<string, ReportTag> = {
   ETC: '기타',
 };
 
-/** GET /cycle/list?cycleId= 한 건 (CycleClaimListResponse 실측) */
+/** GET /claim/list?cycleId= 한 건 (ClaimListResponse 실측) */
 interface CycleClaimResponse {
   claimId: number;
+  claimType: ClaimType;
   nickname: string;
-  claimCategory: string;
+  /** 고장(CYCLE)에만 있다 — 방치·기타는 부위가 없어 null */
+  claimCategory: string | null;
   content: string;
   createdAt: string;
 }
 
+/** 유형별 배지 문구 — 고장은 부위를, 나머지는 유형 이름을 쓴다 */
+function toDisplayTag(claim: CycleClaimResponse): string {
+  if (claim.claimType === 'ABANDONED') return '방치 신고';
+  if (claim.claimType === 'ETC') return '기타 문의';
+  return (claim.claimCategory && CLAIM_CATEGORY_TO_TAG[claim.claimCategory]) ?? '기타';
+}
+
 /**
- * 20 제보 리스트 — 백엔드 실구현. 응답의 카테고리 enum을 화면 태그로 바꿔
+ * 20 제보 리스트 — 백엔드 `GET /claim/list?cycleId=`.
+ * 이 자전거에 달린 고장·방치 민원이 함께 온다. 응답 enum을 화면 배지 문구로 바꿔
  * 기존 제보 카드(BikeReportCard)를 그대로 쓴다.
  */
 export async function getCycleClaims(cycleId: string): Promise<BikeReport[]> {
   const claims = await apiGet<CycleClaimResponse[]>(
-    `/cycle/list?cycleId=${encodeURIComponent(cycleId)}`,
+    `/claim/list?cycleId=${encodeURIComponent(cycleId)}`,
   );
   return claims.map((claim) => ({
     claimId: claim.claimId,
-    tag: CLAIM_CATEGORY_TO_TAG[claim.claimCategory] ?? '기타',
+    claimType: claim.claimType,
+    tag: toDisplayTag(claim),
     tagDetail: null,
     content: claim.content,
     nickname: claim.nickname,
@@ -87,5 +103,5 @@ export function reportCycleClaim(
   claimId: number,
   claimCategory: ClaimReportCategory,
 ): Promise<null> {
-  return apiPost<null>(`/cycle/claims/${claimId}/reports`, { claimCategory });
+  return apiPost<null>(`/claim/${claimId}/report`, { claimCategory });
 }

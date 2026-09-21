@@ -3,7 +3,6 @@ import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { ApiError } from '@/shared/api/client';
 import { Button } from '@/shared/ui/Button';
-import { Checkbox } from '@/shared/ui/Checkbox';
 import { Chip } from '@/shared/ui/Chip';
 import {
   REPORT_CONTENT_MAX,
@@ -32,7 +31,6 @@ interface ReportFormProps {
 export function ReportForm({ type, initialCode, onScan }: ReportFormProps) {
   const navigate = useNavigate();
   const [bikeCode, setBikeCode] = useState(initialCode);
-  const [noQr, setNoQr] = useState(false); // 17-2 전용: QR 스캔이 어려운 경우
   const [tag, setTag] = useState<ReportTag | null>(null); // 17-1 전용: 고장 부위
   const [tagDetail, setTagDetail] = useState(''); // '기타' 선택 시 직접 입력
   const [content, setContent] = useState('');
@@ -54,19 +52,19 @@ export function ReportForm({ type, initialCode, onScan }: ReportFormProps) {
     mutationFn: () =>
       submitReport({
         type,
-        bikeCode: needsBike && !noQr ? bikeCode : null,
+        bikeCode,
         tag: needsTag ? tag : null,
         tagDetail: needsTag && tag === '기타' ? tagDetail.trim() : null,
         content: content.trim(),
-        photoName: photo?.file.name ?? null,
+        photo: photo?.file ?? null,
       }),
     onSuccess: () => navigate('/report/my'),
   });
 
-  const bikeOk = !needsBike || noQr || BIKE_CODE_PATTERN.test(bikeCode);
+  const bikeOk = !needsBike || BIKE_CODE_PATTERN.test(bikeCode);
   // 입력을 시작한 뒤에만 형식 오류를 알린다 — 빈 칸부터 빨갛게 만들지 않도록
   const bikeCodeError =
-    needsBike && !noQr && bikeCode.length > 0 && !bikeOk
+    needsBike && bikeCode.length > 0 && !bikeOk
       ? '영문·숫자 6~12자로 입력해 주세요.'
       : null;
   // '기타'는 문제 부위를 직접 입력해야 함
@@ -97,7 +95,6 @@ export function ReportForm({ type, initialCode, onScan }: ReportFormProps) {
               value={bikeCode}
               onChange={(e) => setBikeCode(e.target.value.trim().toUpperCase())}
               placeholder="QR코드를 스캔해주세요."
-              disabled={noQr}
               aria-invalid={bikeCodeError ? true : undefined}
               aria-describedby={bikeCodeError ? bikeErrorId : undefined}
               className="min-w-0 flex-1 bg-transparent text-base placeholder-gray-400 focus:outline-none disabled:opacity-40"
@@ -105,7 +102,6 @@ export function ReportForm({ type, initialCode, onScan }: ReportFormProps) {
             <button
               type="button"
               onClick={onScan}
-              disabled={noQr}
               className="flex min-h-11 shrink-0 items-center gap-1.5 px-1 font-semibold text-primary disabled:opacity-40"
             >
               <span className="h-4.5 w-4.5 rounded border-2 border-primary" aria-hidden />
@@ -118,13 +114,11 @@ export function ReportForm({ type, initialCode, onScan }: ReportFormProps) {
             </p>
           )}
           {type === 'abandoned' && (
-            <div className="mt-2">
-              <Checkbox checked={noQr} onChange={setNoQr}>
-                <span className="text-[15px] font-medium text-primary">
-                  QR코드 스캔이 어려우시면 선택해주세요!
-                </span>
-              </Checkbox>
-            </div>
+            /* 서버가 방치신고에도 자전거 코드를 필수로 받는다 — QR 없이 접수하는 길은
+               위치 좌표 등 대체 수단이 생긴 뒤에 다시 연다 */
+            <p className="mt-2 text-sm text-gray-500">
+              자전거에 붙은 QR 아래 번호를 입력해 주세요.
+            </p>
           )}
         </section>
       )}

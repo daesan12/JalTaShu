@@ -63,6 +63,35 @@ function usageRoad(usageId: number) {
 }
 
 export const rideHandlers = [
+  /**
+   * 경로 기록 저장 (12 안내 도착) — 실서버 POST /cycle/usage.
+   * 실서버는 가장 최근 반납 건에 붙이고, 이용 기록이 없거나 이미 저장됐으면 거절한다.
+   * 목업은 그 검증을 흉내 내지 않고 형식만 확인한다 — 여기서 막으면 로컬에서
+   * 도착 요약까지 가는 흐름 자체를 볼 수 없다.
+   */
+  http.post('/api/cycle/usage', async ({ request }) => {
+    await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const body = (await request.json()) as {
+      pathInfo?: { road?: unknown[] };
+      createdAt?: string;
+      finishedAt?: string;
+      totalDistance?: number;
+      bikeDistance?: number;
+    };
+    if (!body.pathInfo?.road?.length) return fail(400, '경로 좌표가 필요합니다.');
+    if (!body.createdAt || !body.finishedAt) return fail(400, '이동 시각이 필요합니다.');
+    if (new Date(body.finishedAt) < new Date(body.createdAt)) {
+      return fail(400, '종료 시각은 시작 시각보다 빠를 수 없습니다.');
+    }
+    const total = body.totalDistance ?? 0;
+    const bike = body.bikeDistance ?? 0;
+    if (total < 0 || bike < 0) return fail(400, '거리는 0보다 작을 수 없습니다.');
+    if (bike > total) return fail(400, '자전거 거리는 전체 거리보다 클 수 없습니다.');
+    return HttpResponse.json(ok(null));
+  }),
+
   // ── 개인 누적 통계 (CycleStatisticsResponse — 거리 m, 시간 초) ──────
   http.get('/api/cycle/statics', async () => {
     await delay(300);

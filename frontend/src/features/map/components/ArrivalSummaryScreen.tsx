@@ -1,9 +1,10 @@
 import type { RouteCandidate } from '@/shared/api/types';
 import { formatDistance } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/Button';
-import { ElevationChart } from '@/shared/ui/ElevationChart';
-import { buildElevationProfile } from '@/features/map/lib/routeElevation';
+import { RouteSketch } from '@/shared/ui/RouteSketch';
+import { toSketchPath } from '@/features/history/lib/usageDisplay';
 import { formatSecondsAsMinutes } from '@/features/map/lib/routeMetrics';
+import { toUsagePath } from '@/features/map/lib/usagePath';
 
 interface ArrivalSummaryScreenProps {
   destinationTitle: string;
@@ -17,8 +18,12 @@ interface ArrivalSummaryScreenProps {
 
 /**
  * 12 안내 중 목적지 30m 이내로 도착하면 뜨는 전체 화면 요약.
- * "기록" 탭 저장(경호님 담당 features/history)은 이번 범위에서 뺐다 — 백엔드 저장 API가 없어서
- * 계산 결과를 어디에도 남기지 않고 화면에만 보여준다. 닫으면 목적지·경로가 초기화되고 지도로 나간다.
+ *
+ * 화면 전체를 덮어야 해서 `fixed`다 — `absolute`로 두면 탭바를 뺀 `main` 높이에만 갇혀서
+ * 그 아래 안내 시트(`fixed bottom-0`)가 삐져나온다. 폭은 다른 전체 화면 오버레이와 같게 맞춘다.
+ *
+ * 저장은 `useRouteGuide`가 이 화면을 띄우면서 함께 보낸다(POST /cycle/usage).
+ * 닫으면 목적지·경로가 초기화되고 지도로 나간다.
  */
 export function ArrivalSummaryScreen({
   destinationTitle,
@@ -28,10 +33,11 @@ export function ArrivalSummaryScreen({
   route,
   onClose,
 }: ArrivalSummaryScreenProps) {
-  const profile = buildElevationProfile(route);
+  // 23 기록 상세와 같은 그림을 쓴다 — 방금 온 길을 나중에 기록에서 다시 봐도 같은 모양이다
+  const sketch = toSketchPath(toUsagePath(route));
 
   return (
-    <div className="pt-safe pb-safe absolute inset-0 z-50 flex flex-col bg-surface">
+    <div className="pt-safe pb-safe fixed inset-y-0 left-1/2 z-50 flex w-full max-w-[430px] -translate-x-1/2 flex-col bg-surface">
       <div className="flex-1 overflow-y-auto px-5 py-8">
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary-light">
           <svg
@@ -55,9 +61,9 @@ export function ArrivalSummaryScreen({
           {destinationTitle}까지 {formatSecondsAsMinutes(elapsedSec)} 만에 도착했어요
         </p>
 
-        {profile.bars.length > 0 && (
-          <div className="mt-8 rounded-2xl bg-gray-50 p-4">
-            <ElevationChart bars={profile.bars} />
+        {sketch.length > 0 && (
+          <div className="mt-8 overflow-hidden rounded-2xl">
+            <RouteSketch path={sketch} />
           </div>
         )}
 
@@ -85,7 +91,7 @@ export function ArrivalSummaryScreen({
         </div>
       </div>
 
-      <div className="px-5">
+      <div className="px-5 pb-5">
         <Button full onClick={onClose}>
           닫기
         </Button>
