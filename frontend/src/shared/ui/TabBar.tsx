@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router';
 
-/** Figma Tab Bar v2 기준 — 4탭: 지도 / 민원 / 나의 경로 / 마이 */
+/** Figma Tab Bar v2 기준 — 4탭: 지도 / 민원 / 이동 기록 / 마이 */
 interface TabItem {
   to: string;
   label: string;
@@ -34,7 +34,10 @@ const TABS: TabItem[] = [
     icon: (
       // 느낌표 말풍선
       <svg viewBox="0 0 24 24" className="h-6 w-6">
-        <path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-6l-4 3.5V17H6a2 2 0 0 1-2-2V6Z" {...stroke} />
+        <path
+          d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-6l-4 3.5V17H6a2 2 0 0 1-2-2V6Z"
+          {...stroke}
+        />
         <path d="M12 7.5V11" {...stroke} />
         <path d="M12 13.8v.01" {...stroke} strokeWidth={2.4} />
       </svg>
@@ -42,13 +45,17 @@ const TABS: TabItem[] = [
   },
   {
     to: '/history',
-    label: '나의 경로',
+    label: '이동 기록',
     icon: (
       // 경로 (점-곡선-점)
       <svg viewBox="0 0 24 24" className="h-6 w-6">
         <circle cx="6" cy="18" r="2.2" {...stroke} />
         <circle cx="18" cy="6" r="2.2" {...stroke} />
-        <path d="M8 16.5c3-1 2.5-4 5-6 1.2-1 2.2-1.6 3.2-2.6" {...stroke} strokeDasharray="0.1 3.2" />
+        <path
+          d="M8 16.5c3-1 2.5-4 5-6 1.2-1 2.2-1.6 3.2-2.6"
+          {...stroke}
+          strokeDasharray="0.1 3.2"
+        />
       </svg>
     ),
   },

@@ -34,7 +34,7 @@ interface StationSheetProps {
 
 /**
  * 마커를 탭했을 때 07 위에 얹는 대여소 시트.
- * 요약만 보다가 위로 끌면 예상 대수 추이 그래프가 나온다(2-1).
+ * 요약만 보다가 위로 끌면 예상 대수 타임라인이 나온다(2-1).
  * 예상 대수는 목록이 아니라 **상세 API**에만 있어서, 확장했을 때만 그 대여소 하나를 부른다.
  */
 export function StationSheet({
@@ -98,7 +98,7 @@ export function StationSheet({
       onDraggingChange={setDragging}
     >
       {shown === null ? null : (
-        <div className="flex flex-col gap-4 pb-4">
+        <div className={showDetail ? 'flex flex-col gap-3 pb-4' : 'flex flex-col gap-1'}>
           <div className="flex items-center justify-between gap-3 py-1">
             <div className="min-w-0">
               <p className="truncate text-base font-semibold text-gray-900">{shown.name}</p>
@@ -121,6 +121,28 @@ export function StationSheet({
             <StatusBadge status={toStationStatus(currentBikes)} className="shrink-0" />
           </div>
 
+          {!showDetail ? (
+            <button
+              type="button"
+              onClick={() => onSnapChange('half')}
+              className="flex min-h-6 items-center justify-center gap-1 rounded-lg text-xs font-medium text-primary active:bg-primary-light motion-reduce:transition-none"
+            >
+              <span>위로 열어 15분 뒤 예상 대수 보기</span>
+              <svg
+                viewBox="0 0 20 20"
+                aria-hidden="true"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m6 12 4-4 4 4" />
+              </svg>
+            </button>
+          ) : null}
+
           {/*
             peek에서는 그리지 않는다 — 110px는 이름 줄만으로도 거의 차서 버튼이 반쯤 잘려 보인다.
             대신 **드래그가 시작되면 바로** 그려서, 끌어올리는 동안 이 내용이 그대로 따라 올라온다
@@ -131,9 +153,9 @@ export function StationSheet({
                 반납하기
               </Button>
 
-              <h2 className="mt-4 text-[15px] font-semibold text-gray-900">예상 대수</h2>
+              <h2 className="mt-4 text-[15px] font-semibold text-gray-900">예상 자전거 수</h2>
               <p className="mt-1 text-xs text-gray-500">
-                시간대별로 이 대여소에 남아 있을 자전거 대수입니다.
+                현재와 5·10·15분 뒤에 남아 있을 것으로 예상되는 대수입니다.
               </p>
               <div className="mt-4">
                 {forecast.length > 0 ? (

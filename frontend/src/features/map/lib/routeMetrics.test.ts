@@ -36,6 +36,7 @@ describe('summarizeRoute', () => {
       index: 2,
       type: 'UPHILL',
       totalSec: 500, // 150 + 200 + 150
+      totalDistanceM: 896,
       walkSec: 300, // 도보 두 구간
       ascentM: 0, // 기본 고정 데이터는 평지
       expectedBikeCnt: undefined,

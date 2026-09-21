@@ -19,6 +19,8 @@ export interface RouteSummary {
   type: RouteType;
   /** 총 소요 시간(초) */
   totalSec: number;
+  /** 총 이동 거리(m). 오래된 테스트·목업 요약은 없을 수 있다 */
+  totalDistanceM?: number;
   /** 도보 구간 합(초) */
   walkSec: number;
   /** 누적 상승(m) — 좌표를 따라가며 올라가는 구간만 더한 값 */
@@ -50,6 +52,7 @@ export function summarizeRoute(route: RouteCandidate, index: number): RouteSumma
     index,
     type: route.type,
     totalSec: route.totalTime,
+    totalDistanceM: route.totalDistance,
     walkSec,
     ascentM: totalAscent(route),
     expectedBikeCnt: route.expectedBikeCnt,

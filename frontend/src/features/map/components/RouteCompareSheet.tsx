@@ -6,6 +6,7 @@ import { Chip } from '@/shared/ui/Chip';
 import { toStationStatus, type StationStatus } from '@/shared/ui/stationStatus';
 import { ROUTE_TYPE_STYLE } from '@/features/map/lib/routeTypeStyle';
 import { formatBikes } from '@/features/map/lib/bikeCount';
+import { formatDistance } from '@/shared/lib/format';
 import {
   bikesSortBlock,
   formatArrival,
@@ -47,7 +48,13 @@ const BIKES_TEXT_CLASS: Record<StationStatus, string> = {
   unknown: 'text-gray-500',
 };
 
-const START_LABEL = '바로 안내 시작';
+const START_LABEL = '이 경로로 안내 시작';
+
+const ROUTE_CARD_LABEL: Record<RouteType, string> = {
+  BIKE: '일반 경로',
+  UPHILL: '오르막 적은 경로',
+  WALK: '도보 경로',
+};
 
 interface RouteCompareSheetProps {
   open: boolean;
@@ -124,9 +131,13 @@ export function RouteCompareSheet({
       ) : (
         <div className="flex flex-col gap-3 pb-4">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-lg font-semibold text-gray-900">
-              추천 경로 <span className="tabular-nums">{summaries.length}</span>개
-            </p>
+            <div>
+              <p className="text-lg font-semibold text-gray-900">경로 비교</p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                <span className="tabular-nums">{summaries.length}</span>개 경로 중 하나를
+                선택하세요.
+              </p>
+            </div>
             <div className="flex gap-1.5">
               {SORT_ORDER.map((kind) => {
                 const blocked = kind === 'bikes' ? bikesBlock : null;
@@ -155,10 +166,16 @@ export function RouteCompareSheet({
                 summary={summary}
                 selected={summary.index === selectedIndex}
                 onSelect={() => onSelect(summary.index)}
-                onStart={() => onStart(summary.index)}
               />
             ))}
           </ul>
+          <Button
+            full
+            disabled={selected === null}
+            onClick={() => selected && onStart(selected.index)}
+          >
+            {START_LABEL}
+          </Button>
         </div>
       )}
     </BottomSheet>
@@ -205,7 +222,7 @@ function GentleSlopeIcon() {
 
 /** 후보 종류 라벨 — 서버가 준 `type` 그대로 */
 function TypePill({ type }: { type: RouteType }) {
-  const { label, dotClass, pillClass } = ROUTE_TYPE_STYLE[type];
+  const { dotClass, pillClass } = ROUTE_TYPE_STYLE[type];
   const visualClass = type === 'UPHILL' ? 'bg-primary-light text-primary' : pillClass;
 
   return (
@@ -219,7 +236,7 @@ function TypePill({ type }: { type: RouteType }) {
       ) : (
         <span aria-hidden className={`h-1 w-3 rounded-full ${dotClass}`} />
       )}
-      {label}
+      {ROUTE_CARD_LABEL[type]}
     </span>
   );
 }
@@ -238,55 +255,54 @@ interface RouteCardProps {
   summary: RouteSummary;
   selected: boolean;
   onSelect: () => void;
-  onStart: () => void;
 }
 
-/** 후보 한 장. 카드 어디를 눌러도 선택되고, 버튼은 선택한 경로로 안내를 시작한다 */
-function RouteCard({ summary, selected, onSelect, onStart }: RouteCardProps) {
+/** 후보 한 장. 카드는 경로 선택만 담당하고 안내 시작은 시트 아래 공통 버튼이 담당한다. */
+function RouteCard({ summary, selected, onSelect }: RouteCardProps) {
   return (
     <li>
-      <div
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         aria-pressed={selected}
         onClick={onSelect}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onSelect();
-          }
-        }}
-        className={`flex flex-col gap-2 rounded-2xl border p-4 transition-[background-color,border-color] duration-150 ${
+        className={`flex w-full flex-col gap-2 rounded-2xl border p-4 text-left transition-[background-color,border-color] duration-150 motion-reduce:transition-none ${
           selected
-            ? 'border-primary bg-primary-light'
+            ? 'border-primary bg-primary-light ring-1 ring-primary/20'
             : 'border-gray-200 bg-surface active:bg-gray-50'
         }`}
       >
-        <div>
+        <div className="flex items-center justify-between gap-2">
           <TypePill type={summary.type} />
+          {selected ? (
+            <span className="text-xs font-semibold text-primary">선택됨</span>
+          ) : (
+            <span className="text-xs text-gray-400">선택</span>
+          )}
         </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold tabular-nums text-gray-900">
-            {formatSecondsAsMinutes(summary.totalSec)}
-          </span>
-          <ExpectedBikes count={summary.expectedBikeCnt} className="text-sm" />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-xs text-gray-500">이동 시간</p>
+            <p className="mt-0.5 text-2xl font-bold tabular-nums text-gray-900">
+              {formatSecondsAsMinutes(summary.totalSec)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">도착 예상</p>
+            {summary.expectedBikeCnt === undefined ? (
+              <p className="mt-1 text-sm font-semibold text-gray-400">정보 없음</p>
+            ) : (
+              <ExpectedBikes count={summary.expectedBikeCnt} className="mt-0.5 block text-lg" />
+            )}
+          </div>
         </div>
         <p className="text-sm text-gray-500">
-          오르막 <span className="tabular-nums">{summary.ascentM}</span>m · 도보{' '}
-          {formatSecondsAsMinutes(summary.walkSec)}
+          {summary.totalDistanceM === undefined
+            ? '거리 정보 없음'
+            : formatDistance(summary.totalDistanceM)}{' '}
+          · 오르막 <span className="tabular-nums">{summary.ascentM}</span>m · 도보{' '}
+          <span className="tabular-nums">{formatSecondsAsMinutes(summary.walkSec)}</span>
         </p>
-        <Button
-          full
-          variant={selected ? 'primary' : 'line'}
-          onClick={(e) => {
-            // 카드 선택과 겹치지 않게 — 버튼은 안내 시작만
-            e.stopPropagation();
-            onStart();
-          }}
-        >
-          {START_LABEL}
-        </Button>
-      </div>
+      </button>
     </li>
   );
 }
@@ -309,8 +325,8 @@ function PeekSummary({ summary, fetchedAt, onStart }: PeekSummaryProps) {
           <ExpectedBikes count={summary.expectedBikeCnt} className="text-sm" />
         </div>
         <p className="mt-0.5 truncate text-xs text-gray-500">
-          {ROUTE_TYPE_STYLE[summary.type].label} 경로 ·{' '}
-          {formatArrival(fetchedAt, summary.totalSec)} 도착
+          {ROUTE_TYPE_STYLE[summary.type].label} 경로 · {formatArrival(fetchedAt, summary.totalSec)}{' '}
+          도착
         </p>
       </div>
       <Button onClick={onStart} className="shrink-0">

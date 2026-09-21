@@ -144,11 +144,11 @@ export function RouteGuideCard({
             )}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-lg font-bold text-gray-900">
+            <p className="line-clamp-2 text-lg leading-snug font-bold text-gray-900">
               {nextCue === null ? legText : nextCue.cue.maneuver.instruction}
             </p>
             {nextCue === null ? null : (
-              <p className="mt-0.5 text-sm font-semibold tabular-nums text-gray-600">
+              <p className="mt-1 text-base font-bold tabular-nums text-primary">
                 {formatDistance(nextCue.remainingM)} 앞
               </p>
             )}
@@ -159,11 +159,12 @@ export function RouteGuideCard({
               aria-label={voiceOn ? '음성 안내 끄기' : '음성 안내 켜기'}
               aria-pressed={voiceOn}
               onClick={onToggleVoice}
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-[background-color,color] duration-75 active:scale-95 ${
+              className={`flex min-h-12 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl transition-[background-color,color] duration-75 active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100 ${
                 voiceOn ? 'bg-primary-light text-primary' : 'bg-gray-100 text-gray-400'
               }`}
             >
               <VoiceIcon on={voiceOn} />
+              <span className="text-[10px] font-semibold">{voiceOn ? '음성 켬' : '음성 끔'}</span>
             </button>
           ) : null}
         </div>
@@ -182,7 +183,9 @@ export function RouteGuideCard({
           <p className="mt-2 text-xs text-primary">경로를 벗어나 다시 찾는 중입니다…</p>
         ) : null}
         {locationUnknown ? (
-          <p className="mt-2 text-xs text-gray-500">현재 위치를 받지 못해 출발 기준으로 보여 줍니다.</p>
+          <p className="mt-2 text-xs text-gray-500">
+            현재 위치를 받지 못해 출발 기준으로 보여 줍니다.
+          </p>
         ) : null}
       </div>
     </div>
