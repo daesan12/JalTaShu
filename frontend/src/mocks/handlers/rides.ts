@@ -9,6 +9,105 @@ import { STATIONS } from '@/mocks/stations';
 
 const USAGE_COUNT = 12;
 
+/**
+ * QR 대여·반납으로 **이번 세션에 실제로 만들어진** 이용 기록.
+ * 씨앗 기록 12건과 달리 사용자의 조작에서 나오므로 따로 쌓고, 목록·상세에서 앞에 붙인다.
+ * usageId는 씨앗과 겹치지 않게 USAGE_COUNT 위에서 센다.
+ */
+const LIVE_USAGES_KEY = 'msw_live_usages';
+
+interface LiveUsage {
+  usageId: number;
+  cycleId: string;
+  startingDate: string;
+  totalDuration: number;
+  startingPoint: { latitude: number; longitude: number };
+  endPoint: { latitude: number; longitude: number };
+  /** 안내 도착 저장(POST /cycle/usage)이 붙기 전에는 null */
+  road: UsagePathPoint[] | null;
+  totalDistance: number | null;
+  bikeDistance: number | null;
+}
+
+interface UsagePathPoint {
+  latitude: number;
+  longitude: number;
+  altitude: number;
+  travelStatus: string;
+  seq: number;
+}
+
+function readLiveUsages(): LiveUsage[] {
+  try {
+    const raw = localStorage.getItem(LIVE_USAGES_KEY);
+    if (raw === null) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? (parsed as LiveUsage[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLiveUsages(list: LiveUsage[]) {
+  try {
+    localStorage.setItem(LIVE_USAGES_KEY, JSON.stringify(list));
+  } catch {
+    // 저장 불가 환경 무시
+  }
+}
+
+interface AddMockUsageInput {
+  cycleId: string;
+  stationId: string | undefined;
+  rentedAt: string;
+  returnedAt: string;
+}
+
+/**
+ * 반납 시 이용 기록 한 건을 만든다(`/api/cycle/return`에서 호출).
+ * 대여 대여소는 요청에 없어(실서버도 자전거 위치로 서버가 안다) 반납 대여소를 양쪽에 쓴다 —
+ * 안내 도착 저장이 붙으면 경로의 처음·끝 좌표로 덮어써 제자리가 된다.
+ */
+export function addMockUsage({ cycleId, stationId, rentedAt, returnedAt }: AddMockUsageInput) {
+  const station = STATIONS.find((s) => s.stationId === stationId) ?? STATIONS[0];
+  const point = { latitude: station.lat, longitude: station.lng };
+  const list = readLiveUsages();
+  const nextId = Math.max(USAGE_COUNT, ...list.map((u) => u.usageId)) + 1;
+  list.push({
+    usageId: nextId,
+    cycleId,
+    startingDate: rentedAt,
+    totalDuration: Math.max(
+      60,
+      Math.round((new Date(returnedAt).getTime() - new Date(rentedAt).getTime()) / 1000),
+    ),
+    startingPoint: point,
+    endPoint: point,
+    road: null,
+    totalDistance: null,
+    bikeDistance: null,
+  });
+  writeLiveUsages(list);
+}
+
+/**
+ * 안내 도착 저장을 **가장 최근에 반납한 기록**에 붙인다 — 실서버와 같은 규칙.
+ * 붙일 기록이 없으면 아무것도 하지 않는다(목업은 그 경우에도 저장을 거절하지 않는다).
+ */
+function attachMockPath(road: UsagePathPoint[], totalDistance: number, bikeDistance: number) {
+  const list = readLiveUsages();
+  const target = [...list].reverse().find((u) => u.road === null);
+  if (target === undefined || road.length === 0) return;
+  const sorted = [...road].sort((a, b) => a.seq - b.seq);
+  target.road = sorted;
+  target.totalDistance = totalDistance;
+  target.bikeDistance = bikeDistance;
+  target.startingPoint = { latitude: sorted[0].latitude, longitude: sorted[0].longitude };
+  const last = sorted[sorted.length - 1];
+  target.endPoint = { latitude: last.latitude, longitude: last.longitude };
+  writeLiveUsages(list);
+}
+
 function stationPoint(index: number) {
   const station = STATIONS[index % STATIONS.length];
   return { latitude: station.lat, longitude: station.lng };
@@ -89,6 +188,7 @@ export const rideHandlers = [
     const bike = body.bikeDistance ?? 0;
     if (total < 0 || bike < 0) return fail(400, '거리는 0보다 작을 수 없습니다.');
     if (bike > total) return fail(400, '자전거 거리는 전체 거리보다 클 수 없습니다.');
+    attachMockPath(body.pathInfo.road as UsagePathPoint[], total, bike);
     return HttpResponse.json(ok(null));
   }),
 
@@ -97,8 +197,14 @@ export const rideHandlers = [
     await delay(300);
     const authFail = requireAuth();
     if (authFail) return authFail;
+    // 이번 세션에 만든 기록도 더해야 반납할 때마다 숫자가 움직인다
+    const live = readLiveUsages();
     return HttpResponse.json(
-      ok({ totalUseCnt: 42, totalDistance: 128_400, totalCycleRidingTime: 58_320 }),
+      ok({
+        totalUseCnt: 42 + live.length,
+        totalDistance: 128_400 + live.reduce((sum, u) => sum + (u.totalDistance ?? 0), 0),
+        totalCycleRidingTime: 58_320 + live.reduce((sum, u) => sum + u.totalDuration, 0),
+      }),
     );
   }),
 
@@ -107,8 +213,20 @@ export const rideHandlers = [
     await delay(300);
     const authFail = requireAuth();
     if (authFail) return authFail;
-    const list = Array.from({ length: USAGE_COUNT }, (_, i) => usageSeed(USAGE_COUNT - i));
-    return HttpResponse.json(ok(list));
+    const seeded = Array.from({ length: USAGE_COUNT }, (_, i) => usageSeed(USAGE_COUNT - i));
+    // 방금 반납한 기록이 맨 위에 온다
+    const live = readLiveUsages()
+      .slice()
+      .reverse()
+      .map(({ usageId, cycleId, startingDate, totalDuration, startingPoint, endPoint }) => ({
+        usageId,
+        cycleId,
+        startingDate,
+        totalDuration,
+        startingPoint,
+        endPoint,
+      }));
+    return HttpResponse.json(ok([...live, ...seeded]));
   }),
 
   http.get('/api/cycle/usage/:usageId', async ({ params }) => {
@@ -116,6 +234,28 @@ export const rideHandlers = [
     const authFail = requireAuth();
     if (authFail) return authFail;
     const usageId = Number(params.usageId);
+    const live = readLiveUsages().find((u) => u.usageId === usageId);
+    if (live !== undefined) {
+      const startMs = new Date(live.startingDate).getTime();
+      return HttpResponse.json(
+        ok({
+          usageId: live.usageId,
+          cycleId: live.cycleId,
+          startingDate: live.startingDate,
+          totalDuration: live.totalDuration,
+          startingPoint: live.startingPoint,
+          endPoint: live.endPoint,
+          totalDistance: live.totalDistance,
+          averageCycleRidingSpeed:
+            live.bikeDistance === null || live.totalDuration === 0
+              ? null
+              : Math.round((live.bikeDistance / 1000 / (live.totalDuration / 3600)) * 10) / 10,
+          pathInfo: live.road === null ? null : { road: live.road },
+          cycleRidingStartTime: new Date(startMs).toISOString(),
+          cycleRidingEndTime: new Date(startMs + live.totalDuration * 1000).toISOString(),
+        }),
+      );
+    }
     if (!Number.isInteger(usageId) || usageId < 1 || usageId > USAGE_COUNT) {
       return fail(404, '존재하지 않는 이동 기록입니다.');
     }

@@ -39,3 +39,10 @@ export const PICK_PARAM = 'pick';
  */
 export const FIELD_PARAM = 'field';
 export const START_FIELD_VALUE = 'start';
+
+/**
+ * QR 스캔에서 돌아올 때 실린 자전거 번호(`/?code=22B01262`).
+ * 다른 파라미터와 달리 화면 단계가 아니라 **한 번 처리하고 지우는 일회성 입력**이다 —
+ * 남겨 두면 뒤로가기나 새로고침으로 같은 대여가 다시 나간다.
+ */
+export const CODE_PARAM = 'code';
