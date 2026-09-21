@@ -73,6 +73,28 @@ describe('buildRouteCues', () => {
     expect(cues.every((cue) => cue.legIndex === 0)).toBe(true);
   });
 
+  it('구간 경계에서 겹치는 depart를 버린다 — 대여소 안내가 "출발하세요"에 끊기면 안 된다', () => {
+    const twoLegs = makeRoute({
+      legs: [
+        makeSteppedLeg('WALK', [
+          { from: 0, to: 2, maneuver: DEPART },
+          { from: 2, to: 4, maneuver: ARRIVE },
+        ]),
+        makeSteppedLeg('BICYCLE', [
+          { from: 4, to: 7, maneuver: DEPART },
+          { from: 7, to: 10, maneuver: ARRIVE },
+        ]),
+      ],
+    });
+    const cues = buildRouteCues(twoLegs);
+    // 첫 구간의 depart만 남는다. 두 번째 depart는 앞 구간 arrive와 좌표가 같아 겹쳐 터진다
+    expect(cues.map((cue) => [cue.legIndex, cue.maneuver.type])).toEqual([
+      [0, 'depart'],
+      [0, 'arrive'],
+      [1, 'arrive'],
+    ]);
+  });
+
   it('좌표가 모자라면 빈 배열', () => {
     const empty = makeRoute({ legs: [] });
     expect(buildRouteCues(empty)).toEqual([]);

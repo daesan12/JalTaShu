@@ -14,6 +14,11 @@ export const STORAGE_KEYS = {
   settings: 'app_settings',
   /** 07-1 공지 팝업 "7일간 보지 않기" — 다시 띄워도 되는 시각(ms) */
   noticePopupHiddenUntil: 'notice_popup_hidden_until',
+  /**
+   * 12 안내 음성을 **끈 적이 있는지**. 기본값은 켜짐이라 "껐다"만 저장한다
+   * — 키가 없으면 켜짐이므로 처음 쓰는 사람도, 저장소를 지운 사람도 음성이 나온다.
+   */
+  guideVoiceOff: 'guide_voice_off',
 } as const;
 
 /**
