@@ -70,7 +70,7 @@ class BikeStationServiceTest {
         when(realtime.findAll(List.of(station))).thenReturn(Map.of("ST0001", current("ST0001", "36.3500")));
         var point = new BikeStationForecastPoint(OffsetDateTime.parse("2026-09-18T12:35:00+09:00"),
                 new BigDecimal("3.2"), new BigDecimal("0.125"));
-        when(predictions.findNext15Minutes("ST0001")).thenReturn(List.of(point));
+        when(predictions.findNext60Minutes("ST0001")).thenReturn(List.of(point));
 
         var result = service.detail("ST0001");
 
