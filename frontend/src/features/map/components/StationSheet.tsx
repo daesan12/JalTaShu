@@ -12,6 +12,16 @@ import { StationForecastChart } from '@/features/map/components/StationForecastC
 /** 대여소 시트는 두 단계만 쓴다 — 요약(peek) ↔ 대수 추이가 보이는 확장(half) */
 export type StationSnap = 'peek' | 'half';
 
+/**
+ * 관측 시각이 이보다 오래되면 **실시간이 끊긴 대여소**로 보고 언제 값인지 밝힌다.
+ *
+ * 수집기가 45초마다 전체 스냅샷을 갈아끼우므로 정상 대여소는 이 선을 넘지 않는다.
+ * 넘는 건 최신 스냅샷에서 빠져 백엔드가 마지막 성공값으로 채워 준 대여소뿐이고,
+ * 그런 대여소는 보통 몇 시간에서 며칠씩 밀려 있어 경계가 넉넉하다.
+ * 백엔드가 둘을 구분해 주지 않아(둘 다 `time` 하나로 온다) 시각을 보고 판단한다.
+ */
+const STALE_AFTER_MS = 2 * 60 * 1000;
+
 interface StationSheetProps {
   /** null이면 닫힌 상태 */
   station: BikeStation | null;
@@ -44,6 +54,7 @@ export function StationSheet({
 
   const {
     data: detail,
+    dataUpdatedAt: detailReceivedAt,
     isPending: detailPending,
     isError: detailFailed,
   } = useQuery({
@@ -62,7 +73,20 @@ export function StationSheet({
   const forecast = detail?.futureData ?? [];
   // 상세를 이미 받았으면 그쪽 대수가 더 최신이다
   const currentBikes = detail?.currentBikes ?? shown?.currentBikes ?? null;
-  const measuredAt = detail?.updatedAt ?? shown?.updatedAt ?? null;
+
+  /*
+   * 평소에는 시각을 붙이지 않는다 — 대부분의 대여소는 방금 받은 값이라 알려 봤자 소음이고,
+   * 지도의 갱신 배지가 이미 "언제 받아왔는지"를 말해 준다.
+   * 실시간이 끊겨 옛 값이 그대로 오는 대여소에서만 "N분 전 데이터"로 밝힌다.
+   *
+   * 얼마나 뒤처졌는지는 "지금"이 아니라 **응답을 받은 시각**과 견준다. 렌더 도중 Date.now()를
+   * 부르면 다시 그릴 때마다 판정이 흔들리고, 서버가 준 두 시각을 비교하는 편이 뜻에도 맞다.
+   */
+  const measuredAt = detail?.updatedAt ?? null;
+  const staleAt =
+    measuredAt !== null && detailReceivedAt - Date.parse(measuredAt) >= STALE_AFTER_MS
+      ? measuredAt
+      : null;
 
   return (
     <BottomSheet
@@ -88,9 +112,9 @@ export function StationSheet({
                     대
                   </>
                 )}
-                {/* 이 대수가 몇 시 기준인지 — 서버가 준 관측 시각(time)이다 */}
-                {measuredAt === null ? null : (
-                  <span className="text-gray-400"> · {formatTimeAgo(measuredAt)} 기준</span>
+                {/* 실시간이 끊긴 대여소에서만 — 이 대수가 언제 값인지 밝힌다 */}
+                {staleAt === null ? null : (
+                  <span className="text-gray-400"> · {formatTimeAgo(staleAt)} 데이터</span>
                 )}
               </p>
             </div>
