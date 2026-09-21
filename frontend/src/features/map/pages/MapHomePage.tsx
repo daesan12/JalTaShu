@@ -399,6 +399,8 @@ export function MapHomePage() {
 
       <CycleRentSheet
         open={rental.rentSheetOpen}
+        stations={stations}
+        ensureLocation={location.ensure}
         onClose={rental.closeRentSheet}
         onRented={() => showToast('대여가 완료됐습니다. 안전하게 이용해 주세요.')}
       />
@@ -406,6 +408,8 @@ export function MapHomePage() {
       <CycleReturnSheet
         open={rental.returnSheetOpen}
         stationId={rental.returnStationId}
+        stations={stations}
+        ensureLocation={location.ensure}
         onClose={rental.closeReturnSheet}
         onReturned={() => showToast('반납이 완료됐습니다.')}
       />
