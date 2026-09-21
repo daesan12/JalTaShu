@@ -1,17 +1,22 @@
 import { useEffect, useRef } from 'react';
 import type { RouteCandidate } from '@/shared/api/types';
 import { osrmToLatLng } from '@/shared/lib/coords';
+import {
+  DESTINATION_PIN_FILL,
+  PIN_HEIGHT,
+  PIN_WIDTH,
+  START_PIN_FILL,
+  pinSvg,
+} from '@/features/map/lib/mapPins';
 import { routeLatLngs } from '@/features/map/lib/routeSegments';
 
-const START_PIN_WIDTH = 42;
-const START_PIN_HEIGHT = 52;
 const STATION_MARKER_SIZE = 38;
 
-const START_BLUE = '#2563EB';
 const STATION_GREEN = '#4C8A12';
 
-/** 출발은 파란색 핀과 흰색 중심점만 표시한다. */
-const START_PIN = `<svg viewBox="0 0 42 52" width="${START_PIN_WIDTH}" height="${START_PIN_HEIGHT}" aria-hidden="true" style="filter:drop-shadow(0 2px 3px rgb(0 0 0 / 0.28))"><path d="M21 51S4 35.2 4 20.5C4 11.4 11.6 4 21 4s17 7.4 17 16.5C38 35.2 21 51 21 51Z" fill="${START_BLUE}" stroke="#fff" stroke-width="2.5"/><circle cx="21" cy="20" r="5" fill="#fff"/></svg>`;
+/** 출발은 파란 핀, 목적지는 검은 핀 — 목적지 핀과 모양을 공유한다(`lib/mapPins`) */
+const START_PIN = pinSvg(START_PIN_FILL);
+const DESTINATION_PIN = pinSvg(DESTINATION_PIN_FILL);
 
 /** 두 대여소 마커가 같은 자전거 형태를 공유하고 채움/선 색만 달라지게 한다. */
 function stationMarker(fill: string, stroke: string, bike: string): string {
@@ -27,6 +32,11 @@ interface RouteLandmarkMarkersProps {
   map: naver.maps.Map;
   /** 선택된 경로가 없으면 마커를 모두 지운다. */
   route: RouteCandidate | null;
+  /**
+   * 경로 끝에 목적지 핀을 함께 찍는다.
+   * 메인 지도는 `DestinationMarker`가 따로 찍으므로 기본은 꺼 둔다 — 켜면 핀이 둘 겹친다.
+   */
+  showDestination?: boolean;
 }
 
 interface Landmark {
@@ -39,7 +49,11 @@ interface Landmark {
 }
 
 /** 선택 경로 위에 출발점·대여소·반납소를 글자 없는 아이콘으로 표시한다. */
-export function RouteLandmarkMarkers({ map, route }: RouteLandmarkMarkersProps) {
+export function RouteLandmarkMarkers({
+  map,
+  route,
+  showDestination = false,
+}: RouteLandmarkMarkersProps) {
   const markersRef = useRef<naver.maps.Marker[]>([]);
 
   useEffect(() => {
@@ -48,7 +62,8 @@ export function RouteLandmarkMarkers({ map, route }: RouteLandmarkMarkersProps) 
     markers.length = 0;
     if (route === null) return;
 
-    const start = routeLatLngs(route)[0];
+    const latLngs = routeLatLngs(route);
+    const start = latLngs[0];
     if (start === undefined) return;
 
     const landmarks: Landmark[] = [
@@ -56,11 +71,23 @@ export function RouteLandmarkMarkers({ map, route }: RouteLandmarkMarkersProps) 
         position: start,
         title: '출발',
         content: START_PIN,
-        width: START_PIN_WIDTH,
-        height: START_PIN_HEIGHT,
-        anchor: new naver.maps.Point(START_PIN_WIDTH / 2, START_PIN_HEIGHT),
+        width: PIN_WIDTH,
+        height: PIN_HEIGHT,
+        anchor: new naver.maps.Point(PIN_WIDTH / 2, PIN_HEIGHT),
       },
     ];
+
+    const end = latLngs[latLngs.length - 1];
+    if (showDestination && end !== undefined) {
+      landmarks.push({
+        position: end,
+        title: '도착',
+        content: DESTINATION_PIN,
+        width: PIN_WIDTH,
+        height: PIN_HEIGHT,
+        anchor: new naver.maps.Point(PIN_WIDTH / 2, PIN_HEIGHT),
+      });
+    }
 
     if (route.startStation !== null) {
       landmarks.push({
@@ -100,7 +127,7 @@ export function RouteLandmarkMarkers({ map, route }: RouteLandmarkMarkersProps) 
         }),
       );
     }
-  }, [map, route]);
+  }, [map, route, showDestination]);
 
   useEffect(() => {
     const markers = markersRef.current;
