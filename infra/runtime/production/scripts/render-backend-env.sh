@@ -66,6 +66,10 @@ if [[ ${admin_bootstrap_enabled} != true && ${admin_bootstrap_enabled} != false 
   echo 'ADMIN_BOOTSTRAP_ENABLED는 true 또는 false여야 합니다.' >&2
   exit 1
 fi
+if [[ ${admin_bootstrap_enabled} == true && ${#admin_bootstrap_password} -lt 12 ]]; then
+  echo 'production 관리자 초기 비밀번호는 12자 이상이어야 합니다.' >&2
+  exit 1
+fi
 
 temporary_file="$(mktemp "${secret_dir}/.runtime.env.XXXXXX")"
 trap 'rm -f "${temporary_file:-}"; unset kakao_rest_api_key kakao_client_secret jwt_secret jwt_access_expires jwt_refresh_expires redis_password naver_client_id naver_client_secret admin_bootstrap_enabled admin_bootstrap_id admin_bootstrap_password mysql_password' EXIT

@@ -98,6 +98,10 @@ AI 예측 조회용 Redis DB 2를 사용한다. OSRM 세 컨테이너는 `tashu-
 /etc/tashu/backend-common/admin-bootstrap.env
 ```
 
+공개 production에서 초기 관리자 생성이 활성화된 경우 비밀번호는 12자 이상이어야 한다.
+초기 계정 생성과 로그인 검증이 끝나면 `ADMIN_BOOTSTRAP_ENABLED=false`로 바꾸고 다음
+Backend 배포에서 runtime 환경파일을 다시 생성한다.
+
 ## 수동 검증
 
 ```bash
