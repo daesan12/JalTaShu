@@ -10,10 +10,16 @@ const PIN_WIDTH = 42;
 const PIN_HEIGHT = 52;
 
 /**
- * 목적지 핀 — 검정색과 흰색 중심점만 사용해 지도 글자와 겹치지 않게 한다.
+ * 목적지 핀 색 — 출발(검정, `RouteLandmarkMarkers`)과 짝을 이룬다.
+ * 출발과 도착이 같은 화면에 함께 뜨므로 색으로 구분한다.
+ */
+const DESTINATION_BLUE = '#2563EB';
+
+/**
+ * 목적지 핀 — 색과 흰색 중심점만 쓰고 글자는 넣지 않아 지도 글자와 겹치지 않게 한다.
  * 네이버 마커 content는 DOM 문자열/요소만 받으므로 정적 SVG 문자열을 쓴다.
  */
-const PIN_SVG = `<svg viewBox="0 0 42 52" width="${PIN_WIDTH}" height="${PIN_HEIGHT}" aria-hidden="true" style="filter:drop-shadow(0 2px 3px rgb(0 0 0 / 0.28))"><path d="M21 51S4 35.2 4 20.5C4 11.4 11.6 4 21 4s17 7.4 17 16.5C38 35.2 21 51 21 51Z" fill="#18181B" stroke="#fff" stroke-width="2.5"/><circle cx="21" cy="20" r="5" fill="#fff"/></svg>`;
+const PIN_SVG = `<svg viewBox="0 0 42 52" width="${PIN_WIDTH}" height="${PIN_HEIGHT}" aria-hidden="true" style="filter:drop-shadow(0 2px 3px rgb(0 0 0 / 0.28))"><path d="M21 51S4 35.2 4 20.5C4 11.4 11.6 4 21 4s17 7.4 17 16.5C38 35.2 21 51 21 51Z" fill="${DESTINATION_BLUE}" stroke="#fff" stroke-width="2.5"/><circle cx="21" cy="20" r="5" fill="#fff"/></svg>`;
 
 interface DestinationMarkerProps {
   map: naver.maps.Map;
