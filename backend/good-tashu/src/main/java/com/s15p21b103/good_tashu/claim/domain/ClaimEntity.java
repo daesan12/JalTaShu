@@ -1,5 +1,7 @@
-package com.s15p21b103.good_tashu.cycle.domain;
+package com.s15p21b103.good_tashu.claim.domain;
 
+import com.s15p21b103.good_tashu.cycle.domain.CycleEntity;
+import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,18 +16,26 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@Table(name = "cycle_claims")
-public class CycleClaimEntity  {
+@Table(name = "claims")
+public class ClaimEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "cycle_claim_id")
-    private Long id;
+    @Column(name = "claim_id")
+    private Long claimId;
+
+    @Column(name="type", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private ClaimType claimType;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "cycle_usage_id", nullable = false)
-    private CycleUsageEntity cycleUsageEntity;
+    @JoinColumn(name = "user_id", nullable = false)
+    private UserEntity userEntity;
 
-    @Column(name = "category", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cycle_id")
+    private CycleEntity cycleEntity;
+
+    @Column(name = "category", nullable = true)
     @Enumerated(EnumType.STRING)
     private ClaimCategory claimCategory;
 

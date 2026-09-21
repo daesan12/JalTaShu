@@ -68,7 +68,9 @@ public class AdminController {
 
     private ResponseCookie refreshCookie(String token, long maxAge) {
         return ResponseCookie.from("admin_refresh_token", token).httpOnly(true)
-                .secure(jwtProperties.secure()).sameSite("Lax").path("/api/admin")
+                .secure(jwtProperties.secure())
+                .sameSite(jwtProperties.cookieSameSite())
+                .path("/api/admin")
                 .maxAge(maxAge).build();
     }
 

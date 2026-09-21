@@ -3,6 +3,7 @@ package com.s15p21b103.good_tashu._util.exception;
 import com.s15p21b103.good_tashu._util.response.ApiResponse;
 import com.s15p21b103.good_tashu.map.exception.MapException;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
+import com.s15p21b103.good_tashu.claim.exception.ClaimException;
 import com.s15p21b103.good_tashu.notice.exception.NoticeException;
 import com.s15p21b103.good_tashu.user.exception.UserException;
 import com.s15p21b103.good_tashu.fcm.exception.FcmException;
@@ -26,6 +27,11 @@ public class GlobalExceptionHandler {
         for (Throwable cause = e; cause != null; cause = cause.getCause()) {
             if (cause instanceof org.hibernate.exception.ConstraintViolationException violation) {
                 String name = violation.getConstraintName();
+                if (name != null && name.replace("\"", "").replace("`", "")
+                        .matches("(?i)(?:[A-Z0-9_]+\\.)?uk_claim_reports_claim_user(?:_INDEX_[A-Z0-9]+)?(?: INDEX [A-Z0-9_.]+)?")) {
+                    return handleClaimException(new ClaimException(
+                            com.s15p21b103.good_tashu.claim.exception.ClaimErrorCode.ALREADY_REPORTED_CLAIM));
+                }
                 if (name != null && name.replace("\"", "").replace("`", "")
                         .matches("(?i)(?:[A-Z0-9_]+\\.)?uk_paths_cycle_usage_id(?:_INDEX_[A-Z0-9]+)?(?: INDEX [A-Z0-9_.]+)?")) {
                     return handleCycleException(new CycleException(
@@ -89,6 +95,13 @@ public class GlobalExceptionHandler {
         log.warn("Cycle에서 에러 발생: {}", e.getErrorCode().getMessage());
         return ResponseEntity
                 .status(e.getErrorCode().getStatus())
+                .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
+    }
+
+    @ExceptionHandler(ClaimException.class)
+    public ResponseEntity<ApiResponse<Void>> handleClaimException(ClaimException e) {
+        log.warn("제보 요청 오류: {}", e.getErrorCode());
+        return ResponseEntity.status(e.getErrorCode().getStatus())
                 .body(ApiResponse.error(e.getErrorCode().getStatus().value(), e.getErrorCode().getMessage()));
     }
 

@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Duration;
 import java.time.Instant;
 
-@Controller
+@RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
@@ -63,7 +63,7 @@ public class AuthController {
                 .from("refresh_token", result.refreshToken().refreshToken())
                 .httpOnly(true)
                 .secure(jwtProperties.secure())
-                .sameSite("Lax")
+                .sameSite(jwtProperties.cookieSameSite())
                 .path(jwtProperties.cookiePath())
                 .maxAge(maxAgeSeconds)
                 .build();
@@ -111,7 +111,7 @@ public class AuthController {
                 .from("refresh_token", rotated.refreshToken())
                 .httpOnly(true)
                 .secure(jwtProperties.secure())
-                .sameSite("Lax")
+                .sameSite(jwtProperties.cookieSameSite())
                 .path(jwtProperties.cookiePath())
                 .maxAge(maxAgeSeconds)
                 .build();
@@ -146,7 +146,7 @@ public class AuthController {
                 .from("refresh_token", "")
                 .httpOnly(true)
                 .secure(jwtProperties.secure())
-                .sameSite("Lax")
+                .sameSite(jwtProperties.cookieSameSite())
                 .path(jwtProperties.cookiePath())
                 .maxAge(0)
                 .build();

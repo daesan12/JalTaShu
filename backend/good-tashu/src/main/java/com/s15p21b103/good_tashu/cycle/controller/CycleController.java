@@ -2,14 +2,10 @@ package com.s15p21b103.good_tashu.cycle.controller;
 
 import com.s15p21b103.good_tashu._util.response.ApiResponse;
 import com.s15p21b103.good_tashu.cycle.dto.req.*;
-import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimResponse;
-import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimListResponse;
 import com.s15p21b103.good_tashu.cycle.service.CycleService;
-import com.s15p21b103.good_tashu.user.annotation.BlockBanUser;
 import com.s15p21b103.good_tashu.user.annotation.CurrentUserId;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,32 +35,6 @@ public class CycleController {
         LocalDateTime localDateTime = cycleService.returnCycle(userId, request);
         return ApiResponse.success(localDateTime);
     }
-    //자전거 상태제보
-    @BlockBanUser
-    @PostMapping(value = "/claim", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<CycleClaimResponse> claimCycle(@CurrentUserId Long userId,
-                                                  @Valid @ModelAttribute CycleClaimRequest request){
-        CycleClaimResponse response = cycleService.claimCycle(userId, request);
-        return ApiResponse.success(response);
-    }
-    //자전거 제보리스트 조회
-    @GetMapping("/list")
-    public ApiResponse<List<CycleClaimListResponse>> getCycleClaims(
-            @RequestParam(name = "cycleId") String cycleId) {
-        List<CycleClaimListResponse> response = cycleService.getCycleClaims(cycleId);
-        return ApiResponse.success(response);
-    }
-
-    //자전거 상태제보 신고
-    @PostMapping(value = "/claims/{claimId}/reports")
-    public ResponseEntity<ApiResponse<Void>> reportCycleClaim(
-            @CurrentUserId Long userId,
-            @PathVariable(name = "claimId") Long claimId,
-            @Valid @RequestBody CycleClaimReportRequest request) {
-        cycleService.reportCycleClaim(userId, claimId, request.claimCategory());
-        return ResponseEntity.ok(ApiResponse.success("신고가 접수되었습니다."));
-    }
-
     //개인이용내역 전체 통계 조회
     @GetMapping("/statics")
     public ApiResponse<CycleStatisticsResponse> getStatistics(@CurrentUserId Long userId) {
