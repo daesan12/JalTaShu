@@ -152,7 +152,7 @@ class CycleControllerTest {
 
     @Test
     void reportBindsUserClaimIdAndJsonEnum() throws Exception {
-        mvc.perform(post("/api/claim/claims/10/reports")
+        mvc.perform(post("/api/claim/10/report")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"claimCategory\":\"ABUSE\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("신고가 접수되었습니다."));
@@ -161,7 +161,7 @@ class CycleControllerTest {
 
     @Test
     void reportRejectsMissingCategory() throws Exception {
-        mvc.perform(post("/api/claim/claims/10/reports")
+        mvc.perform(post("/api/claim/10/report")
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(cycleService, claimService);
@@ -171,7 +171,7 @@ class CycleControllerTest {
     void reportForMissingClaimReturns404() throws Exception {
         doThrow(new ClaimException(NOT_EXIST_CLAIM_ID)).when(claimService)
                 .reportClaim(1L, 99L, ClaimReportCategory.ABUSE);
-        mvc.perform(post("/api/claim/claims/99/reports")
+        mvc.perform(post("/api/claim/99/report")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"claimCategory\":\"ABUSE\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404));
@@ -181,7 +181,7 @@ class CycleControllerTest {
     void duplicateReportReturns409() throws Exception {
         doThrow(new ClaimException(ALREADY_REPORTED_CLAIM)).when(claimService)
                 .reportClaim(1L, 10L, ClaimReportCategory.ABUSE);
-        mvc.perform(post("/api/claim/claims/10/reports")
+        mvc.perform(post("/api/claim/10/report")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"claimCategory\":\"ABUSE\"}"))
                 .andExpect(status().isConflict());
     }
