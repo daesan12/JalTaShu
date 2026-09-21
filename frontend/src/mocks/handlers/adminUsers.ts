@@ -6,9 +6,21 @@ import { STATIONS } from '@/mocks/stations';
  * 관리자 사용자 목업 — 사용자 30명은 결정적으로 생성하고,
  * 밴 기록만 저장소(user_ban_records 흉내)에 둔다. 상태(NORMAL/BANNED)는
  * 백엔드처럼 "유효한 밴 기록이 있는가"에서 파생한다.
+ *
+ * 시각은 백엔드 LocalDateTime과 같게 오프셋 없는 문자열("2026-09-01T14:32:00")로 준다.
  */
-const ADMIN_USER_BANS_KEY = 'msw_admin_user_bans';
+const ADMIN_USER_BANS_KEY = 'msw_admin_user_bans_v2';
 const ADMIN_USER_COUNT = 30;
+
+/** Date → "2026-09-01T14:32:00" (백엔드 LocalDateTime 직렬화와 동일) */
+function localDateTime(at: number | Date): string {
+  const d = at instanceof Date ? at : new Date(at);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  );
+}
 
 interface MockBanRecord {
   banId: number;
@@ -17,7 +29,7 @@ interface MockBanRecord {
   scheduledEndAt: string;
   releasedAt: string | null;
   comment: string | null;
-  adminName: string;
+  adminId: number;
 }
 
 const USER_NICKNAME_POOL = [
@@ -31,28 +43,43 @@ export function mockUserNickname(userId: number): string {
   return userId <= USER_NICKNAME_POOL.length ? base : `${base}${userId}`;
 }
 
+/** 자전거 ID 체계는 adminCycles와 같다 (DJ-1XXXX) */
+function mockCycleId(index: number): string {
+  return `DJ-1${String(index).padStart(4, '0')}`;
+}
+
 function seedUserBans(): MockBanRecord[] {
   const day = 24 * 3600_000;
   return [
     // 진행 중인 제재 — 목록에서 BANNED로 보이게
     {
+      banId: 3,
+      userId: 7,
+      startedAt: localDateTime(Date.now() - 2 * day),
+      scheduledEndAt: localDateTime(Date.now() + 5 * day),
+      releasedAt: null,
+      comment: '허위 제보 반복 등록',
+      adminId: MOCK_ADMIN.adminId,
+    },
+    // 기간을 모두 채우고 끝난 제재
+    {
       banId: 2,
       userId: 7,
-      startedAt: new Date(Date.now() - 2 * day).toISOString(),
-      scheduledEndAt: new Date(Date.now() + 5 * day).toISOString(),
+      startedAt: localDateTime(Date.now() - 102 * day),
+      scheduledEndAt: localDateTime(Date.now() - 99 * day),
       releasedAt: null,
-      comment: '허위 제보 반복 접수 (3회)',
-      adminName: '운영관리자',
+      comment: '자전거 파손 후 미신고',
+      adminId: MOCK_ADMIN.adminId,
     },
-    // 해제된 과거 제재 — 밴 이력 탭에서 이력 예시로
+    // 조기 해제된 제재 — 종료일이 예정일보다 앞선다
     {
       banId: 1,
       userId: 7,
-      startedAt: new Date(Date.now() - 40 * day).toISOString(),
-      scheduledEndAt: new Date(Date.now() - 33 * day).toISOString(),
-      releasedAt: new Date(Date.now() - 35 * day).toISOString(),
-      comment: '방치 신고 허위 작성',
-      adminName: '운영관리자',
+      startedAt: localDateTime(Date.now() - 170 * day),
+      scheduledEndAt: localDateTime(Date.now() - 140 * day),
+      releasedAt: localDateTime(Date.now() - 155 * day),
+      comment: '타인 계정 대여 시도',
+      adminId: MOCK_ADMIN.adminId,
     },
   ];
 }
@@ -88,33 +115,51 @@ function activeBanOf(userId: number): MockBanRecord | null {
   );
 }
 
-/** 목록 응답 — 실서버처럼 닉네임 없이 준다 (닉네임 추가는 백엔드 전달 목록) */
+/** 최근 대여 시각 — 이용 기록의 첫 행과 같은 값이어야 한다 */
+function recentUsingAt(userId: number): string {
+  return localDateTime(Date.now() - ((userId * 131) % 4000) * 60_000);
+}
+
+/** 목록 응답 (AdminUserListResponse 실측 — userId·nickname·recentUsingAt·userStatement) */
 function mockUserSummary(userId: number) {
   return {
     userId,
-    recentUsingAt: new Date(Date.now() - ((userId * 131) % 4000) * 60_000).toISOString(),
+    nickname: mockUserNickname(userId),
+    recentUsingAt: recentUsingAt(userId),
     userStatement: activeBanOf(userId) ? 'BANNED' : 'NORMAL',
   };
 }
 
-function mockUserRides(userId: number) {
-  return Array.from({ length: 8 }, (_, j) => {
-    const durationMin = 7 + ((userId + j * 7) % 38);
-    const end = Date.now() - (j * 31 + userId * 3) * 3600_000;
+/**
+ * 경로 기록 (AdminUserPathHistoryResponse.PathInfo 실측).
+ * totalDuration은 도보를 포함한 전체 경로 시간, cycleDuration은 자전거 탑승 시간이라
+ * 언제나 totalDuration ≥ cycleDuration이다.
+ */
+function mockUserPaths(userId: number) {
+  const first = new Date(recentUsingAt(userId)).getTime();
+  return Array.from({ length: 24 }, (_, j) => {
+    const cycleDuration = 7 + ((userId + j * 7) % 26);
+    const walk = 5 + ((userId + j * 3) % 9);
+    const usingAt = j === 0 ? first : first - (j * 31 + userId * 3) * 3600_000;
     return {
-      rideId: userId * 1000 + j,
-      startAt: new Date(end - durationMin * 60_000).toISOString(),
-      endAt: new Date(end).toISOString(),
-      fromStation: STATIONS[(userId + j) % STATIONS.length].name,
-      toStation: STATIONS[(userId + j * 5 + 2) % STATIONS.length].name,
-      durationMin,
-      distanceKm: Number((durationMin * 0.19).toFixed(1)),
+      usingAt: localDateTime(usingAt),
+      startingPoint: STATIONS[(userId + j) % STATIONS.length].name,
+      endPoint: STATIONS[(userId + j * 5 + 2) % STATIONS.length].name,
+      cycleId: mockCycleId(((userId * 7 + j * 11) % 90) + 1),
+      totalDuration: cycleDuration + walk,
+      cycleDuration,
     };
   });
 }
 
+/** 경로 한 건의 거리(m) — 자전거 평균 13km/h + 도보 5km/h로 환산 */
+function mockPathDistance(path: { totalDuration: number; cycleDuration: number }): number {
+  const walkMin = path.totalDuration - path.cycleDuration;
+  return Math.round((path.cycleDuration * 13_000 + walkMin * 5_000) / 60);
+}
+
 /**
- * 관리자 사용자 관리 (04·09 — 목록·밴·해제 구현 O(실측 스키마), 상세·이력 미구현).
+ * 관리자 사용자 관리 (04·09 — AdminController/AdminUserService 실측 스키마).
  * 고정 경로(list)는 :userId 핸들러보다 먼저 등록한다
  */
 export const adminUserHandlers = [
@@ -124,6 +169,12 @@ export const adminUserHandlers = [
     const url = new URL(request.url);
     const statement = url.searchParams.get('statement') ?? '';
     const order = url.searchParams.get('order') ?? 'newest';
+    if (statement && statement !== 'NORMAL' && statement !== 'BANNED') {
+      return fail(400, 'statement는 BANNED 또는 NORMAL만 가능합니다.');
+    }
+    if (order !== 'newest' && order !== 'oldest') {
+      return fail(400, 'order는 newest 또는 oldest만 가능합니다.');
+    }
     let users = Array.from({ length: ADMIN_USER_COUNT }, (_, i) => mockUserSummary(i + 1));
     if (statement) users = users.filter((u) => u.userStatement === statement);
     users.sort((a, b) =>
@@ -140,8 +191,11 @@ export const adminUserHandlers = [
     const userId = Number(params.userId);
     if (userId < 1 || userId > ADMIN_USER_COUNT) return fail(404, '존재하지 않는 사용자입니다.');
     const body = (await request.json()) as { scheduledEndAt?: string; comment?: string };
-    // 백엔드 @NotNull @Future 검증과 동일
-    if (!body.scheduledEndAt || new Date(body.scheduledEndAt).getTime() <= Date.now()) {
+    // 백엔드 @NotNull @Future 검증과 동일 (LocalDateTime이라 오프셋이 붙으면 파싱 실패)
+    if (!body.scheduledEndAt || /[Zz]|[+-]\d\d:\d\d$/.test(body.scheduledEndAt)) {
+      return fail(400, '제재 종료 시각 형식이 올바르지 않습니다.');
+    }
+    if (new Date(body.scheduledEndAt).getTime() <= Date.now()) {
       return fail(400, '제재 종료 시각은 미래여야 합니다.');
     }
     if ((body.comment ?? '').length > 100) return fail(400, '사유는 100자 이내여야 합니다.');
@@ -150,11 +204,11 @@ export const adminUserHandlers = [
     records.unshift({
       banId: Math.max(0, ...records.map((r) => r.banId)) + 1,
       userId,
-      startedAt: new Date().toISOString(),
+      startedAt: localDateTime(Date.now()),
       scheduledEndAt: body.scheduledEndAt,
       releasedAt: null,
       comment: body.comment?.trim() || null,
-      adminName: MOCK_ADMIN.name,
+      adminId: MOCK_ADMIN.adminId,
     });
     setMockUserBans(records);
     return HttpResponse.json(ok(null));
@@ -166,42 +220,59 @@ export const adminUserHandlers = [
     if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
     const records = getMockUserBans();
     const record = records.find((b) => b.banId === Number(params.banRecordId));
-    if (!record) return fail(404, '존재하지 않는 밴 기록입니다.');
-    if (record.releasedAt === null) record.releasedAt = new Date().toISOString();
+    if (!record) return fail(404, '사용자 제재 기록이 없습니다.');
+    // 백엔드 releaseActiveBan — 이미 끝났거나 해제된 기록은 409
+    if (record.releasedAt !== null || new Date(record.scheduledEndAt).getTime() <= Date.now()) {
+      return fail(409, '현재 유효한 제재 기록이 아닙니다.');
+    }
+    record.releasedAt = localDateTime(Date.now());
     setMockUserBans(records);
     return HttpResponse.json(ok(null));
   }),
 
-  // 최신 밴 기록 1건 (AdminUserBanHistoryResponse 실측) — 기록이 없으면 404
+  // 밴 이력 전체 (AdminUserBanHistoryResponse 리스트) — 기록이 없으면 빈 배열
   http.get('/api/admin/user/:userId/ban', async ({ params }) => {
     await delay(300);
     if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
     const userId = Number(params.userId);
     if (userId < 1 || userId > ADMIN_USER_COUNT) return fail(404, '존재하지 않는 사용자입니다.');
-    const latest = getMockUserBans()
+    const history = getMockUserBans()
       .filter((b) => b.userId === userId)
-      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
-    if (!latest) return fail(404, '밴 기록이 없습니다.');
-    // 조기 해제됐으면 해제 시각이 종료 시각이다 (백엔드 getUserBanHistory와 동일)
-    const scheduledEnd = new Date(latest.scheduledEndAt).getTime();
-    const released = latest.releasedAt ? new Date(latest.releasedAt).getTime() : null;
-    const banEndAt =
-      released !== null && released < scheduledEnd ? latest.releasedAt : latest.scheduledEndAt;
-    const period = Math.round(
-      (scheduledEnd - new Date(latest.startedAt).getTime()) / (24 * 3600_000),
-    );
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt) || b.banId - a.banId)
+      .map((ban) => {
+        // 조기 해제됐으면 해제 시각이 종료 시각이다 (백엔드 toBanHistoryResponse와 동일)
+        const scheduledEnd = new Date(ban.scheduledEndAt).getTime();
+        const released = ban.releasedAt ? new Date(ban.releasedAt).getTime() : null;
+        return {
+          banRecordId: ban.banId,
+          banStartedAt: ban.startedAt,
+          banEndAt: released !== null && released < scheduledEnd ? ban.releasedAt : ban.scheduledEndAt,
+          period: Math.floor((scheduledEnd - new Date(ban.startedAt).getTime()) / (24 * 3600_000)),
+          comment: ban.comment,
+          adminId: ban.adminId,
+        };
+      });
+    return HttpResponse.json(ok(history));
+  }),
+
+  // 경로 기록 (AdminUserPathHistoryResponse) — 이용 기록 탭
+  http.get('/api/admin/user/:userId/path', async ({ params }) => {
+    await delay(350);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const userId = Number(params.userId);
+    if (Number.isNaN(userId) || userId < 1 || userId > ADMIN_USER_COUNT) {
+      return fail(404, '존재하지 않는 사용자입니다.');
+    }
+    const pathsList = mockUserPaths(userId);
     return HttpResponse.json(
       ok({
-        banRecordId: latest.banId,
-        banStartedAt: latest.startedAt,
-        banEndAt,
-        period,
-        comment: latest.comment,
-        adminId: 1,
+        totalUsingDistance: pathsList.reduce((sum, p) => sum + mockPathDistance(p), 0),
+        pathsList,
       }),
     );
   }),
 
+  // 상세 (AdminUserDetailResponse) — userId·상태는 응답에 없다
   http.get('/api/admin/user/:userId', async ({ params }) => {
     await delay(350);
     if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
@@ -209,19 +280,15 @@ export const adminUserHandlers = [
     if (Number.isNaN(userId) || userId < 1 || userId > ADMIN_USER_COUNT) {
       return fail(404, '존재하지 않는 사용자입니다.');
     }
-    const active = activeBanOf(userId);
+    const paths = mockUserPaths(userId);
     return HttpResponse.json(
       ok({
-        ...mockUserSummary(userId),
         nickname: mockUserNickname(userId),
-        joinedAt: new Date(Date.now() - (200 + userId * 9) * 24 * 3600_000).toISOString(),
-        activeBan: active
-          ? { scheduledEndAt: active.scheduledEndAt, comment: active.comment }
-          : null,
-        totalRides: 12 + ((userId * 11) % 120),
-        totalDistanceKm: Number((30 + ((userId * 17) % 260)).toFixed(1)),
-        totalDurationMin: 240 + ((userId * 53) % 1800),
-        rides: mockUserRides(userId),
+        createdAt: localDateTime(Date.now() - (200 + userId * 9) * 24 * 3600_000),
+        recentUsingAt: recentUsingAt(userId),
+        // 표에 보이는 경로보다 실제 대여 횟수가 많은 사용자를 흉내 낸다
+        totalUsingCnt: paths.length + ((userId * 11) % 60),
+        totalUsingTime: paths.reduce((sum, p) => sum + p.cycleDuration, 0),
       }),
     );
   }),
