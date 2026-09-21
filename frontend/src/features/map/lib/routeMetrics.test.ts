@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RouteSummary } from '@/features/map/lib/routeMetrics';
 import {
+  bikesSortBlock,
   formatSecondsAsMinutes,
   sortSummaries,
   summarizeRoute,
@@ -85,6 +86,33 @@ describe('sortSummaries', () => {
     // bikes만이면 빠른 0번이 앞, flat이 동점 처리에 끼면 오르막 적은 1번이 앞
     expect(sortSummaries(tieBreak, ['bikes']).map((s) => s.index)).toEqual([0, 1]);
     expect(sortSummaries(tieBreak, ['bikes', 'flat']).map((s) => s.index)).toEqual([1, 0]);
+  });
+});
+
+describe('bikesSortBlock', () => {
+  function summary(index: number, expectedBikeCnt?: number): RouteSummary {
+    return { index, type: 'BIKE', totalSec: 1200, walkSec: 300, ascentM: 40, expectedBikeCnt };
+  }
+
+  it('후보끼리 값이 다르면 정렬할 수 있다', () => {
+    expect(bikesSortBlock([summary(0, 3.2), summary(1, 5.1)])).toBeNull();
+  });
+
+  it('실제 응답처럼 두 후보 값이 같으면 막는다 — 같은 대여소에서 빌려 순서가 안 바뀐다', () => {
+    expect(bikesSortBlock([summary(0, 3.2), summary(1, 3.2)])).toBe('all-equal');
+  });
+
+  it('값이 하나도 없으면 데이터 없음으로 막는다', () => {
+    expect(bikesSortBlock([summary(0), summary(1)])).toBe('no-data');
+  });
+
+  it('한쪽만 값이 있으면 정렬이 순서를 바꾸므로 막지 않는다', () => {
+    expect(bikesSortBlock([summary(0), summary(1, 3.2)])).toBeNull();
+  });
+
+  it('후보가 하나뿐이면 줄 세울 대상이 없다', () => {
+    expect(bikesSortBlock([summary(0, 3.2)])).toBe('all-equal');
+    expect(bikesSortBlock([])).toBe('no-data');
   });
 });
 

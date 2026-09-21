@@ -28,15 +28,12 @@ export const authHandlers = [
     await delay(300);
     const state = getAuthState();
     if (!state.loggedIn) return fail(401, '로그인이 필요합니다.');
-    return HttpResponse.json(ok({ nickname: state.nickname }));
-  }),
-
-  // ── 프로필 (24 — 백엔드 API 미정, 임시 스키마) ─────────────────────
-  http.get('/api/users/me/stats', async () => {
-    await delay(300);
-    const authFail = requireAuth();
-    if (authFail) return authFail;
-    return HttpResponse.json(ok({ monthlyRides: 12, distanceKm: 38.2, durationMin: 84 }));
+    // 실서버 계약: 가입(약관·닉네임) 전 GUEST는 권한이 없어 403 — useAuth가 "가입 필요"로 해석
+    if (state.nickname === null) return fail(403, '접근 권한이 없습니다.');
+    // UserMeResponse — 월간 통계 (거리 km 소수 1자리, 시간 분)
+    return HttpResponse.json(
+      ok({ nickname: state.nickname, monthlyMoveCnt: 6, monthlyMoveDis: 18.3, monthlyTime: 97 }),
+    );
   }),
 
   http.put('/api/users/me', async ({ request }) => {
@@ -102,6 +99,9 @@ export const authHandlers = [
     }
 
     setAuthState({ loggedIn: true, nickname });
-    return HttpResponse.json({ code: 200, message: '가입에 성공했습니다.', data: null });
+    // 백엔드는 가입 완료 시 새 access token을 돌려준다 (권한 버전 갱신)
+    return HttpResponse.json(
+      ok({ accessToken: 'msw-access-token', tokenType: 'Bearer', expiresIn: 1800 }),
+    );
   }),
 ];

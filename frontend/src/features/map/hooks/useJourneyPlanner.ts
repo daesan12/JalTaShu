@@ -11,6 +11,7 @@ import {
   summarizeRoutes,
   type RouteSort,
 } from '@/features/map/lib/routeMetrics';
+import type { PickedPlace } from '@/features/map/lib/reverseGeocode';
 import { DETAIL_PARAM, ROUTES_PARAM } from '@/features/map/lib/urlParams';
 
 /**
@@ -21,7 +22,7 @@ import { DETAIL_PARAM, ROUTES_PARAM } from '@/features/map/lib/urlParams';
  */
 const START_FALLBACK_NOTICE = '현재 위치를 몰라 지도에서 보던 곳에서 출발하는 경로를 찾습니다.';
 
-/** 지도에서 고른 지점의 이름 — 역지오코딩을 하지 않으므로 주소 대신 이 문구를 쓴다 */
+/** 지도에서 고른 지점의 이름 — 역지오코딩이 실패했을 때만 쓰는 마지막 fallback */
 const PICKED_PLACE_TITLE = '지도에서 선택한 위치';
 /** 바꾸기(↕) 버튼으로 목적지 자리에 들어갈 때 쓰는, 이전 출발 위치의 이름 */
 const SWAPPED_START_TITLE = '출발했던 위치';
@@ -197,14 +198,14 @@ export function useJourneyPlanner({ location, showToast, viewedCenterAsStart }: 
 
   /**
    * 08 "지도에서 선택" 확정 — 지도 중심 좌표를 목적지(또는 출발지)로 삼는다.
-   * 역지오코딩을 하지 않으므로 주소는 비운다 — 시트는 이름만 보여준다.
+   * 역지오코딩으로 읽어 둔 이름·주소가 있으면 함께 넣는다(없으면 좌표만, 이름은 기본 문구).
    * 이미 비교 중이었다면 새 값으로 바로 다시 조회한다. (URL·히스토리 정리는 페이지가 한다)
    */
-  function applyPickedPos(pos: Pos, isStart: boolean) {
+  function applyPickedPos(pos: Pos, isStart: boolean, place: PickedPlace | null) {
     const picked: PlaceSearchResult = {
-      title: PICKED_PLACE_TITLE,
-      address: '',
-      roadAddress: '',
+      title: place?.title ?? PICKED_PLACE_TITLE,
+      address: place?.address ?? '',
+      roadAddress: place?.roadAddress ?? '',
       xPos: pos.xPos,
       yPos: pos.yPos,
     };

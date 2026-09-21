@@ -68,15 +68,23 @@ if (( ${#CONNECTOR_JARS[@]} == 0 )); then
 fi
 
 readonly CONNECTOR_JARS_CSV=$(IFS=,; printf '%s' "${CONNECTOR_JARS[*]}")
+readonly CONNECTOR_JARS_CLASSPATH=$(IFS=:; printf '%s' "${CONNECTOR_JARS[*]}")
 
 readonly JOB_CONTAINER_PATH="/workspace/data/${JOB_REAL#"$WORKSPACE_REAL"/}"
+
+RUN_ARGUMENTS=(run --rm --no-deps)
+if [[ -n "${TASHU_SPARK_SUBMIT_CONTAINER_NAME:-}" ]]; then
+  if [[ ! "$TASHU_SPARK_SUBMIT_CONTAINER_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]+$ ]]; then
+    echo "올바르지 않은 Spark submit container 이름입니다." >&2
+    exit 1
+  fi
+  RUN_ARGUMENTS+=(--name "$TASHU_SPARK_SUBMIT_CONTAINER_NAME")
+fi
 
 exec docker compose \
   --profile tools \
   --file "$COMPOSE_FILE" \
-  run \
-  --rm \
-  --no-deps \
+  "${RUN_ARGUMENTS[@]}" \
   --env-from-file "$MYSQL_ENV_FILE" \
   --volume "$WORKSPACE_REAL:/workspace/data:ro" \
   --volume "$SPARK_IVY_CACHE:$SPARK_IVY_CACHE:ro" \
@@ -84,6 +92,7 @@ exec docker compose \
   /opt/spark/bin/spark-submit \
   --master spark://spark-master:7077 \
   --deploy-mode client \
+  --driver-class-path "$CONNECTOR_JARS_CLASSPATH" \
   --jars "$CONNECTOR_JARS_CSV" \
   --conf spark.cores.max=2 \
   --conf spark.executor.cores=1 \

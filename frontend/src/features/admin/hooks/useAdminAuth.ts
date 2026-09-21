@@ -1,24 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
-import { ApiError } from '@/shared/api/client';
-import { getAdminMe } from '@/features/admin/api/adminAuth';
+import { restoreAdminSession } from '@/features/admin/api/adminAuth';
 
-export const ADMIN_ME_QUERY_KEY = ['adminMe'] as const;
+export const ADMIN_SESSION_QUERY_KEY = ['adminSession'] as const;
 
 /**
- * 관리자 로그인 상태 조회. 모바일 useAuth와 같은 모양이지만 쿼리 키와 API가 달라 따로 둔다
- * (관리자 세션과 이용자 세션은 별개다).
+ * 관리자 로그인 상태. 백엔드에 me API가 없어 refresh 재발급 성공 여부로 판정한다.
+ * 로그인·로그아웃은 재요청 대신 `queryClient.setQueryData(ADMIN_SESSION_QUERY_KEY, true|false)`로
+ * 바로 반영한다 — refresh를 또 치면 쿠키가 rotation돼 낭비다.
  */
 export function useAdminAuth() {
   const { data, isPending } = useQuery({
-    queryKey: ADMIN_ME_QUERY_KEY,
-    queryFn: getAdminMe,
-    staleTime: 5 * 60 * 1000,
-    retry: (failureCount, err) => {
-      // 401(미로그인)은 정상 상태라 재시도하지 않는다
-      if (err instanceof ApiError && err.code === 401) return false;
-      return failureCount < 1;
-    },
+    queryKey: ADMIN_SESSION_QUERY_KEY,
+    // 실패해도 false를 돌려주는 함수라 재시도·에러 처리가 필요 없다
+    queryFn: restoreAdminSession,
+    staleTime: Infinity,
+    retry: false,
   });
 
-  return { admin: data ?? null, isPending, isLoggedIn: !!data };
+  return { isPending, isLoggedIn: data === true };
 }

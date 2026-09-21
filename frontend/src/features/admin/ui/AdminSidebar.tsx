@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { NavLink, useNavigate } from 'react-router';
 import { adminLogout } from '@/features/admin/api/adminAuth';
-import { ADMIN_ME_QUERY_KEY, useAdminAuth } from '@/features/admin/hooks/useAdminAuth';
+import { ADMIN_SESSION_QUERY_KEY } from '@/features/admin/hooks/useAdminAuth';
 
 /** Figma Admin/Sidebar의 Active 5종과 1:1. 순서도 Figma 그대로다. 아이콘은 없다. */
 const MENUS = [
@@ -18,7 +18,6 @@ const ACTIVE = 'border-admin-indicator bg-admin-sidebar-active font-medium text-
 const INACTIVE = 'border-transparent text-admin-sidebar-label hover:text-white';
 
 export function AdminSidebar() {
-  const { admin } = useAdminAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -26,8 +25,8 @@ export function AdminSidebar() {
     try {
       await adminLogout();
     } finally {
-      // 실패해도 화면은 로그아웃 상태로 보낸다 — 캐시에 남은 관리자 정보를 먼저 지운다
-      queryClient.removeQueries({ queryKey: ADMIN_ME_QUERY_KEY });
+      // 실패해도 화면은 로그아웃 상태로 보낸다
+      queryClient.setQueryData(ADMIN_SESSION_QUERY_KEY, false);
       navigate('/admin/login', { replace: true });
     }
   };
@@ -53,10 +52,10 @@ export function AdminSidebar() {
         ))}
       </ul>
 
-      {/* 하단 프로필·로그아웃 — mt-auto로 사이드바 바닥에 붙인다 */}
+      {/* 하단 프로필·로그아웃 — mt-auto로 사이드바 바닥에 붙인다.
+          이름·이메일은 관리자 me API가 생기면 다시 채운다(백엔드 전달 목록) */}
       <div className="mt-auto border-t border-white/10 px-5 pt-5">
-        <p className="text-sm font-medium text-white">{admin?.name ?? '관리자'}</p>
-        <p className="mt-0.5 text-xs text-admin-sidebar-label">{admin?.email ?? ''}</p>
+        <p className="text-sm font-medium text-white">관리자</p>
         <button
           type="button"
           onClick={handleLogout}

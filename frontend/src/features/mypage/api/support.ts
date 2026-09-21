@@ -1,13 +1,14 @@
 import { apiGet } from '@/shared/api/client';
 
-/** 공지사항 — 백엔드 API 미정, msw 목업 기준 임시 스키마 */
+/** 공지 한 건 (NoticeListResponse 실측) — 본문은 상세 API(/notice/{id})에만 있다 */
 export interface Notice {
-  id: number;
+  noticeId: number;
   title: string;
-  /** YYYY/MM/DD */
-  date: string;
+  author: string;
+  createdAt: string;
 }
 
+/** GET /api/notice/list — 관리자 웹과 같은 API를 쓴다 (관리자가 등록하면 여기에도 뜬다) */
 export function getNotices(): Promise<Notice[]> {
-  return apiGet<Notice[]>('/notices');
+  return apiGet<Notice[]>('/notice/list');
 }

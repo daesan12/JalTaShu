@@ -68,6 +68,7 @@ class CollectorTest(unittest.TestCase):
         os.environ.pop("TASHU_API_KEY_FALLBACK", None)
         os.environ.pop("TASHU_INTERVAL_SECONDS", None)
         os.environ.pop("TASHU_KAFKA_ENABLED", None)
+        os.environ.pop("TASHU_REDIS_ENABLED", None)
 
     def tearDown(self):
         self.env.stop()

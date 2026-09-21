@@ -103,13 +103,14 @@ def test_readiness_stale_weather_is_warning_not_block():
 
 # ── 피처 행 구성 (계약 §8: 대여소당 현재+다음 버킷) ────────────────────────
 
-def test_feature_rows_two_per_station_in_feature_order():
+def test_feature_rows_bucket_count_and_feature_order():
     rows = serve.build_feature_rows(NOW, snapshots(), profile(), weather())
-    assert len(rows) == 2 * len(STATIONS)
+    assert len(rows) == config.N_FEATURE_BUCKETS * len(STATIONS)
     assert list(rows.columns[:2]) == ["station_id", "bucket_start"]
     assert all(c in rows.columns for c in config.FEATURE_COLUMNS)
     buckets = sorted(rows["bucket_start"].unique())
-    assert buckets == [kst("2026-09-16 17:00"), kst("2026-09-16 17:15")]
+    assert buckets == [kst("2026-09-16 17:00") + k * pd.Timedelta(minutes=15)
+                       for k in range(config.N_FEATURE_BUCKETS)]
     assert str(rows["station_id"].dtype) == "category"
     assert list(rows["holiday_type"].cat.categories) == list(config.HOLIDAY_TYPES)
     assert rows["delta_30m"].dtype == "float64"
@@ -139,7 +140,10 @@ def test_extend_weather_grid_enables_tail_ffill():
     """마지막 관측(13:00) 뒤 3시간 안(16:00)은 ffill, 그 밖은 NaN — 학습과 같은 규칙을 끝단에 적용."""
     w = weather(last_hour_back=4)  # 관측은 13:00까지
     rows = serve.build_feature_rows(NOW, snapshots(), profile(), w)  # 17:10 → 16:00 관측 필요
-    assert rows["temperature"].notna().all()
+    # 버킷 17:00~17:30(eff 16:00 = 13:00+3h 한계)은 ffill, 17:45~(eff 17:00, 4시간)은 NaN
+    near = rows["bucket_start"] <= kst("2026-09-16 17:30")
+    assert rows.loc[near, "temperature"].notna().all()
+    assert rows.loc[~near, "temperature"].isna().all()
     later = kst("2026-09-16 18:10")  # → 17:00 필요, 13:00에서 4시간 → NaN
     rows2 = serve.build_feature_rows(later, snapshots(), profile(), w)
     assert rows2["temperature"].isna().all()
@@ -149,20 +153,22 @@ def test_feature_rows_new_station_profile_nan():
     """학습에 없던 대여소는 행 유지 + profile NaN (계약 §5)."""
     rows = serve.build_feature_rows(NOW, snapshots(["ST0001", "NEW9"]), profile(["ST0001"]), weather())
     new = rows[rows["station_id"] == "NEW9"]
-    assert len(new) == 2 and new["profile_rentals"].isna().all()
+    assert len(new) == config.N_FEATURE_BUCKETS and new["profile_rentals"].isna().all()
 
 
 # ── 지평 계산 (배열) = probability.predict_horizons (대여소별) ──────────────
 
 def rates_frame(now, lam=(0.6, 0.9), mu=(0.3, 0.3)):
+    """N_FEATURE_BUCKETS개 버킷 율 — 주어진 값 뒤로는 마지막 값 유지 (60분 지평 대응)."""
     b0 = now.floor("15min")
-    b1 = b0 + pd.Timedelta(minutes=15)
-    return pd.DataFrame({
-        "station_id": ["ST0001", "ST0001", "ST0002", "ST0002"],
-        "bucket_start": [b0, b1, b0, b1],
-        "lambda_hat": [lam[0], lam[1], lam[0] * 3, lam[1] * 3],
-        "mu_hat": [mu[0], mu[1], 0.0, 0.0],
-    })
+    buckets = [b0 + k * pd.Timedelta(minutes=15) for k in range(config.N_FEATURE_BUCKETS)]
+    ext = lambda v: [v[k] if k < len(v) else v[-1] for k in range(len(buckets))]
+    rows = []
+    for st, lam_mul, mu_mul in (("ST0001", 1.0, 1.0), ("ST0002", 3.0, 0.0)):
+        for b, l, m in zip(buckets, ext(lam), ext(mu)):
+            rows.append({"station_id": st, "bucket_start": b,
+                         "lambda_hat": l * lam_mul, "mu_hat": m * mu_mul})
+    return pd.DataFrame(rows)
 
 
 def test_compute_predictions_matches_predict_horizons():
@@ -180,12 +186,31 @@ def test_compute_predictions_matches_predict_horizons():
             assert row["prob_out"] == pytest.approx(round(v["prob_out"], 3))
 
 
+def test_compute_predictions_applies_horizon_tail_correction():
+    """서빙 확률 = 원시 Skellam 꼬리 × 지평별 보정(앵커 보간) — 단지평은 원시보다 크고, 45분+는 원시와 같다(c=1.0)."""
+    rates = rates_frame(NOW)
+    preds = serve.compute_predictions(NOW, rates, pd.Series({"ST0001": 5}))
+    tot = serve.horizon_totals(NOW, rates, pd.Series({"ST0001": 5}))
+    s, lam, mu = tot["s"].to_numpy(), tot["lam_total"].to_numpy(), tot["mu_total"].to_numpy()
+    h = tot["horizon_min"].to_numpy()
+    corr = probability.tail_correction_for(h)
+    corrected = np.round(probability.depletion_probability(s, lam, mu, tail_correction=corr), 3)
+    raw = probability.depletion_probability(s, lam, mu)
+    assert preds["prob_out"].to_numpy() == pytest.approx(corrected)
+    assert corr.max() > 1.0 and (corrected >= np.round(raw, 3) - 1e-9).all()
+    assert np.allclose(corrected[h >= 45], np.round(raw[h >= 45], 3))  # 장지평은 보정 1.0
+    assert probability.tail_correction_for(1) == 1.35 and probability.tail_correction_for(60) == 1.00
+
+
 def test_compute_predictions_clips_bikes_and_skips_missing_s():
     rates = rates_frame(NOW, lam=(30.0, 30.0), mu=(0.0, 0.0))
     preds = serve.compute_predictions(NOW, rates, pd.Series({"ST0001": 2}))  # ST0002는 s 없음 → 제외
     assert set(preds["station_id"]) == {"ST0001"}
     assert (preds["bikes"] >= 0).all() and preds["bikes"].max() == 0.0
-    assert (preds["prob_out"] > 0.99).all()
+    # 1분 지평은 λ_total이 작아 0.99를 못 넘는 게 정상 — 지평별 단조 증가 + 5분 이상 임계로 검증
+    ordered = preds.sort_values("horizon_min")["prob_out"]
+    assert (ordered.diff().dropna() >= 0).all()
+    assert (preds.loc[preds["horizon_min"] >= 5, "prob_out"] > 0.99).all()
 
 
 def test_compute_predictions_requires_next_bucket():

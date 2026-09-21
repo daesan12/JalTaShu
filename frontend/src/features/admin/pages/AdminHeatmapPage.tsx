@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { readCssToken } from '@/shared/lib/cssToken';
 import { posToLatLng } from '@/shared/lib/coords';
 import { getAdminHeatmap } from '@/features/admin/api/adminHeatmap';
@@ -35,10 +35,13 @@ export function AdminHeatmapPage() {
   const [hour, setHour] = useState(8);
   const [playing, setPlaying] = useState(false);
 
-  // 하루치를 한 번에 받고 시간대는 프론트에서 거른다 (재생이 끊기지 않게)
+  // 서버가 "기준 시각 직전 1시간" 스냅샷만 주므로 시간대마다 다시 부른다.
+  // 재생은 캐시(staleTime)와 이전 데이터 유지(placeholderData)로 끊기지 않게 한다
   const { data, isPending, isError, refetch } = useQuery({
-    queryKey: ['adminHeatmap', date],
-    queryFn: () => getAdminHeatmap(date),
+    queryKey: ['adminHeatmap', date, hour],
+    queryFn: () => getAdminHeatmap(date, hour),
+    staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 
   // 재생 — 1초마다 다음 시간대로, 23시에서 멈춘다
@@ -69,23 +72,23 @@ export function AdminHeatmapPage() {
           : point.returnCnt;
   }, [mode]);
 
+  // 응답이 이미 선택한 시간대의 스냅샷이라 그대로 그린다
   const cells = useMemo<HeatmapCell[]>(
     () =>
-      (data ?? [])
-        .filter((point) => point.time === hour)
-        .map((point) => ({
-          stationId: point.stationId,
-          ...posToLatLng(point),
-          count: countOf(point),
-          color:
-            mode === 'return' || (mode === 'net' && point.returnCnt > point.rentCnt)
-              ? returnColor
-              : rentColor,
-        })),
-    [data, hour, mode, countOf, rentColor, returnColor],
+      (data ?? []).map((point) => ({
+        stationId: point.stationId,
+        ...posToLatLng(point),
+        count: countOf(point),
+        color:
+          mode === 'return' || (mode === 'net' && point.returnCnt > point.rentCnt)
+            ? returnColor
+            : rentColor,
+      })),
+    [data, mode, countOf, rentColor, returnColor],
   );
 
-  // 크기 기준은 '하루 전체 최대'로 고정 — 시간을 옮길 때 원끼리 비교가 유지된다
+  // 크기 기준 — 서버가 시간별 스냅샷만 줘서 하루 최대 고정 스케일은 불가능해졌다.
+  // 현재 시간대 최대를 기준으로 삼는다(시간을 옮기면 스케일이 함께 바뀐다)
   const maxCount = useMemo(
     () => Math.max(0, ...(data ?? []).map(countOf)),
     [data, countOf],
@@ -93,7 +96,7 @@ export function AdminHeatmapPage() {
 
   // 하단 요약: 통합 모드는 유출·유입을 나눠 보여준다
   const hourSummary = useMemo(() => {
-    const points = (data ?? []).filter((point) => point.time === hour);
+    const points = data ?? [];
     if (mode !== 'net') {
       const total = points.reduce((sum, p) => sum + countOf(p), 0);
       return `${MODE_LABEL[mode]} ${total}건`;
@@ -101,7 +104,7 @@ export function AdminHeatmapPage() {
     const outflow = points.reduce((sum, p) => sum + Math.max(0, p.rentCnt - p.returnCnt), 0);
     const inflow = points.reduce((sum, p) => sum + Math.max(0, p.returnCnt - p.rentCnt), 0);
     return `유출 ${outflow} · 유입 ${inflow}건`;
-  }, [data, hour, mode, countOf]);
+  }, [data, mode, countOf]);
 
   function togglePlay() {
     // 끝에서 재생을 누르면 처음부터 다시 돈다

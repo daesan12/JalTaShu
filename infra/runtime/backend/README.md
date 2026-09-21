@@ -11,6 +11,7 @@ Server A에서 ECR의 Backend runtime image를 staging MySQL과 Redis에 연결�
 | `scripts/deploy-staging.sh` | 미리 pull한 immutable ECR image로 staging 컨테이너 교체 | Git 추적, Secret 없음 |
 | `/etc/tashu/backend-staging/oauth.env` | Backend 팀의 Kakao·Frontend OAuth 설정 | Server A 전용, Git 금지 |
 | `/etc/tashu/backend-staging/jwt.env` | JWT 서명키, access·refresh 만료시간과 Secure cookie 여부 | Server A 전용, Git 금지 |
+| `/etc/tashu/backend-common/naver-place.env` | Naver Place API Hub의 Client ID와 Client Secret | Server A 전용, Git 금지 |
 | `/etc/tashu/backend-staging/runtime.env` | 컨테이너에 전달할 최종 환경변수 | Server A 전용, Git 금지 |
 
 ## 연결 구조
@@ -22,7 +23,11 @@ Server A에서 ECR의 Backend runtime image를 staging MySQL과 Redis에 연결�
 tashu-backend-staging:8080
         │ Docker network: tashu-app
         ├── tashu-mysql:3306 / tashu_staging
-        └── tashu-redis:6379 / database 1
+        ├── tashu-redis:6379 / database 1
+        ├── osrm-foot:5000
+        ├── osrm-bicycle:5000
+        ├── osrm-uphill:5000
+        └── /app/dem (Server A DEM read-only mount)
 ```
 
 `18081`은 Server A loopback에만 bind한다. 외부 Nginx를 연결하기 전에는 인터넷에서 접근할 수 없고 UFW 규칙도 추가하지 않는다.
@@ -39,6 +44,7 @@ sudo /opt/tashu/infra/runtime/backend/scripts/render-staging-env.sh
 - `/etc/tashu/redis/runtime.env`
 - `/etc/tashu/backend-staging/jwt.env`
 - `/etc/tashu/backend-staging/oauth.env`
+- `/etc/tashu/backend-common/naver-place.env`
 
 실제 값은 출력하지 않고 최종 파일의 변수 이름과 권한만 표시한다.
 
@@ -63,6 +69,19 @@ sudo docker compose --file /opt/tashu/infra/runtime/backend/compose.staging.yml 
 curl --fail --silent http://127.0.0.1:18081/api/actuator/health
 sudo docker inspect --format '{{.State.Health.Status}}' tashu-backend-staging
 ```
+
+OSRM과 DEM 연결은 actuator health만으로 확인되지 않는다. 로그인한 사용자 access token으로
+실제 경로 API를 호출해 도보·자전거·오르막 회피 경로와 고도 응답을 확인한다.
+
+```bash
+curl --fail-with-body \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  "http://127.0.0.1:18081/api/map/path?startLat=36.3504&startLng=127.3845&endLat=36.3600&endLng=127.4000"
+```
+
+Backend container 내부 연결 주소는 세 서비스 모두 port 5000이다. host loopback 점검 port
+5000, 5001, 5002를 Backend 환경변수에 넣거나 `localhost`를 사용하지 않는다. DEM은
+`/opt/tashu/osrm/osrm-uphill/dem`을 Backend `/app/dem`에 read-only로 mount한다.
 
 정상 결과는 HTTP 200, body의 `{"status":"UP"}`, Docker health `healthy`다.
 

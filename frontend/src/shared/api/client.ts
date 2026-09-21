@@ -64,9 +64,20 @@ interface TokenResponse {
  */
 let refreshing: Promise<string | null> | null = null;
 
+/**
+ * 관리자 웹은 별도 토큰 체계다 — refresh 쿠키 이름(admin_refresh_token)과 재발급 경로가 다르다.
+ * 어느 쪽 재발급을 칠지는 로그인 리다이렉트와 같은 기준(현재 화면이 /admin인지)으로 정한다.
+ */
+function refreshTokenUrl(): string {
+  const base = import.meta.env.BASE_URL;
+  return window.location.pathname.startsWith(`${base}admin`)
+    ? '/admin/token/refresh'
+    : '/auth/token/refresh';
+}
+
 function refreshAccessToken(): Promise<string | null> {
   refreshing ??= client
-    .post<ApiResponse<TokenResponse>>('/auth/token/refresh', null, {
+    .post<ApiResponse<TokenResponse>>(refreshTokenUrl(), null, {
       skipAuthRedirect: true,
       skipAuthRefresh: true,
     })
@@ -123,8 +134,9 @@ function unwrap<T>(body: ApiResponse<T>): T {
 }
 
 function toApiError(err: unknown): ApiError {
-  if (err instanceof AxiosError && err.response?.data) {
-    const body = err.response.data as Partial<ApiResponse<unknown>>;
+  if (err instanceof AxiosError && err.response) {
+    // 시큐리티 필터가 자른 401·403은 본문이 비어 있다 — 그 경우 HTTP 상태 코드를 쓴다
+    const body = (err.response.data || {}) as Partial<ApiResponse<unknown>>;
     return new ApiError(body.code ?? err.response.status, body.message ?? '요청에 실패했습니다.');
   }
   return new ApiError(0, '네트워크 연결을 확인해 주세요.');

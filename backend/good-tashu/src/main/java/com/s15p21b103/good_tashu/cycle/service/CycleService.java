@@ -2,16 +2,14 @@ package com.s15p21b103.good_tashu.cycle.service;
 
 import com.s15p21b103.good_tashu._util.service.S3Service;
 import com.s15p21b103.good_tashu.cycle.domain.*;
-import com.s15p21b103.good_tashu.cycle.dto.req.CycleClaimRequest;
+import com.s15p21b103.good_tashu.cycle.dto.req.CyclePathRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleRentalRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleReturnRequest;
-import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimResponse;
-import com.s15p21b103.good_tashu.cycle.dto.res.CycleClaimListResponse;
 import com.s15p21b103.good_tashu.cycle.event.CycleRentalStartedEvent;
 import com.s15p21b103.good_tashu.cycle.event.CycleReturnEvent;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
-import com.s15p21b103.good_tashu.cycle.repository.CycleClaimRepository;
-import com.s15p21b103.good_tashu.cycle.repository.CycleClaimReportRepository;
+import com.s15p21b103.good_tashu.claim.repository.ClaimRepository;
+import com.s15p21b103.good_tashu.claim.repository.ClaimReportRepository;
 import com.s15p21b103.good_tashu.cycle.repository.CycleRepository;
 import com.s15p21b103.good_tashu.cycle.repository.CycleUsageRepository;
 import com.s15p21b103.good_tashu.cycle.repository.CycleUsageRepository.UsageStatistics;
@@ -30,7 +28,6 @@ import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -46,8 +43,8 @@ public class CycleService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final StationRepository stationRepository;
-    private final CycleClaimRepository cycleClaimRepository;
-    private final CycleClaimReportRepository cycleClaimReportRepository;
+    private final ClaimRepository cycleClaimRepository;
+    private final ClaimReportRepository cycleClaimReportRepository;
     private final S3Service s3Service;
     private final PathRepository pathRepository;
 
@@ -182,80 +179,26 @@ public class CycleService {
     }
 
     @Transactional
-    public CycleClaimResponse claimCycle(Long userId, CycleClaimRequest request) {
-        CycleUsageEntity cycleUsageEntity = cycleUsageRepository
-                .findByCycleUsageIdAndUserEntity_UserId(request.usageId(), userId)
+    public void savePathTrace(Long userId, CyclePathRequest request) {
+        UserEntity user = userRepository.findById(userId)
+            .orElseThrow(() -> new UserException(NOT_EXISTS_USER));
+        CycleUsageEntity cycleUsage = cycleUsageRepository.findFirstByUserEntity_UserIdAndReturnAtIsNotNullOrderByReturnAtDescCycleUsageIdDesc(userId)
                 .orElseThrow(() -> new CycleException(NOT_EXIST_USAGE));
 
-        // 탑승 기록을 기준으로 제보 가능한 시간인지 확인한다.
-        // QR 인식 이후 30분 이내이거나 자전거 이용 완료 이후 1일 이내에 작성 가능하다.
-        LocalDateTime now = LocalDateTime.now();
-
-        boolean withinRentalWindow = cycleUsageEntity.getRentalAt() != null
-                && !cycleUsageEntity.getRentalAt().isBefore(now.minusMinutes(30))
-                && !cycleUsageEntity.getRentalAt().isAfter(now);
-        boolean withinReturnWindow = cycleUsageEntity.getReturnAt() != null
-                && !cycleUsageEntity.getReturnAt().isBefore(now.minusDays(1))
-                && !cycleUsageEntity.getReturnAt().isAfter(now);
-        if (!withinRentalWindow && !withinReturnWindow) {
-            throw new CycleException(CANT_WRITE_CLAIM);
+        if (pathRepository.findByCycleUsage_CycleUsageId(cycleUsage.getCycleUsageId()).isPresent()) {
+            throw new CycleException(PATH_ALREADY_EXISTS);
         }
 
-        MultipartFile photo = request.file();
-
-        String path = null;
-        if (photo != null && !photo.isEmpty()) {
-            path = s3Service.uploadImage(photo);
-        }
-
-        CycleClaimEntity cycleClaimEntity = CycleClaimEntity.builder()
-                .cycleUsageEntity(cycleUsageEntity)
-                .claimCategory(request.claimCategory())
-                .content(request.content())
-                .status(ClaimStatus.READY)
-                .path(path)
-                .build();
-
-        CycleClaimEntity save = cycleClaimRepository.save(cycleClaimEntity);
-        return new CycleClaimResponse(save.getId());
-    }
-
-    @Transactional
-    public List<CycleClaimListResponse> getCycleClaims(String cycleId) {
-        if (cycleId == null || cycleId.isBlank()) {
-            throw new CycleException(CYCLE_ID_REQUIRED);
-        }
-        if (!cycleRepository.existsById(cycleId)) {
-            throw new CycleException(NOT_EXIST_CYCLE_ID);
-        }
-
-        return cycleClaimRepository
-                .findAllByCycleUsageEntity_CycleEntity_CycleIdOrderByCreatedAtDescIdDesc(cycleId)
-                .stream()
-                .map(claim -> new CycleClaimListResponse(
-                        claim.getId(),
-                        claim.getCycleUsageEntity().getUserEntity().getNickname(),
-                        claim.getClaimCategory(),
-                        claim.getContent(),
-                        claim.getCreatedAt()))
-                .toList();
-    }
-
-    @Transactional
-    public void reportCycleClaim(Long userId, Long claimId, ClaimReportCategory claimCategory) {
-        if (claimCategory == null) {
-            throw new CycleException(CLAIM_REPORT_CATEGORY_REQUIRED);
-        }
-
-        UserEntity userEntity = userRepository.findById(userId)
-                .orElseThrow(() -> new UserException(NOT_EXISTS_USER));
-        CycleClaimEntity cycleClaimEntity = cycleClaimRepository.findById(claimId)
-                .orElseThrow(() -> new CycleException(NOT_EXIST_CLAIM_ID));
-
-        cycleClaimReportRepository.save(CycleClaimReportEntity.builder()
-                .cycleClaimEntity(cycleClaimEntity)
-                .userEntity(userEntity)
-                .claimCategory(claimCategory)
-                .build());
+        pathRepository.save(
+                PathEntity.builder()
+                        .user(user)
+                        .pathInfo(request.pathInfo())
+                        .cycleUsage(cycleUsage)
+                        .createdAt(request.createdAt())
+                        .finishedAt(request.finishedAt())
+                        .totalDistance(request.totalDistance())
+                        .bikeDistance(request.bikeDistance())
+                        .build()
+        );
     }
 }

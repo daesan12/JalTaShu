@@ -4,12 +4,21 @@ import { useNavigate } from 'react-router';
 import type { Pos, RouteCandidate } from '@/shared/api/types';
 import { getReRoutePaths } from '@/features/map/api/routes';
 import type { useCurrentLocation } from '@/features/map/hooks/useCurrentLocation';
+import { useKeepAwake } from '@/features/map/hooks/useKeepAwake';
 import { useSpeech } from '@/features/map/hooks/useSpeech';
+import { readVoiceOn, writeVoiceOn } from '@/features/map/lib/guideVoicePref';
 import { buildRouteCues, getNextCue } from '@/features/map/lib/routeCues';
 import { getRouteProgress, hasArrived } from '@/features/map/lib/routeProgress';
 import { shouldReRoute, toTravelStatus } from '@/features/map/lib/routeReroute';
 import { toLegs } from '@/features/map/lib/routeSegments';
-import { cueSpeech, spokenKey, voiceStage } from '@/features/map/lib/routeVoice';
+import { ANNOUNCE, cueSpeech, spokenKey, voiceStage } from '@/features/map/lib/routeVoice';
+
+/**
+ * 도착 문장을 이미 말했다는 표시. 회전 안내의 `spokenKey`("3:near")와 겹치지 않는 이름이면 된다.
+ * 도착 감지와 마지막 `arrive` 회전 안내가 같은 문장을 말하는데, 어느 쪽이 먼저 올지는 경로에
+ * 따라 다르다(도착 판정 30m vs 도보 near 15m·자전거 near 40m).
+ */
+const ARRIVED_KEY = 'arrived';
 
 interface ArrivalSummary {
   destinationTitle: string;
@@ -54,7 +63,8 @@ export function useRouteGuide({
   showToast,
 }: RouteGuideDeps) {
   const navigate = useNavigate();
-  const [voiceOn, setVoiceOn] = useState(true);
+  // 기본은 켜짐. 명시적으로 껐던 사람만 그 선택이 따라온다 (`guideVoicePref.ts`)
+  const [voiceOn, setVoiceOn] = useState(readVoiceOn);
   // 이미 읽어 준 안내("3번째 회전의 far 단계") — 같은 문장을 반복하지 않으려고 기록한다
   const spokenRef = useRef(new Set<string>());
   // 마지막으로 재탐색한 시각 — 위치가 튈 때마다 서버를 두드리지 않게 간격을 둔다
@@ -65,6 +75,9 @@ export function useRouteGuide({
   // 12 안내 시작 시각(도착 요약의 소요 시간 계산용)과 도착 처리 중복 방지 플래그 — 렌더에 쓰지 않아 ref로 둔다
   const guideStartAtRef = useRef<number | null>(null);
   const arrivalHandledRef = useRef(false);
+
+  // 안내 중에는 화면이 꺼지지 않게 한다 — 꺼지면 WebView가 멈춰 안내도 음성도 같이 멎는다
+  useKeepAwake(guideActive);
 
   // 안내 중에는 위치를 계속 받는다. 평소에는 배터리 때문에 켜지 않는다
   const watchLocation = location.watch;
@@ -138,14 +151,28 @@ export function useRouteGuide({
    * 판단은 `routeVoice.ts`의 순수 함수가 하고 여기서는 "이미 말했는지"만 본다.
    */
   useEffect(() => {
-    if (!guideActive || !voiceOn || nextCue === null) return;
+    if (!guideActive || !voiceOn || nextCue === null || detailRoute === null) return;
     const stage = voiceStage(nextCue.cue.mode, nextCue.remainingM);
     if (stage === null) return;
     const key = spokenKey(nextCue, stage);
     if (spokenRef.current.has(key)) return;
     spokenRef.current.add(key);
-    speech.speak(cueSpeech(nextCue, stage));
-  }, [guideActive, voiceOn, nextCue, speech]);
+    const text = cueSpeech(detailRoute, nextCue, stage);
+    // 도착 문장은 도착 감지(30m)도 말한다. 먼저 말한 쪽이 기록을 가져가 두 번 말하지 않게 한다
+    if (text === ANNOUNCE.arrived) spokenRef.current.add(ARRIVED_KEY);
+    speech.speak(text);
+  }, [guideActive, voiceOn, nextCue, detailRoute, speech]);
+
+  /**
+   * 도착 발화 — 화면에는 전체 요약이 뜨지만 화면을 보지 않는 것이 전제인 기능이라 말로도 알린다.
+   * 마지막 구간의 `arrive` 회전 안내와 문장이 같아 같은 기록(`ARRIVED_KEY`)을 나눠 쓴다.
+   */
+  useEffect(() => {
+    if (arrivalSummary === null) return;
+    if (spokenRef.current.has(ARRIVED_KEY)) return;
+    spokenRef.current.add(ARRIVED_KEY);
+    speech.speak(ANNOUNCE.arrived);
+  }, [arrivalSummary, speech]);
 
   /**
    * 재탐색 — 경로에서 많이 벗어나면 지금 상황(어느 구간·어느 대여소·어떤 경로 종류)을 그대로
@@ -159,10 +186,12 @@ export function useRouteGuide({
       // 새 경로에는 예전 회전 안내가 남으면 안 된다
       spokenRef.current.clear();
       showToast('경로를 다시 찾았어요.');
+      speech.speak(ANNOUNCE.reroute);
     },
     onError: () => {
       // 재탐색 실패는 안내를 멈출 일이 아니다 — 기존 경로로 계속 안내한다
       showToast('경로를 다시 찾지 못했어요. 원래 경로로 안내합니다.');
+      speech.speak(ANNOUNCE.rerouteFailed);
     },
   });
 
@@ -238,7 +267,11 @@ export function useRouteGuide({
     rerouting: reroute.isPending,
     voiceOn,
     voiceSupported: speech.supported,
-    toggleVoice: () => setVoiceOn((on) => !on),
+    toggleVoice: () =>
+      setVoiceOn((on) => {
+        writeVoiceOn(!on);
+        return !on;
+      }),
     /** "안내 시작"을 누르는 그 클릭 안에서 불러야 첫 소리가 막히지 않는다 */
     primeVoice: speech.prime,
   };

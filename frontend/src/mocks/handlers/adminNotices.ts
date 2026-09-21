@@ -1,17 +1,23 @@
 import { delay, http, HttpResponse } from 'msw';
-import { fail, isAdminLoggedIn, ok } from '@/mocks/core';
+import { fail, getAuthState, isAdminLoggedIn, ok } from '@/mocks/core';
 
 /**
- * 공지사항 저장소 — 관리자(06·08)가 CRUD하고, 모바일 고객센터 공지 목록도 같은 데이터를 읽는다
- * (관리자가 등록하면 앱 공지사항에 바로 뜨는 흐름을 목업으로 재현).
+ * 공지사항 저장소 — 관리자(06·08)가 CRUD하고, 모바일 고객센터도 같은 목록/상세 API를 읽는다
+ * (NoticeController는 관리자 전용이 아니다 — 로그인한 누구나 조회 가능).
  */
 const ADMIN_NOTICES_KEY = 'msw_admin_notices';
 
 export interface MockNotice {
   noticeId: number;
   title: string;
+  author: string;
   content: string;
   createdAt: string;
+}
+
+/** 실서버 기준: 이용자든 관리자든 로그인돼 있으면 조회 가능 */
+function anyLoggedIn(): boolean {
+  return isAdminLoggedIn() || getAuthState().loggedIn;
 }
 
 const NOTICE_SEED_CONTENT =
@@ -24,14 +30,16 @@ function seedNotices(): MockNotice[] {
     { noticeId: 3, title: '공영자전거 타슈 이용약관 개정 알림', createdAt: '2026-04-10T09:00:00+09:00' },
     { noticeId: 2, title: '"타슈" 대여 전 안전수칙 확인 후 대여하도록 절차 개선', createdAt: '2025-10-28T09:00:00+09:00' },
     { noticeId: 1, title: '타슈 대여소에 반드시 반납해주세요!!!', createdAt: '2023-08-02T09:00:00+09:00' },
-  ].map((n) => ({ ...n, content: NOTICE_SEED_CONTENT }));
-  // 관리자 목록 페이지네이션 확인용 — 월별 점검 공지를 채워 2페이지 이상 만든다
-  for (let i = 0; i < 13; i++) {
+  ].map((n) => ({ ...n, author: '타슈 운영팀', content: NOTICE_SEED_CONTENT }));
+  // 관리자 목록 페이지네이션 확인용 — 월별 점검 공지를 채워 2페이지 이상 만든다 (12월→1월)
+  for (let i = 0; i < 12; i++) {
+    const month = 12 - i;
     seeded.push({
       noticeId: 6 + i,
-      title: `대여소 정기 점검 안내 (2025년 ${12 - i}월)`,
+      title: `대여소 정기 점검 안내 (2025년 ${month}월)`,
+      author: '타슈 운영팀',
       content: NOTICE_SEED_CONTENT,
-      createdAt: `2025-${String(12 - i).padStart(2, '0')}-03T09:00:00+09:00`,
+      createdAt: `2025-${String(month).padStart(2, '0')}-03T09:00:00+09:00`,
     });
   }
   return seeded;
@@ -58,21 +66,32 @@ function setMockNotices(notices: MockNotice[]) {
   }
 }
 
-/** 관리자 공지사항 (06·08 — 목록·상세는 구현 O, 등록·삭제는 구현 X라 목업 기준) */
+/** 공지사항 — 목록·상세는 NoticeController 실측 스키마, 등록·삭제는 백엔드 구현 X라 목업 기준 */
 export const adminNoticeHandlers = [
   http.get('/api/notice/list', async () => {
     await delay(300);
-    if (!isAdminLoggedIn()) return fail(401, '로그인이 필요합니다.');
-    const notices = [...getMockNotices()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    if (!anyLoggedIn()) return fail(401, '로그인이 필요합니다.');
+    // NoticeListResponse — 본문(content)은 목록에 없다
+    const notices = [...getMockNotices()]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(({ noticeId, title, author, createdAt }) => ({ noticeId, title, author, createdAt }));
     return HttpResponse.json(ok(notices));
   }),
 
   http.get('/api/notice/:noticeId', async ({ params }) => {
     await delay(250);
-    if (!isAdminLoggedIn()) return fail(401, '로그인이 필요합니다.');
+    if (!anyLoggedIn()) return fail(401, '로그인이 필요합니다.');
     const notice = getMockNotices().find((n) => n.noticeId === Number(params.noticeId));
     if (!notice) return fail(404, '존재하지 않는 공지입니다.');
-    return HttpResponse.json(ok(notice));
+    // NoticeDetailResponse — noticeId 없이 온다
+    return HttpResponse.json(
+      ok({
+        title: notice.title,
+        author: notice.author,
+        createdAt: notice.createdAt,
+        content: notice.content,
+      }),
+    );
   }),
 
   http.post('/api/admin/notice', async ({ request }) => {
@@ -89,6 +108,7 @@ export const adminNoticeHandlers = [
     const notice: MockNotice = {
       noticeId: Math.max(0, ...notices.map((n) => n.noticeId)) + 1,
       title,
+      author: '타슈 운영팀',
       content,
       createdAt: new Date().toISOString(),
     };

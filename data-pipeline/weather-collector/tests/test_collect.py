@@ -57,7 +57,11 @@ class WeatherCollectorTest(unittest.TestCase):
         collect.LATEST_PATH = collect.DATA_ROOT / "latest.json"
         self.env = mock.patch.dict(
             os.environ,
-            {"KMA_API_KEY": "test-key", "WEATHER_KAFKA_ENABLED": "false"},
+            {
+                "KMA_API_KEY": "test-key",
+                "WEATHER_KAFKA_ENABLED": "false",
+                "WEATHER_REDIS_ENABLED": "false",
+            },
             clear=False,
         )
         self.env.start()
@@ -163,6 +167,40 @@ class WeatherCollectorTest(unittest.TestCase):
         collector.collect_once(now)
 
         collector.kafka_outbox.enqueue.assert_called_once()
+
+    def test_same_observation_refreshes_redis_every_cycle(self):
+        collector = self.new_collector()
+        collector.redis_enabled = True
+        collector.redis_publisher = mock.Mock()
+        collector.session.get = mock.Mock(return_value=FakeResponse(payload()))
+        now = datetime(2026, 9, 15, 14, 45, tzinfo=collect.KST)
+
+        collector.collect_once(now)
+        collector.collect_once(now)
+
+        self.assertEqual(collector.redis_publisher.publish.call_count, 2)
+
+    def test_redis_failure_does_not_stop_kafka_or_health_update(self):
+        collector = self.new_collector()
+        collector.redis_enabled = True
+        collector.redis_publisher = mock.Mock()
+        collector.redis_publisher.publish.side_effect = (
+            collect.WeatherRedisPublishError("unavailable")
+        )
+        collector.kafka_enabled = True
+        collector.kafka_outbox = mock.Mock()
+        collector.kafka_outbox.pending_count.return_value = 0
+        collector.kafka_outbox.replay_pending.return_value = mock.Mock(
+            delivered_events=0, pending_events=0
+        )
+        collector.kafka_outbox.enqueue.return_value = self.root / "spool.json"
+        collector.session.get = mock.Mock(return_value=FakeResponse(payload()))
+        now = datetime(2026, 9, 15, 14, 45, tzinfo=collect.KST)
+
+        collector.collect_once(now)
+
+        collector.kafka_outbox.enqueue.assert_called_once()
+        self.assertTrue(collect.HEALTH_PATH.exists())
 
 
 if __name__ == "__main__":

@@ -35,8 +35,11 @@ afterEach(() => store.clear());
 afterAll(() => server.close());
 
 async function adminLogin() {
-  const res = await post('/api/admin/auth/login', { id: 'admin', password: 'admin1234' });
+  const res = await post('/api/admin/login', { id: 'admin', password: 'admin1234' });
   expect(res.status).toBe(200);
+  // 백엔드 실스키마 — 로그인 응답으로 access token이 온다
+  const { data } = await res.json();
+  expect(data).toHaveProperty('accessToken');
 }
 
 describe('관리자 핸들러 등록 순서', () => {
@@ -55,14 +58,26 @@ describe('관리자 핸들러 등록 순서', () => {
     const list = await (await get('/api/admin/cycle/list')).json();
     expect(list.data.length).toBe(90);
     const statics = await (await get('/api/admin/cycle/statics')).json();
-    expect(statics.data.totalCnt).toBe(90);
+    expect(statics.data.totalCycleCnt).toBe(90);
+    // 개별 조회는 실서버처럼 이용 이력 리스트만 온다
     const detail = await (await get('/api/admin/cycle/DJ-10001')).json();
-    expect(detail.data.cycleId).toBe('DJ-10001');
+    expect(Array.isArray(detail.data)).toBe(true);
+    expect(detail.data[0]).toHaveProperty('recordId');
   });
 
-  it('station/trend(고정)가 station/:stationId에 잡히지 않고 7일 추이를 준다', async () => {
+  it('cycle/claim/:claimId(상세)가 cycle/:cycleId/claim에 잡히지 않는다', async () => {
     await adminLogin();
-    const res = await get('/api/admin/station/trend?stationId=ST0001');
+    const res = await get('/api/admin/cycle/claim/26');
+    expect(res.status).toBe(200);
+    const { data } = await res.json();
+    // :cycleId/claim에 잡혔다면 cycleId='claim'인 제보 목록(빈 배열)이 왔을 것
+    expect(data.claimId).toBe(26);
+    expect(data).toHaveProperty('adminComment');
+  });
+
+  it('station/trend(고정)가 station/:stationId에 잡히지 않고 주간 추이를 준다', async () => {
+    await adminLogin();
+    const res = await get('/api/admin/station/trend?term=week');
     expect(res.status).toBe(200);
     const { data } = await res.json();
     expect(data).toHaveLength(7);
@@ -86,18 +101,45 @@ describe('관리자 핸들러 등록 순서', () => {
 });
 
 describe('도메인 간 저장소 공유', () => {
-  it('모바일 공지 목록이 관리자 공지 저장소를 읽는다', async () => {
+  it('모바일 이용자도 공지 목록(/notice/list)을 읽을 수 있다', async () => {
     await post('/api/auth/mock-login');
-    const res = await get('/api/notices');
+    const res = await get('/api/notice/list');
     expect(res.status).toBe(200);
     const { data } = await res.json();
-    // 관리자 시드 18건 (기본 5 + 월별 점검 13)
-    expect(data).toHaveLength(18);
+    // 관리자 시드 17건 (기본 5 + 월별 점검 12). 본문은 목록에 없다
+    expect(data).toHaveLength(17);
     expect(data[0]).toHaveProperty('title');
+    expect(data[0]).not.toHaveProperty('content');
   });
 
   it('로그인 없이 모바일 API를 부르면 401', async () => {
-    const res = await get('/api/rides');
+    const res = await get('/api/cycle/usage/list');
     expect(res.status).toBe(401);
+  });
+});
+
+describe('가입 흐름 (users/me 계약)', () => {
+  it('가입 전에는 me가 403, 가입 후에는 닉네임과 월간 통계를 준다', async () => {
+    // 첫 카카오 로그인 = GUEST — 실서버처럼 me가 권한 403
+    await post('/api/auth/mock-login');
+    expect((await get('/api/users/me')).status).toBe(403);
+
+    // 필수 약관 동의 + 닉네임으로 가입 완료 (agrees는 [code, version] 쌍)
+    const signUp = await post('/api/auth/sign-up', {
+      agrees: [
+        ['SERVICE', '1.0'],
+        ['PRIVACY', '1.0'],
+        ['LOCATION', '1.0'],
+      ],
+      nickname: '잘타슈',
+    });
+    expect(signUp.status).toBe(200);
+
+    const me = await get('/api/users/me');
+    expect(me.status).toBe(200);
+    const { data } = await me.json();
+    expect(data.nickname).toBe('잘타슈');
+    expect(data).toHaveProperty('monthlyMoveCnt');
+    expect(data).toHaveProperty('monthlyTime');
   });
 });

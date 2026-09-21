@@ -3,6 +3,7 @@ package com.s15p21b103.good_tashu.notice.controller;
 import com.s15p21b103.good_tashu._util.response.ApiResponse;
 import com.s15p21b103.good_tashu.notice.dto.res.NoticeDetailResponse;
 import com.s15p21b103.good_tashu.notice.dto.res.NoticeListResponse;
+import com.s15p21b103.good_tashu.notice.dto.res.PopupListResponse;
 import com.s15p21b103.good_tashu.notice.exception.NoticeException;
 import com.s15p21b103.good_tashu.notice.service.NoticeService;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class NoticeController {
     private final NoticeService noticeService;
+
+    @GetMapping("/pop-up")
+    public ApiResponse<List<PopupListResponse>> getPopupList() {
+        return ApiResponse.success(noticeService.getPopupList());
+    }
 
     //공지 목록 조회
     @GetMapping("/list")

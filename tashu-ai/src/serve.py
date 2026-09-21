@@ -82,6 +82,9 @@ def db_connect():
         password=_require_env(v["password"]),
         charset="utf8mb4",
         init_command="SET SESSION time_zone = '+00:00'",  # 저장 규약: UTC (infra/mysql/README)
+        # 연결을 루프 내내 재사용한다. autocommit이 없으면 첫 SELECT가 연 트랜잭션이 닫히지 않아
+        # REPEATABLE READ 스냅샷에 갇혀 이후 주기가 새 행을 못 본다 (운영 첫 기동에서 실측 — 키 0개).
+        autocommit=True,
     )
 
 
@@ -224,13 +227,16 @@ def readiness(snapshots: pd.DataFrame, weather: pd.DataFrame, now: pd.Timestamp,
 
 def build_feature_rows(now: pd.Timestamp, snapshots: pd.DataFrame, profile: pd.DataFrame,
                        weather: pd.DataFrame | None) -> pd.DataFrame:
-    """대여소당 현재·다음 버킷 행 2개 (계약 §8) — 학습과 같은 features 함수로 생성.
+    """대여소당 현재부터 N_FEATURE_BUCKETS개 버킷 행 (계약 §8) — 학습과 같은 features 함수로 생성.
 
     반환 컬럼: station_id(category), bucket_start + FEATURE_COLUMNS 전부.
     """
     stations = pd.Index(snapshots["station_id"].unique(), name="station_id")
     b0 = now.floor(f"{config.BUCKET_MINUTES}min")
-    buckets = pd.DatetimeIndex([b0, b0 + pd.Timedelta(minutes=config.BUCKET_MINUTES)], name="bucket_start")
+    buckets = pd.DatetimeIndex(
+        [b0 + k * pd.Timedelta(minutes=config.BUCKET_MINUTES) for k in range(config.N_FEATURE_BUCKETS)],
+        name="bucket_start",
+    )
     rows = pd.MultiIndex.from_product([stations, buckets]).to_frame(index=False)
 
     weather_obs = None if weather is None or weather.empty else extend_weather_to(weather, now)
@@ -261,34 +267,54 @@ def predict_rates(art: Artifacts, rows: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def compute_predictions(now: pd.Timestamp, rates: pd.DataFrame, s_by_station: pd.Series,
-                        tail_correction: float = 1.0) -> pd.DataFrame:
-    """대여소 × 지평 → [station_id, horizon_min, bikes, prob_out]. 표시용 클립·반올림은 여기서.
+def horizon_totals(now: pd.Timestamp, rates: pd.DataFrame, s_by_station: pd.Series,
+                   horizons_min: tuple[int, ...] = config.HORIZONS_MIN,
+                   rate_cols: tuple[str, str] = ("lambda_hat", "mu_hat")) -> pd.DataFrame:
+    """대여소 × 지평의 λ_total·μ_total (계약 §8 버킷 겹침 가중합) + s — 원시값, 반올림 없음.
 
-    probability.predict_horizons(대여소 1곳)와 같은 계산을 전 대여소 배열로 한 번에 한다 —
+    probability.horizon_total(대여소 1곳)과 같은 계산을 전 대여소 배열로 한 번에 한다 —
     버킷 가중치는 now·h에만 의존해 모든 대여소에 공통 (per-station 루프는 1,500곳에 3초).
+    rate_cols로 프로파일 평균 등 다른 율 컬럼도 같은 방식으로 합산할 수 있다 (베이스라인용).
+    반환: [station_id, horizon_min, s, lam_total, mu_total]
     """
-    wide = rates.pivot(index="station_id", columns="bucket_start", values=["lambda_hat", "mu_hat"])
+    lam_col, mu_col = rate_cols
+    wide = rates.pivot(index="station_id", columns="bucket_start", values=[lam_col, mu_col])
     s = s_by_station.reindex(wide.index)
     keep = s.notna().to_numpy()
     wide, s = wide[keep], s[keep].to_numpy(dtype=float)
 
     frames = []
-    for h in config.HORIZONS_MIN:
+    for h in horizons_min:
         lam_total = np.zeros(len(wide))
         mu_total = np.zeros(len(wide))
         for bucket, weight in probability.bucket_weights(now, h):
-            if ("lambda_hat", bucket) not in wide.columns:
+            if (lam_col, bucket) not in wide.columns:
                 raise KeyError(f"버킷 {bucket} 의 예측 율이 없음 — 대여소당 피처 행 구성(현재+다음) 확인")
-            lam_total += wide[("lambda_hat", bucket)].to_numpy() * weight
-            mu_total += wide[("mu_hat", bucket)].to_numpy() * weight
+            lam_total += wide[(lam_col, bucket)].to_numpy(dtype=float) * weight
+            mu_total += wide[(mu_col, bucket)].to_numpy(dtype=float) * weight
         frames.append(pd.DataFrame({
-            "station_id": wide.index.to_numpy(),
-            "horizon_min": h,
-            "bikes": np.round(np.clip(probability.expected_bikes(s, lam_total, mu_total), 0.0, None), 1),
-            "prob_out": np.round(probability.depletion_probability(s, lam_total, mu_total, tail_correction), 3),
+            "station_id": wide.index.to_numpy(), "horizon_min": h,
+            "s": s, "lam_total": lam_total, "mu_total": mu_total,
         }))
     return pd.concat(frames, ignore_index=True)
+
+
+def compute_predictions(now: pd.Timestamp, rates: pd.DataFrame, s_by_station: pd.Series,
+                        tail_correction: float | None = None) -> pd.DataFrame:
+    """대여소 × 지평 → [station_id, horizon_min, bikes, prob_out]. 표시용 클립·반올림은 여기서.
+
+    tail_correction=None이면 지평별 앵커 보간(probability.tail_correction_for) — 서빙 기본.
+    """
+    tot = horizon_totals(now, rates, s_by_station)
+    s, lam, mu = tot["s"].to_numpy(), tot["lam_total"].to_numpy(), tot["mu_total"].to_numpy()
+    if tail_correction is None:
+        tail_correction = probability.tail_correction_for(tot["horizon_min"].to_numpy())
+    return pd.DataFrame({
+        "station_id": tot["station_id"].to_numpy(),
+        "horizon_min": tot["horizon_min"].to_numpy(),
+        "bikes": np.round(np.clip(probability.expected_bikes(s, lam, mu), 0.0, None), 1),
+        "prob_out": np.round(probability.depletion_probability(s, lam, mu, tail_correction), 3),
+    })
 
 
 def write_redis(client, preds: pd.DataFrame, now: pd.Timestamp) -> int:

@@ -10,6 +10,13 @@ Kafka를 활성화하면 같은 수집 결과에 공통 `snapshot_id`를 부여�
 event로 `tashu.station-availability.v1` topic에 발행합니다. Kafka는 실시간 전달
 경로이며 Parquet/S3 원본 저장을 대체하지 않습니다.
 
+Redis를 활성화하면 검증을 통과한 전체 snapshot을 JSON 하나로 원자적으로
+`tashu:station-availability:latest:v1`에 저장합니다. `stations`의 각 항목에는
+`station_id`, `bikes`, `collected_at`만 저장합니다. 키에는 TTL을 두므로 수집기가
+멈췄을 때 오래된 값을 최신 snapshot으로 노출하지 않습니다. 같은 Redis 트랜잭션에서
+`tashu:station-availability:last-known:v1` hash에 정류소별 마지막 성공값도 보관합니다.
+백엔드는 최신값이 없을 때 이 값을 수집 시각과 함께 반환합니다.
+
 ## 환경변수
 
 | 변수 | 필수 | 기본값 | 설명 |
@@ -25,6 +32,14 @@ event로 `tashu.station-availability.v1` topic에 발행합니다. Kafka는 실�
 | `TASHU_KAFKA_CLIENT_ID` | 아니요 | `tashu-collector` | Kafka producer client ID |
 | `TASHU_KAFKA_DELIVERY_TIMEOUT_SECONDS` | 아니요 | `10` | snapshot 발행 완료 대기시간 |
 | `TASHU_KAFKA_SPOOL_DIR` | 아니요 | `<data>/kafka-spool` | 미전송 snapshot outbox 디렉토리 |
+| `TASHU_REDIS_ENABLED` | 아니요 | `false` | `true`이면 최신 완전 snapshot을 Redis에 반영 |
+| `TASHU_REDIS_HOST` | 아니요 | `localhost` | Backend와 같은 Redis host |
+| `TASHU_REDIS_PORT` | 아니요 | `6379` | Redis port |
+| `TASHU_REDIS_DATABASE` | 아니요 | `0` | Backend와 같은 Redis 논리 DB index |
+| `TASHU_REDIS_PASSWORD` | 아니요 | 없음 | Redis 인증 비밀번호(서버 Secret으로 주입) |
+| `TASHU_REDIS_LATEST_KEY` | 아니요 | `tashu:station-availability:latest:v1` | 최신 snapshot key |
+| `TASHU_REDIS_LAST_KNOWN_KEY` | 아니요 | `tashu:station-availability:last-known:v1` | 정류소별 마지막 성공값을 보관하는 hash key (TTL 없음) |
+| `TASHU_REDIS_TTL_SECONDS` | 아니요 | `180` | 최신 snapshot TTL. 수집 간격보다 길게 설정 |
 | `DISCORD_WEBHOOK_URL` | 아니요 | 없음 | 시작, 종료, 장애 및 일일 요약 알림 |
 | `LOG_LEVEL` | 아니요 | `INFO` | Python 로그 레벨 |
 
@@ -73,12 +88,38 @@ py collect.py
 $env:TASHU_API_KEY = '로컬-secret-값'
 $env:TASHU_KAFKA_ENABLED = 'true'
 $env:TASHU_KAFKA_BOOTSTRAP_SERVERS = 'localhost:9092'
+$env:TASHU_REDIS_ENABLED = 'true'
 python collect.py --once
 ```
 
 `--once`는 완전한 snapshot 하나만 수집하여 Parquet 저장과 Kafka 발행을 마친 뒤
 종료합니다. API key는 PowerShell 환경변수로만 주입하고 파일이나 Git에 저장하지
 않습니다.
+
+Redis 반영은 key 존재 여부와 TTL로 확인할 수 있습니다. 인증이 설정된 운영 서버에서는
+비밀번호를 명령행 인자로 남기지 말고 `REDISCLI_AUTH` 같은 안전한 주입 방식을 사용하세요.
+
+```bash
+redis-cli -n 0 EXISTS tashu:station-availability:latest:v1
+redis-cli -n 0 TTL tashu:station-availability:latest:v1
+```
+
+저장 값의 형태는 다음과 같습니다.
+
+```json
+{
+  "schema_version": 1,
+  "snapshot_id": "...",
+  "station_count": 1,
+  "stations": [
+    {
+      "station_id": "ST0001",
+      "bikes": 7,
+      "collected_at": "2026-09-18T10:00:00+09:00"
+    }
+  ]
+}
+```
 
 기본 45초 간격이면 하루 약 1,920 snapshot, 대전 대여소가 두 페이지일 때 기본 약 3,840 API 요청을 사용합니다. 재시도 횟수에 따라 실제 호출량은 늘어날 수 있으며 key별 KST 일일 상한은 4,500회입니다.
 
@@ -134,6 +175,7 @@ Parquet과 선택적 CSV는 약 5분마다 immutable part로 atomic save됩니�
 ## 주의
 
 - 실제 API key와 webhook URL을 코드, 로그, Git에 넣지 마세요.
+- Collector와 Backend의 Redis host, database index, key가 같아야 합니다. staging(DB 1)과 production(DB 0)은 각 환경의 Backend에 맞춰 별도로 지정하세요.
 - 실제 운영 Parquet, CSV, `collector_state.json`, `health.json`, 로그를 commit하지 마세요.
 - `.env.example`에는 실제 key를 넣지 마세요.
 - snapshot 검증에 실패하면 해당 snapshot 전체를 버리고 다시 수집하므로 일부 페이지만 저장되지 않습니다.

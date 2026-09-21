@@ -22,11 +22,14 @@ import { RouteDetailSheet } from '@/features/map/components/RouteDetailSheet';
 import { RouteGuideCard } from '@/features/map/components/RouteGuideCard';
 import { RouteGuideSheet } from '@/features/map/components/RouteGuideSheet';
 import { SearchBar } from '@/features/map/components/SearchBar';
+import { StationRefreshButton } from '@/features/map/components/StationRefreshButton';
 import { StationSheet } from '@/features/map/components/StationSheet';
 import { Toast } from '@/features/map/components/Toast';
 import { UpdatedBadge } from '@/features/map/components/UpdatedBadge';
+import { WeatherButton } from '@/features/map/components/WeatherButton';
 import { LOCATION_ERROR_TEXT, useCurrentLocation } from '@/features/map/hooks/useCurrentLocation';
 import { useJourneyPlanner } from '@/features/map/hooks/useJourneyPlanner';
+import { useMapPick } from '@/features/map/hooks/useMapPick';
 import { useNoticePopup } from '@/features/map/hooks/useNoticePopup';
 import { useRentalSheets } from '@/features/map/hooks/useRentalSheets';
 import { useRouteGuide } from '@/features/map/hooks/useRouteGuide';
@@ -96,11 +99,35 @@ export function MapHomePage() {
   }
 
   // 마커와 갱신 배지가 같은 목록을 쓴다
-  const { data: stations } = useQuery({
+  const {
+    data: stations,
+    dataUpdatedAt,
+    isFetching: stationsFetching,
+    refetch: refetchStations,
+  } = useQuery({
     queryKey: BIKE_STATIONS_QUERY_KEY,
     queryFn: getBikeStations,
   });
-  const updatedAt = stations?.[0]?.updatedAt;
+
+  /**
+   * 대여소 잔여 대수를 지금 다시 받아온다. 성공하면 `dataUpdatedAt`이 새로 찍혀 갱신 배지도 0초로 돌아간다.
+   * 실패해도 지도에 이미 그려진 대여소는 그대로 둔다 — 화면을 비우는 것보다 오래된 값이라도 보이는 편이 낫다.
+   */
+  async function refreshStations() {
+    try {
+      // throwOnError를 켜야 실패가 예외로 온다 — 기본값은 이미 받아둔 데이터가 있으면 성공처럼 보인다
+      await refetchStations({ throwOnError: true });
+    } catch {
+      showToast('대여소 정보를 새로 불러오지 못했습니다.');
+    }
+  }
+
+  /*
+   * 배지에 쓸 기준 시각. 서버가 대여소마다 관측 시각(`time`)을 주므로 그걸 먼저 쓴다 —
+   * 스냅샷 한 건에서 나오는 값이라 대여소끼리 같고, 값이 없는 대여소(실시간 정보 없음)는 건너뛴다.
+   * 전부 없으면 "우리가 목록을 받아온 시각"으로 떨어진다(#96에서 쓰던 방식).
+   */
+  const snapshotAt = stations?.find((s) => s.updatedAt !== null)?.updatedAt ?? null;
 
   const popup = useNoticePopup();
   const rental = useRentalSheets(stations);
@@ -125,6 +152,9 @@ export function MapHomePage() {
   const detailSheetOpen = detailActive && !stationSheetOpen && !guideActive;
   const destinationSheetOpen =
     destination !== null && !stationSheetOpen && !searchOpen && !compareActive && !pickActive;
+
+  // 선택 모드의 지도 조작 — 탭한 지점으로 지도를 옮기고, 멈추면 그 지점의 주소를 읽는다
+  const pickAddress = useMapPick({ mapRef, active: pickActive });
 
   const guide = useRouteGuide({
     guideActive,
@@ -193,7 +223,12 @@ export function MapHomePage() {
       showToast('지도를 아직 불러오지 못했습니다.');
       return;
     }
-    journey.applyPickedPos(latLngToPos({ lat: center.lat(), lng: center.lng() }), startFieldInUrl);
+    // 주소는 지도가 멈춰 있는 동안 읽어 둔 것이다 — 움직이는 중이면 null이라 좌표만 넘어간다
+    journey.applyPickedPos(
+      latLngToPos({ lat: center.lat(), lng: center.lng() }),
+      startFieldInUrl,
+      pickAddress.place,
+    );
     // 정상 흐름은 검색(1)+선택(1) 두 push를 함께 닫는 -2가 맞지만, 새로고침·딥링크로
     // 이 상태에 바로 들어오면 히스토리가 부족해 앱 밖으로 나가 버린다 — 그때는 파라미터만 걷어낸다
     const historyIdx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
@@ -274,11 +309,17 @@ export function MapHomePage() {
         currentLocation={location.position}
         locationFocusToken={locationFocusToken}
         followLocation={guideActive}
+        pickActive={pickActive}
         onMapReady={handleMapReady}
       />
 
       {pickActive ? (
-        <MapPickLayer onCancel={cancelMapPick} onConfirm={confirmMapPick} />
+        <MapPickLayer
+          isStart={startFieldInUrl}
+          address={pickAddress}
+          onCancel={cancelMapPick}
+          onConfirm={confirmMapPick}
+        />
       ) : guideActive && guide.guideProgress !== null ? (
         <RouteGuideCard
           progress={guide.guideProgress}
@@ -313,7 +354,12 @@ export function MapHomePage() {
           <div className="pointer-events-auto w-full">
             <NoticeBanner onClick={() => navigate(NOTICES_PATH)} />
           </div>
-          {updatedAt && <UpdatedBadge updatedAt={updatedAt} />}
+          {/* Figma대로 오른쪽 끝에 붙인다 — 대여소를 아직 못 받았으면 보여줄 시각도 없다 */}
+          {stations && (
+            <div className="self-end">
+              <UpdatedBadge updatedAt={snapshotAt ?? dataUpdatedAt} />
+            </div>
+          )}
         </div>
       )}
 
@@ -322,6 +368,8 @@ export function MapHomePage() {
         <div
           className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${liftClass}`}
         >
+          <WeatherButton />
+          <StationRefreshButton onClick={refreshStations} refreshing={stationsFetching} />
           <CurrentLocationButton onClick={focusCurrentLocation} loading={location.loading} />
           {showRentButton ? (
             <Button full onClick={rental.openRentSheet}>
@@ -371,6 +419,7 @@ export function MapHomePage() {
           selectedIndex={selectedRouteIndex}
           onSelect={journey.setSelectedRouteIndex}
           onStart={journey.openRouteDetail}
+          showToast={showToast}
         />
       )}
 

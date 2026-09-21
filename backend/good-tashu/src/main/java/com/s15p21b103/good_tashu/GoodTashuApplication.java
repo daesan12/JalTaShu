@@ -13,7 +13,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 // 스케줄러 활성화
 @EnableScheduling
 public class GoodTashuApplication {
-
 	public static void main(String[] args) {
 		SpringApplication.run(GoodTashuApplication.class, args);
 	}

@@ -62,4 +62,9 @@ describe('formatTimeAgo', () => {
   it('미래 시각(시계 오차)은 0초 전으로 방어한다', () => {
     expect(at('2026-09-10T12:00:05+09:00')).toBe('0초 전');
   });
+
+  // 07 갱신 배지는 react-query의 dataUpdatedAt(epoch ms)을 그대로 넘긴다
+  it('epoch(ms) 숫자도 받는다', () => {
+    expect(formatTimeAgo(Date.now() - 10_000)).toBe('10초 전');
+  });
 });

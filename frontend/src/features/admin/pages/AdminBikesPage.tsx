@@ -22,7 +22,7 @@ export function AdminBikesPage() {
   const navigate = useNavigate();
 
   const [cycleSearch, setCycleSearch] = useState('');
-  const [stationSearch, setStationSearch] = useState('');
+  const [locationSearch, setLocationSearch] = useState('');
   const [status, setStatus] = useState<'all' | CycleStatus>('all');
   const [claimFilter, setClaimFilter] = useState<ClaimFilter>('all');
   const [page, setPage] = useState(1);
@@ -33,44 +33,44 @@ export function AdminBikesPage() {
     queryFn: getAdminCycles,
   });
 
-  // 명세 필터(cycle·stationName·statement·hasClaim)는 목업이라 클라에서 거른다 (연동 시 서버로)
+  // 서버 필터(cycle·stationName·statement·hasClaim)가 있지만 입력 즉시 반응하도록 클라에서 거른다
   const filtered = useMemo(() => {
     const cycleKeyword = cycleSearch.trim().toLowerCase();
-    const stationKeyword = stationSearch.trim().toLowerCase();
+    const locationKeyword = locationSearch.trim().toLowerCase();
     return (data ?? []).filter((cycle) => {
       if (cycleKeyword && !cycle.cycleId.toLowerCase().includes(cycleKeyword)) return false;
-      if (stationKeyword && !cycle.stationName?.toLowerCase().includes(stationKeyword)) {
+      if (locationKeyword && !cycle.currentLocation?.toLowerCase().includes(locationKeyword)) {
         return false;
       }
       if (status !== 'all' && cycle.statement !== status) return false;
-      if (claimFilter === 'has' && cycle.openClaimCnt === 0) return false;
-      if (claimFilter === 'none' && cycle.openClaimCnt > 0) return false;
+      if (claimFilter === 'has' && cycle.claimCnt === 0) return false;
+      if (claimFilter === 'none' && cycle.claimCnt > 0) return false;
       return true;
     });
-  }, [data, cycleSearch, stationSearch, status, claimFilter]);
+  }, [data, cycleSearch, locationSearch, status, claimFilter]);
   const pageItems = filtered.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE);
 
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-xl font-semibold">자전거 관리</h2>
 
-      {/* 통계 4카드 (GET /admin/cycle/statics) */}
+      {/* 통계 4카드 (GET /admin/cycle/statics 실측 — 정상/정지가 아니라 대기/대여 구분) */}
       <div className="grid grid-cols-4 gap-4">
-        <AdminStatCard label="전체 자전거" value={statics.data?.totalCnt ?? '–'} />
+        <AdminStatCard label="전체 자전거" value={statics.data?.totalCycleCnt ?? '–'} />
         <AdminStatCard
-          label="정상"
-          value={statics.data?.activeCnt ?? '–'}
+          label="대기중"
+          value={statics.data?.waitCycleCnt ?? '–'}
           valueClass="text-admin-ok-text"
         />
         <AdminStatCard
-          label="정지"
-          value={statics.data?.suspendedCnt ?? '–'}
-          valueClass="text-admin-danger-text"
+          label="대여중"
+          value={statics.data?.rentCycleCnt ?? '–'}
+          valueClass="text-admin-warn-text"
         />
         <AdminStatCard
-          label="미해결 제보 있는 자전거"
-          value={statics.data?.claimedCnt ?? '–'}
-          valueClass="text-admin-warn-text"
+          label="제보 있는 자전거"
+          value={statics.data?.claimCycleCnt ?? '–'}
+          valueClass="text-admin-danger-text"
         />
       </div>
 
@@ -85,11 +85,11 @@ export function AdminBikesPage() {
           }}
         />
         <AdminSearchInput
-          placeholder="대여소 검색"
+          placeholder="현재 위치 검색"
           className="w-56"
-          value={stationSearch}
+          value={locationSearch}
           onChange={(e) => {
-            setStationSearch(e.target.value);
+            setLocationSearch(e.target.value);
             setPage(1);
           }}
         />
@@ -102,8 +102,8 @@ export function AdminBikesPage() {
           aria-label="상태 필터"
         >
           <option value="all">전체 상태</option>
-          <option value="ACTIVE">정상</option>
-          <option value="SUSPENDED">정지</option>
+          <option value="READY">대기중</option>
+          <option value="RENTING">대여중</option>
         </AdminSelect>
         <AdminSelect
           value={claimFilter}
@@ -114,8 +114,8 @@ export function AdminBikesPage() {
           aria-label="제보 필터"
         >
           <option value="all">제보 전체</option>
-          <option value="has">미해결 제보 있음</option>
-          <option value="none">미해결 제보 없음</option>
+          <option value="has">제보 있음</option>
+          <option value="none">제보 없음</option>
         </AdminSelect>
       </AdminFilterBar>
 
@@ -124,9 +124,9 @@ export function AdminBikesPage() {
           <thead>
             <tr>
               <th className="w-32">자전거 ID</th>
-              <th>배치 대여소</th>
+              <th>현재 위치</th>
               <th className="w-28">상태</th>
-              <th className="w-32 text-right">미해결 제보</th>
+              <th className="w-24 text-right">제보</th>
               <th className="w-36">최근 이용</th>
             </tr>
           </thead>
@@ -143,19 +143,21 @@ export function AdminBikesPage() {
               <tr key={cycle.cycleId} onClick={() => navigate(`/admin/bikes/${cycle.cycleId}`)}>
                 <td className="tabular-nums">{cycle.cycleId}</td>
                 <td className="truncate">
-                  {cycle.stationName ?? <span className="text-admin-muted">대여 중</span>}
+                  {cycle.currentLocation ?? <span className="text-admin-muted">대여 중</span>}
                 </td>
                 <td>
                   <AdminBadge state={CYCLE_STATUS_LABEL[cycle.statement]} />
                 </td>
                 <td
                   className={`text-right tabular-nums ${
-                    cycle.openClaimCnt > 0 ? 'font-medium text-admin-danger-text' : ''
+                    cycle.claimCnt > 0 ? 'font-medium text-admin-danger-text' : ''
                   }`}
                 >
-                  {cycle.openClaimCnt}
+                  {cycle.claimCnt}
                 </td>
-                <td className="text-admin-muted">{formatTimeAgo(cycle.lastUsedAt)}</td>
+                <td className="text-admin-muted">
+                  {cycle.recentUsingAt ? formatTimeAgo(cycle.recentUsingAt) : '—'}
+                </td>
               </tr>
             ))}
           </tbody>

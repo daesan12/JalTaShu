@@ -1,5 +1,3 @@
-import type { PredictionHorizon } from '@/shared/config/constants';
-
 /**
  * 백엔드 공통 응답 래퍼 (backend/good-tashu ApiResponse.java와 동일 형태)
  * HTTP status와 body의 code는 항상 일치. 에러 시 data는 null.
@@ -20,45 +18,39 @@ export interface Station {
   currentBikes: number;
 }
 
-/**
- * 대여소 예상 대수 한 점 — 대여소 상세의 대수 추이 그래프에서 쓴다.
- * ⚠ 백엔드 스펙 미확정 프론트 가정(2026-09-14). 실제 응답이 오면 이 타입과 `api/stations.ts`만 고친다.
- */
+/** 대여소 예상 대수 한 점 — `GET /map/bike-station/{stationId}`의 `futureData` */
 export interface StationForecastPoint {
   /** 예측 시각 (ISO 8601) */
   dateTime: string;
-  /** 그 시각의 예상 잔여 대수 */
+  /** 그 시각의 예상 잔여 대수. 예측값이라 소수로 온다(6.8 등) */
   bikeCnt: number;
-}
-
-/**
- * 07 메인 지도용 대여소 — 백엔드 `GET /map/bike-station` 대응. 응답 필드명은 미확정이라 임시 스키마.
- * - 백엔드 원본은 `xPos`=경도, `yPos`=위도(확정). 실제 응답이 오면 이 파일과 api/stations.ts에서만 lat/lng로 맞춘다
- * - 도보 시간·거리는 화면에 표시하지 않으므로 받지도, 계산하지도 않는다
- */
-export interface BikeStation extends Station {
-  /** 데이터 갱신 시각 (ISO 8601, KST) — 명세의 `time`. 07 갱신 배지에서 사용 */
-  updatedAt: string;
-  /**
-   * 앞으로의 예상 대수. 목록 응답에 함께 온다고 **가정**한다(별도 상세 API로 갈라지면 `api/stations.ts`만 고친다).
-   * 예측 모델이 아직이라 값이 없을 수 있어 optional — 없으면 그래프 자리에 안내만 띄운다
-   */
-  futureData?: StationForecastPoint[];
-}
-
-/**
- * 예측 재고 — Redis 캐시 `pred:{station_id}:{horizon_min}` 스키마와 대응.
- * 예측 캐시가 죽으면(TTL 만료) 백엔드는 prediction 없이 currentBikes만 내려줌 → nullable로 다룰 것.
- */
-export interface StationPrediction {
-  stationId: string;
-  horizonMin: PredictionHorizon;
-  /** 도착 시점 예상 잔여 대수 (UI는 점 추정 단독 표시 금지 — 위험 배지 병기) */
-  bikes: number;
-  /** 도착 시점 고갈 확률 0~1 */
+  /** 그 시각의 고갈 확률 0~1 — **받기만 하고 화면에 표시하지 않는다**(확률 미표시 결정) */
   probOut: number;
-  /** 예측 생성 시각 (ISO 8601, KST) */
-  updatedAt: string;
+}
+
+/**
+ * 07 메인 지도용 대여소 — 백엔드 `GET /map/bike-station` 응답을 화면용으로 옮긴 것.
+ * 응답은 `currentCnt`·`time`·`xPos`(경도)·`yPos`(위도)이고, 이름 변환과 좌표 변환(`posToLatLng`)은
+ * **`features/map/api/stations.ts` 한 곳에서만** 한다. 화면은 이 타입만 본다.
+ * 도보 시간·거리는 표시하지 않으므로 받지도, 계산하지도 않는다.
+ */
+export interface BikeStation extends Omit<Station, 'currentBikes'> {
+  address: string | null;
+  /**
+   * 현재 잔여 대수. 실시간 스냅샷에 없는 대여소는 **null**로 온다.
+   * 0으로 바꾸지 않는다 — 자전거가 없다는 거짓말이 된다.
+   */
+  currentBikes: number | null;
+  /** 그 대수가 **몇 시 기준**인지 (ISO 8601, 응답의 `time`). 스냅샷에 없으면 null */
+  updatedAt: string | null;
+}
+
+/** 대여소 상세 — `GET /map/bike-station/{stationId}`. 예상 대수는 목록이 아니라 여기에만 있다 */
+export interface BikeStationDetail {
+  stationId: string;
+  currentBikes: number | null;
+  updatedAt: string | null;
+  futureData: StationForecastPoint[];
 }
 
 /**
@@ -181,9 +173,14 @@ export interface RouteCandidate {
   totalTime: number;
   legs: RouteLeg[];
   /**
-   * 대여 대여소 도착 시점에 확보 가능한 대수.
-   * **아직 응답에 없다**(AI 예측 대기, 2026-09-17에 곧 준다고 함) — 값이 들어오면 10의 "확보 우선"
-   * 칩과 "도착 시 N대" 표시가 그대로 살아난다. 그때까지 optional.
+   * 대여 대여소 도착 시점에 확보 가능한 대수(#106에서 응답에 들어왔다). 소수로 온다.
+   *
+   * 서버가 도보 구간 시간을 분으로 올려 그 지평의 예측을 읽는다. **없는 경우가 둘** 있어서
+   * optional로 둔다 — 도보가 15분을 넘어 예측 지평 밖이거나, `WALK` 단독 후보라 대여소가 없거나.
+   *
+   * 후보 `BIKE`·`UPHILL`은 **같은 대여소에서 빌려** 자전거 구간만 다르므로 이 값이 서로 같다.
+   * 그래서 10의 "확보 우선" 칩은 값의 유무가 아니라 **값이 서로 다른지**로 켠다
+   * (`bikesSortBlock`).
    */
   expectedBikeCnt?: number;
 }

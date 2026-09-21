@@ -7,6 +7,7 @@
 | 파일 | 역할 | 실행 형태 |
 | --- | --- | --- |
 | `tashu-collector.service` | 실시간 대여소 Collector를 부팅 시 시작하고 장애 시 재시작 | 계속 실행되는 서비스 |
+| `tashu-weather-collector.service` | 기상청 날씨 Collector를 전용 계정과 `/etc/tashu/weather-collector.env`로 실행 | 계속 실행되는 서비스 |
 | `tashu-s3-sync` | 완성된 대여소 snapshot `*.parquet`만 S3 Bronze prefix로 동기화 | 실행 후 종료되는 스크립트 |
 | `tashu-s3-sync.service` | 대여소 동기화 스크립트를 `tashu-collector` 계정으로 한 번 실행 | `oneshot` 서비스 |
 | `tashu-s3-sync.timer` | 대여소 동기화 서비스를 매시간 호출하고 놓친 실행을 부팅 후 보충 | 계속 대기하는 timer |
@@ -38,12 +39,15 @@ Weather Collector
 /etc/systemd/system/tashu-s3-sync.service          0644 root:root
 /etc/systemd/system/tashu-s3-sync.timer            0644 root:root
 /usr/local/sbin/tashu-weather-s3-sync              0755 root:root
+/etc/systemd/system/tashu-weather-collector.service 0644 root:root
 /etc/systemd/system/tashu-weather-s3-sync.service  0644 root:root
 /etc/systemd/system/tashu-weather-s3-sync.timer    0644 root:root
 /etc/tashu-collector/aws-credentials               0640 root:tashu-collector
 ```
 
 AWS credential은 저장소에 복사하지 않는다. IAM은 지정된 `bronze/realtime/*` prefix의 읽기·쓰기와 제한된 목록 조회만 허용하고 `DeleteObject`는 허용하지 않는다. 날씨 unit은 `SupplementaryGroups=tashu-collector`를 해당 프로세스에만 부여해 기존 credential을 읽으며, OS 사용자 그룹이나 Secret 파일을 복제하지 않는다.
+
+날씨 Collector의 API·Kafka·Redis Secret은 `/etc/tashu/weather-collector.env`에만 저장하고 `0640 root:tashu-weather`로 제한한다. unit 파일에는 Secret 값을 직접 쓰지 않는다.
 
 ## 설치와 확인
 

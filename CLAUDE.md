@@ -14,8 +14,8 @@
 LightGBM 회귀 ×2 (objective=poisson) → λ̂ 대여율, μ̂ 반납률 (15분 버킷당)
 → 지평 h: 버킷 겹침 시간 비례 가중합 (t=08:10, h=15 → 08:00버킷×5/15 + 08:15버킷×10/15)
 → 예상 잔여 = s(실시간 API) + μ_total − λ_total
-→ 고갈 확률 = 포아송 꼬리 (고수요는 보정계수 1.1~1.3 예정, 캘리브레이션으로 확정)
-→ 매분 배치: 대여소당 피처 행 2개(현재+다음 버킷) → predict 1회 → 지평 3개는 산수
+→ 고갈 확률 = Skellam(포아송 차) 꼬리 × 지평별 보정계수 (5분 1.35 → 45분+ 1.00 선형 보간, `config.TAIL_CORRECTION_ANCHORS`; 2026-09-21 8일 리플레이 재캘리브레이션으로 확정)
+→ 매분 배치: 대여소당 피처 행 N개(현재부터 연속 버킷, `config.N_FEATURE_BUCKETS`=5) → predict 1회 → 지평(1~60분, 1분 간격)은 산수
 → Redis: pred:{station_id}:{horizon_min} = {bikes, prob_out, updated_at}, TTL 2~3분
 ```
 

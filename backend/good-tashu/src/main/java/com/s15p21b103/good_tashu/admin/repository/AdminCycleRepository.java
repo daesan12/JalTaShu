@@ -49,10 +49,8 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
                     WHERE cu.cycle_id = c.cycle_id) AS usingCnt,
                    (SELECT MAX(cu.rental_at) FROM cycle_usages cu
                     WHERE cu.cycle_id = c.cycle_id) AS recentUsingAt,
-                   (SELECT COUNT(*) FROM cycle_claims cc
-                    JOIN cycle_usages claim_usage
-                      ON claim_usage.cycle_usage_id = cc.cycle_usage_id
-                    WHERE claim_usage.cycle_id = c.cycle_id AND cc.status = 'READY') AS unresolvedClaim,
+                   (SELECT COUNT(*) FROM claims cc
+                    WHERE cc.cycle_id = c.cycle_id AND cc.status = 'READY') AS unresolvedClaim,
                    c.registered_at AS registeredAt
             FROM cycles c
             WHERE c.cycle_id = :cycleId
@@ -79,11 +77,9 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
                 FROM cycle_usages GROUP BY cycle_id
             ) usage_stats ON usage_stats.cycle_id = c.cycle_id
             LEFT JOIN (
-                SELECT claim_usage.cycle_id, COUNT(*) AS claim_cnt
-                FROM cycle_claims cc
-                JOIN cycle_usages claim_usage
-                  ON claim_usage.cycle_usage_id = cc.cycle_usage_id
-                WHERE cc.status = 'READY' GROUP BY claim_usage.cycle_id
+                SELECT cc.cycle_id, COUNT(*) AS claim_cnt
+                FROM claims cc
+                WHERE cc.status = 'READY' GROUP BY cc.cycle_id
             ) claim_stats ON claim_stats.cycle_id = c.cycle_id
             WHERE (:cycle = '' OR LOCATE(:cycle, c.cycle_id) > 0)
               AND (:stationName = '' OR LOCATE(:stationName, s.name) > 0)
@@ -111,10 +107,8 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
                    COUNT(CASE WHEN c.status = 'RENTING' THEN 1 END) AS rentCycleCnt,
                    COUNT(CASE WHEN c.status = 'READY' THEN 1 END) AS waitCycleCnt,
                    COUNT(CASE WHEN EXISTS (
-                       SELECT 1 FROM cycle_claims cc
-                       JOIN cycle_usages claim_usage
-                         ON claim_usage.cycle_usage_id = cc.cycle_usage_id
-                       WHERE claim_usage.cycle_id = c.cycle_id AND cc.status = 'READY'
+                       SELECT 1 FROM claims cc
+                       WHERE cc.cycle_id = c.cycle_id AND cc.status = 'READY'
                    ) THEN 1 END) AS claimCycleCnt
             FROM cycles c
             """, nativeQuery = true)
@@ -180,9 +174,8 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
                 (SELECT COUNT(*) FROM cycle_usages cu
                  WHERE cu.return_station_id = :stationId
                    AND cu.return_at >= CURRENT_DATE AND cu.return_at < CURRENT_DATE + INTERVAL 1 DAY) AS todayReturnCnt,
-                (SELECT COUNT(*) FROM cycle_claims cc
-                 JOIN cycle_usages claim_usage ON claim_usage.cycle_usage_id = cc.cycle_usage_id
-                 JOIN cycles c ON c.cycle_id = claim_usage.cycle_id
+                (SELECT COUNT(*) FROM claims cc
+                 JOIN cycles c ON c.cycle_id = cc.cycle_id
                  WHERE c.station_id = :stationId AND cc.status = 'READY') AS currentReportCnt,
                 (SELECT COUNT(*) FROM cycles c WHERE c.station_id = :stationId AND c.status = 'READY')
                 + (SELECT COUNT(*) FROM cycle_usages cu WHERE cu.rental_station_id = :stationId
@@ -195,9 +188,8 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
                 (SELECT COUNT(*) FROM cycle_usages cu WHERE cu.return_station_id = :stationId
                    AND cu.return_at >= CURRENT_DATE - INTERVAL 1 DAY
                    AND cu.return_at < CURRENT_TIMESTAMP - INTERVAL 24 HOUR) AS yesterdayReturnCnt,
-                (SELECT COUNT(*) FROM cycle_claims cc
-                 JOIN cycle_usages claim_usage ON claim_usage.cycle_usage_id = cc.cycle_usage_id
-                 JOIN cycles c ON c.cycle_id = claim_usage.cycle_id
+                (SELECT COUNT(*) FROM claims cc
+                 JOIN cycles c ON c.cycle_id = cc.cycle_id
                  WHERE c.station_id = :stationId AND cc.status = 'READY'
                    AND cc.created_at >= CURRENT_TIMESTAMP - INTERVAL 48 HOUR
                    AND cc.created_at < CURRENT_TIMESTAMP - INTERVAL 24 HOUR) AS yesterdayReportCnt

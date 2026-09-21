@@ -27,10 +27,11 @@ export function AdminUsersPage() {
     queryFn: () => getAdminUsers({ statement, order }),
   });
 
+  // 목록 응답에 닉네임이 없어(백엔드 전달 목록) 검색은 사용자 ID로 한다
   const filtered = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+    const keyword = search.trim();
     if (!keyword) return data ?? [];
-    return (data ?? []).filter((user) => user.nickname.toLowerCase().includes(keyword));
+    return (data ?? []).filter((user) => String(user.userId).includes(keyword));
   }, [data, search]);
   const pageItems = filtered.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE);
 
@@ -40,7 +41,7 @@ export function AdminUsersPage() {
 
       <AdminFilterBar>
         <AdminSearchInput
-          placeholder="닉네임 검색"
+          placeholder="사용자 ID 검색"
           className="w-72"
           value={search}
           onChange={(e) => {
@@ -77,15 +78,14 @@ export function AdminUsersPage() {
         <AdminTable clickableRows>
           <thead>
             <tr>
-              <th className="w-28">사용자 ID</th>
-              <th>닉네임</th>
+              <th className="w-40">사용자 ID</th>
               <th className="w-28">상태</th>
-              <th className="w-40">최근 이용</th>
+              <th>최근 이용</th>
             </tr>
           </thead>
           <tbody>
             <AdminTableStatus
-              colSpan={4}
+              colSpan={3}
               isPending={isPending}
               isError={isError}
               onRetry={() => void refetch()}
@@ -94,12 +94,13 @@ export function AdminUsersPage() {
             />
             {pageItems.map((user) => (
               <tr key={user.userId} onClick={() => navigate(`/admin/users/${user.userId}`)}>
-                <td className="tabular-nums text-admin-muted">{user.userId}</td>
-                <td className="truncate">{user.nickname}</td>
+                <td className="tabular-nums">사용자 #{user.userId}</td>
                 <td>
                   <AdminBadge state={USER_STATUS_LABEL[user.userStatement]} />
                 </td>
-                <td className="text-admin-muted">{formatTimeAgo(user.recentUsingAt)}</td>
+                <td className="text-admin-muted">
+                  {user.recentUsingAt ? formatTimeAgo(user.recentUsingAt) : '—'}
+                </td>
               </tr>
             ))}
           </tbody>

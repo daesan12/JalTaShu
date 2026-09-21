@@ -1,5 +1,6 @@
 import { delay, http, HttpResponse } from 'msw';
 import { fail, getAuthState, ok, requireAuth } from '@/mocks/core';
+import { getMockClaims } from '@/mocks/handlers/adminClaims';
 import { STATIONS } from '@/mocks/stations';
 
 /** 가짜 민원 내역 — 새로고침에도 유지되도록 localStorage 사용 */
@@ -87,9 +88,11 @@ export const reportHandlers = [
     const dayMs = 24 * 60 * 60 * 1000;
 
     // 내가 접수한 고장신고 중 이 자전거에 달린 것 = 제보로 노출
+    // claimId는 허위 제보 신고에 쓰인다 — 민원 id와 겹치지 않게 큰 수를 얹는다
     const myReports = getMockReports()
       .filter((r) => r.type === 'broken' && r.bikeCode === code)
       .map((r) => ({
+        claimId: 100_000 + r.id,
         tag: r.tag ?? '기타',
         tagDetail: r.tagDetail ?? null,
         content: r.content,
@@ -102,6 +105,7 @@ export const reportHandlers = [
       ? []
       : [
           {
+            claimId: 9001,
             tag: '브레이크',
             tagDetail: null,
             content: '브레이크가 잘 안 잡혀요',
@@ -109,6 +113,7 @@ export const reportHandlers = [
             createdAt: new Date(Date.now() - 3 * dayMs).toISOString(),
           },
           {
+            claimId: 9002,
             tag: '타이어',
             tagDetail: null,
             content: '앞바퀴 공기압이 낮아요',
@@ -116,6 +121,7 @@ export const reportHandlers = [
             createdAt: new Date(Date.now() - 5 * dayMs).toISOString(),
           },
           {
+            claimId: 9003,
             tag: '안장',
             tagDetail: null,
             content: '안장 높이가 고정되지 않아요',
@@ -133,6 +139,48 @@ export const reportHandlers = [
         reports: [...myReports, ...seedReports],
       }),
     );
+  }),
+
+  // ── 자전거 제보 리스트 (20 — CycleClaimListResponse 실측) ─────────────
+  // 관리자 제보 저장소와 같은 데이터를 자전거 기준으로 거른다
+  http.get('/api/cycle/list', async ({ request }) => {
+    await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const cycleId = new URL(request.url).searchParams.get('cycleId') ?? '';
+    if (!cycleId) return fail(400, '자전거 번호가 필요합니다.');
+    const claims = getMockClaims()
+      .filter((c) => c.cycleId.toUpperCase() === cycleId.toUpperCase())
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((c) => ({
+        claimId: c.claimId,
+        nickname: c.nickname,
+        claimCategory: c.category,
+        content: c.content,
+        createdAt: c.createdAt,
+      }));
+    return HttpResponse.json(ok(claims));
+  }),
+
+  /**
+   * 허위 제보 신고 (18·20) — 실서버 POST /cycle/claims/{claimId}/reports.
+   * 실서버는 없는 claimId에 404를 주지만, 18 자전거 상태가 아직 목업 시드(9001~)를 쓰므로
+   * 여기서는 형식만 확인하고 받아 준다. 횟수 제한은 서버에 없다 — 화면 쪽 가드가 맡는다.
+   */
+  http.post('/api/cycle/claims/:claimId/reports', async ({ params, request }) => {
+    await delay(400);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const claimId = Number(params.claimId);
+    if (!Number.isInteger(claimId) || claimId < 1) {
+      return fail(400, '잘못된 제보 번호입니다.');
+    }
+    const body = (await request.json()) as { claimCategory?: string };
+    const allowed = ['FALSE_INFORMATION', 'PRANK_REPORT', 'ABUSE', 'ETC'];
+    if (!body.claimCategory || !allowed.includes(body.claimCategory)) {
+      return fail(400, '신고 사유를 선택해 주세요.');
+    }
+    return HttpResponse.json({ code: 200, message: '신고가 접수되었습니다.', data: null });
   }),
 
   http.post('/api/cycle/rental', async ({ request }) => {

@@ -1,6 +1,5 @@
 import { delay, http, HttpResponse } from 'msw';
 import type {
-  BikeStation,
   PathResponse,
   PlaceSearchResult,
   Pos,
@@ -13,29 +12,49 @@ import type {
   RouteType,
   Station,
   StationForecastPoint,
-  StationPrediction,
   TravelMode,
 } from '@/shared/api/types';
-import { PREDICTION_HORIZONS } from '@/shared/config/constants';
 import { fail, ok, requireAuth } from '@/mocks/core';
 import { STATIONS } from '@/mocks/stations';
 
 /**
- * 대여소 예상 대수 목업 — 30분 간격 6칸(앞으로 3시간).
- * 대여소마다 다르게 보이도록 ID 끝자리로 오르내림을 바꾼다. 실제 값은 예측 모델이 완성되면 백엔드가 준다.
+ * 대여소 예상 대수 목업 — **1분 간격 15점**.
+ *
+ * 백엔드가 Redis `pred:{stationId}:{1..15}`를 그대로 읽어 주는 모양이다(`HORIZONS_MIN`).
+ * 예전 목업은 30분 간격 6칸이라는 옛 가정이었는데, 그 상태로는 칸이 좁아서 생기는 문제를
+ * 로컬에서 볼 수 없었다(#105에서 라벨 겹침을 실서버에서야 발견했다).
+ *
+ * 1분 간격이라 값이 완만하게 움직인다. 대여소마다 다르게 보이도록 ID 끝자리로 위상을 바꾼다.
  * 예측이 아직 없는 대여소도 화면에서 확인할 수 있게 ST0005는 비워 둔다.
  */
-function forecastFor(station: Station): StationForecastPoint[] | undefined {
-  if (station.stationId === 'ST0005') return undefined;
+function forecastFor(station: Station): StationForecastPoint[] {
+  if (station.stationId === 'ST0005') return [];
   const seed = Number(station.stationId.slice(-1));
   const start = Date.now();
-  return Array.from({ length: 6 }, (_, i) => {
-    const swing = Math.round(Math.sin((i + seed) / 1.6) * 3);
+  return Array.from({ length: 15 }, (_, i) => {
+    // 15분 동안 1~2대 안에서 완만하게 오르내린다 — 반올림 경계(2대)를 지나가야
+    // "같은 2대인데 색이 다른" 문제가 로컬에서 재현된다
+    const swing = Math.sin((i + seed * 3) / 7) * 1.5;
+    // 실제 예측값은 소수로 온다(6.8 등) — 화면이 반올림을 제대로 하는지 목업에서도 확인한다
+    const bikeCnt = Math.max(0, Math.round((station.currentBikes + swing) * 10) / 10);
     return {
-      dateTime: new Date(start + (i + 1) * 30 * 60_000).toISOString(),
-      bikeCnt: Math.max(0, station.currentBikes + swing),
+      dateTime: new Date(start + (i + 1) * 60_000).toISOString(),
+      bikeCnt,
+      probOut: bikeCnt < 1 ? 0.9 : bikeCnt < 3 ? 0.3 : 0.05,
     };
   });
+}
+
+/**
+ * 실시간 스냅샷이 없는 대여소 — 백엔드는 `currentCnt`·`time`을 **둘 다 null**로 준다.
+ * 마커에 '-'가 뜨고 상태가 회색이 되는 경로를 로컬에서도 볼 수 있게 한 곳을 비워 둔다.
+ * 07 첫 화면(대전시청 중심)에서 바로 보이는 대여소로 골랐다 — 지도를 옮겨야 보이면 확인을 건너뛰게 된다.
+ */
+const STATION_WITHOUT_REALTIME = 'ST0006';
+
+/** 실시간 스냅샷 관측 시각 — 수집기가 올린 시각을 흉내 낸다(대여소 공통) */
+function snapshotTime(): string {
+  return new Date(Date.now() - 42_000).toISOString();
 }
 
 /** 08 장소 검색 목업 — 네이버 지역검색 응답을 백엔드가 정리한 형태(xPos=경도, yPos=위도) */
@@ -296,7 +315,13 @@ function mockInstruction(type: string, modifier: string | null): string {
 }
 
 function mockManeuver(type: string, modifier: string | null, at: RoutePoint): RouteStep['behave'] {
-  return { type, modifier, exit: null, location: at.location, instruction: mockInstruction(type, modifier) };
+  return {
+    type,
+    modifier,
+    exit: null,
+    location: at.location,
+    instruction: mockInstruction(type, modifier),
+  };
 }
 
 /** 좌표 → 서버 응답의 GeoJSON 좌표 `[경도, 위도]` */
@@ -367,8 +392,9 @@ function toLeg(
 /**
  * 경로 후보 목업 — 실제 서버처럼 **2개**(일반·오르막 회피)를 만든다.
  * 출발·도착 대여소가 같은 경우(도보 1개만)는 지금 화면에서 재현할 일이 없어 만들지 않는다.
- * `expectedBikeCnt`는 **일부러 넣지 않는다** — 실제 응답에 아직 없어서, 10의 "확보 우선" 칩이
- * 준비 중으로 막히는 상태를 그대로 확인할 수 있어야 한다.
+ * `expectedBikeCnt`는 **두 후보에 같은 값**을 준다. 백엔드가 그렇게 주기 때문이다 — 후보 둘은
+ * 같은 대여소에서 빌려 자전거 구간만 다른 것이라 도보 구간도 출발 대여소도 같다.
+ * 그래서 10의 "확보 우선" 칩이 막히는 상태가 로컬에서 그대로 재현된다.
  */
 const MOCK_ROUTE_VARIANTS: { type: RouteType; detour: number; hill: number }[] = [
   { type: 'BIKE', detour: 0.06, hill: 72 },
@@ -384,8 +410,20 @@ function stationIndexes(pointCount: number): { rent: number; return: number } {
   };
 }
 
+/**
+ * 대여 대여소 도착 시점 예상 대수 — 백엔드와 같은 방식으로 구한다.
+ * 도보 구간 시간을 올려 분으로 만들고 그 지평의 예측을 읽는다(`pred:{stationId}:{분}`).
+ * 지평이 1-15분이라 도보가 15분을 넘으면 값이 없다(`undefined`).
+ */
+function mockExpectedBikeCnt(walkSeconds: number): number | undefined {
+  const horizonMinutes = Math.max(1, Math.ceil(walkSeconds / 60));
+  if (horizonMinutes > 15) return undefined;
+  // 지평이 멀수록 조금씩 줄어드는 값. 소수로 온다
+  return Math.round(Math.max(0, 5.4 - horizonMinutes * 0.23) * 10) / 10;
+}
+
 function buildMockRoutes(start: Pos, end: Pos): RouteCandidate[] {
-  return MOCK_ROUTE_VARIANTS.map(({ type, detour, hill }) => {
+  const routes = MOCK_ROUTE_VARIANTS.map(({ type, detour, hill }) => {
     const { points: path, corners } = gridPath(start, end, detour);
     const points: RoutePoint[] = path.map((pos, i) => ({
       location: toGeo(pos),
@@ -412,6 +450,9 @@ function buildMockRoutes(start: Pos, end: Pos): RouteCandidate[] {
       legs,
     };
   });
+  // 후보마다 따로 계산하지 않는다 — 실제로도 같은 도보 구간에서 나온 한 값이 둘에 그대로 들어간다
+  const expectedBikeCnt = mockExpectedBikeCnt(routes[0].legs[0].time);
+  return routes.map((route) => ({ ...route, expectedBikeCnt }));
 }
 
 /** 최근 검색 목업 저장소 — 서버 `recent_places`처럼 고를 때마다 한 줄씩 쌓인다(중복 제거 없음) */
@@ -436,44 +477,73 @@ function nextMockPlaceId(): number {
 /** 지도(07)·장소 검색(08)·경로 탐색(10)·최근 검색 */
 export const mapHandlers = [
   // ── 대여소 ─────────────────────────────────────────────────────────
-  // 07 메인 지도용. 도보 시간은 프론트에서 좌표로 계산하므로 내려주지 않는다.
+  /*
+   * 07 메인 지도용 목록 — 백엔드 `BikeStationListItem` 그대로다(파라미터 없이 전체를 준다).
+   * 좌표는 xPos=경도·yPos=위도, 대수는 currentCnt, 관측 시각은 time. 예상 대수는 여기 없고 상세에만 있다.
+   */
   http.get('/api/map/bike-station', async () => {
     await delay(300);
     const authFail = requireAuth();
     if (authFail) return authFail;
-    // 갱신 배지가 "N초 전"부터 올라가는 것을 확인할 수 있게 10초 전으로 고정
-    const updatedAt = new Date(Date.now() - 10_000).toISOString();
-    const stations: BikeStation[] = STATIONS.map((s) => ({
-      ...s,
-      updatedAt,
-      futureData: forecastFor(s),
-    }));
+    const time = snapshotTime();
+    const stations = STATIONS.map((s) => {
+      const offline = s.stationId === STATION_WITHOUT_REALTIME;
+      return {
+        stationId: s.stationId,
+        name: s.name,
+        xPos: s.lng,
+        yPos: s.lat,
+        address: '대전광역시 (목업 주소)',
+        currentCnt: offline ? null : s.currentBikes,
+        time: offline ? null : time,
+      };
+    });
     return HttpResponse.json(ok(stations));
   }),
 
-  http.get('/api/stations/:stationId/predictions', async ({ params }) => {
+  // 대여소 상세 — 예상 대수(futureData)는 여기에만 있다. 시트를 확장했을 때만 불린다
+  http.get('/api/map/bike-station/:stationId', async ({ params }) => {
     await delay(300);
     const authFail = requireAuth();
     if (authFail) return authFail;
     const station = STATIONS.find((s) => s.stationId === params.stationId);
-    if (!station) {
-      return HttpResponse.json(
-        { code: 404, message: '대여소를 찾을 수 없습니다.', data: null },
-        { status: 404 },
-      );
+    if (!station) return fail(404, '대여소를 찾을 수 없습니다.');
+    // 실시간 정보가 없는 대여소는 백엔드가 상세를 막는다(BIKE_STATION_DATA_UNAVAILABLE)
+    if (station.stationId === STATION_WITHOUT_REALTIME) {
+      return fail(404, '대여소 실시간 정보를 찾을 수 없습니다.');
     }
-    // 지평이 길수록 잔여가 조금씩 줄어드는 단순 목업
-    const predictions: StationPrediction[] = PREDICTION_HORIZONS.map((horizonMin, i) => {
-      const bikes = Math.max(0, station.currentBikes - i);
-      return {
+    return HttpResponse.json(
+      ok({
         stationId: station.stationId,
-        horizonMin,
-        bikes,
-        probOut: bikes === 0 ? 0.9 : bikes < 3 ? 0.3 : 0.05,
-        updatedAt: new Date().toISOString(),
-      };
-    });
-    return HttpResponse.json(ok(predictions));
+        currentCnt: station.currentBikes,
+        time: snapshotTime(),
+        futureData: forecastFor(station),
+      }),
+    );
+  }),
+
+  /**
+   * 현재 날씨 (07 지도) — 백엔드 WeatherResponse 실스키마.
+   * 실서버는 Redis에 최신 관측이 없으면 data를 null로 주므로, 그 화면도 확인할 수 있게
+   * 분(minute)이 55를 넘는 동안에는 관측 없음으로 응답한다.
+   */
+  http.get('/api/map/weather', async () => {
+    await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const now = new Date();
+    if (now.getMinutes() >= 55) return HttpResponse.json(ok(null));
+    // 정시 관측 — 비 오는 화면은 짝수 시간대에 보이게 해 두 경우를 다 확인할 수 있다
+    const observed = new Date(now);
+    observed.setMinutes(0, 0, 0);
+    const raining = observed.getHours() % 2 === 0;
+    return HttpResponse.json(
+      ok({
+        observedAt: observed.toISOString(),
+        temperature: raining ? 18.3 : 23.7,
+        rainfall1h: raining ? 1.4 : 0,
+      }),
+    );
   }),
 
   // ── 장소 검색 (08) — 백엔드 #18 MapController와 동일 경로 ─────────

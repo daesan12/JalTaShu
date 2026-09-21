@@ -23,7 +23,10 @@ SPLIT_DATE = "2026-01-01"  # KST. 학습: bucket_start < SPLIT_DATE / 검증: �
 # ── 버킷·지평 (계약 §3·§4) ──────────────────────────────────────────────
 BUCKET_MINUTES = 15          # 반개구간 [start, end), floor(minute/15)
 SLOTS_PER_DAY = 96           # 24h × 4
-HORIZONS_MIN = (5, 10, 15)   # MVP 3개. 30분은 백테스트 후 결정 — 키 추가만으로 확장
+# 1~60분 1분 간격 (2026-09-21 팀 합의로 60분 확장 — 그래프·장거리 ETA).
+# 근거: 8일 스냅샷 리플레이 지평별 검증 — h=60 MAE 0.68대·±2대 92%, 45분부터 모델이
+# persistence(현재값 유지)를 역전, PR-AUC(s≥1) 0.44. 60분 초과는 예보 도입 후 재론.
+HORIZONS_MIN = tuple(range(1, 61))
 
 # ── 피처 임계값 (계약 §2·§6) ─────────────────────────────────────────────
 DELTA_WINDOWS_MIN = (30, 60)     # delta_30m / delta_60m — 직전 N분 순변화(반납−대여)
@@ -109,3 +112,42 @@ WEATHER_HISTORY_HOURS = 24          # ③ minutes_since_rain 상한(1440분)을 
 UNKNOWN_STATION_MAX_RATIO = 0.5     # 학습에 없던 station_id 비율이 이보다 크면 ID 포맷 불일치로 간주
 SERVE_INTERVAL_SECONDS = 60         # 매분 배치
 SERVE_TIME_BUDGET_SECONDS = 5       # 완료 기준: 1,374곳 × 3지평 < 5초 (초과 시 경고 로그)
+
+# ── 캘리브레이션·백테스트 (9·10단계, 설계서 §6) ───────────────────────────
+# 홀드아웃 = 자체 수집 스냅샷(S3 bronze/realtime). 학습에 절대 쓰지 않는다.
+# S3는 파이썬이 직접 읽지 않고 `aws s3 sync`로 아래 로컬 폴더에 내려받은 Parquet만 읽는다
+# (자격증명은 사용자 PC의 aws profile에만 — 코드·저장소에 두지 않음).
+S3_REALTIME_PREFIX = "s3://s15p21b103-tashu-datalake/bronze/realtime/"
+S3_LOCAL_ROOT = DATA_ROOT / "s3" / "realtime"          # ← aws s3 sync 대상. 하위: snapshots/dt=…, weather/observations/dt=…
+SNAPSHOT_PARQUET_DIR = S3_LOCAL_ROOT / "snapshots"
+WEATHER_PARQUET_DIR = S3_LOCAL_ROOT / "weather" / "observations"
+# 기상청 수집이 없는 구간(2026-09-16 이전)은 학습과 같은 소스(Open-Meteo, 계약 §6)로 채운다.
+# dev/fetch_openmeteo_weather.py 가 같은 dt= 파티션 형식으로 저장. 기상청 관측이 있는 시각은 기상청 우선.
+WEATHER_BACKFILL_DIR = S3_LOCAL_ROOT / "weather" / "openmeteo"
+OPENMETEO_LAT, OPENMETEO_LON = 36.3504, 127.3845   # 대전 (기상청 격자 nx67·ny100 인근)
+REPLAY_DIR = ARTIFACTS_DIR / "replay"                  # 시점별 예측 vs 실제 테이블 (Parquet)
+# S3 스냅샷엔 station_count가 없어 '완전' = 행 수 ≥ 그날 최대 행 수 × 이 비율. 실측(2026-09-10): API가
+# 스냅샷마다 1,368~1,374곳을 돌려줘(대여소 몇 곳의 일시 누락은 정상) 최대치와 같음을 요구하면 70%가 버려진다.
+# 페이지 누락(~1,000행 결손)만 걸러내는 것이 목적.
+SNAPSHOT_COMPLETE_RATIO = 0.98
+REPLAY_STEP_MIN = 5                  # 리플레이 평가 시점 간격 (1분이면 7일 ≈ 3시간, 5분이면 ≈ 35분)
+EVAL_HORIZONS_MIN = (5, 10, 15, 30, 45, 60)  # 지표 산출 지평 — 30~60분은 1시간 확장 검증용 (2026-09-21)
+
+# 서빙·리플레이가 만드는 피처 행의 버킷 수: [t, t+h)가 최대 h/15+1개 버킷에 걸친다.
+# HORIZONS_MIN(서빙)과 EVAL_HORIZONS_MIN(리플레이 평가) 중 긴 쪽 기준으로 자동 산출 —
+# 지평을 늘릴 때 이 값을 따로 만질 필요 없음. (60분 → 5개, 15분 → 2개)
+N_FEATURE_BUCKETS = max(max(HORIZONS_MIN), max(EVAL_HORIZONS_MIN)) // BUCKET_MINUTES + 1
+CALIBRATION_BINS = 10                # 캘리브레이션 곡선 구간 수
+TAIL_CORRECTION_GRID = tuple(round(1.0 + 0.05 * i, 2) for i in range(11))  # 1.00 ~ 1.50 (실측 낙관 편향 1.03~1.28배)
+# 지평별 보정계수 앵커 — 사이 지평은 선형 보간, 범위 밖은 가장자리 값 (probability.tail_correction_for).
+# 2026-09-21 재캘리브레이션(9/8~9/17 리플레이 2,186만 표본, Open-Meteo 백필로 전 기간 평가)에서
+# 지평별 Brier 최소: 5→1.35, 10→1.25, 15→1.20, 30→1.10, 45→1.00, 60→1.00 — 단조 감소가
+# 명확해져(합산 건수↑ → 포아송 근사↑) 기존 단일값 1.25를 지평별로 대체. 5~15분 구간은 기존 확정과 일치.
+TAIL_CORRECTION_ANCHORS = ((5, 1.35), (10, 1.25), (15, 1.20), (30, 1.10), (45, 1.00), (60, 1.00))
+DEPLETION_BIKES = 0                  # '고갈' = 도착 시점 잔여 ≤ 이 값
+
+# 백테스트 (10단계, 설계서 §6-3): "추천 여정 vs 현재 잔여 기준 최단 여정 → 헛걸음 감소율"
+BACKTEST_K_NEAREST = 4               # 출발 위치(각 대여소) 주변 후보 대여소 수 (자기 자신 포함)
+BACKTEST_MAX_WALK_M = 1200           # 후보 반경(m) — 이보다 멀면 후보 아님
+BACKTEST_WALK_SPEED_MPM = 80         # 도보 속도 m/분 (≈4.8 km/h)
+BACKTEST_FAIL_PENALTY_MIN = 8        # 헛걸음 시 다음 대여소까지 추가 이동 시간(분) — 기대비용식의 벌점

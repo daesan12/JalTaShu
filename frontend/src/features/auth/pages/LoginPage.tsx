@@ -20,7 +20,15 @@ export function LoginPage() {
   const handleKakaoLogin = async () => {
     setLoggingIn(true);
     try {
-      await startKakaoLogin(); // 실제 백엔드 연동 시엔 여기서 페이지가 카카오로 이동함
+      const result = await startKakaoLogin();
+      // 카카오로 떠나는 중(웹) — 여기서 invalidate·navigate를 하면 브라우저가 대기 중인
+      // 카카오 이동을 취소한다. 버튼은 '로그인 중…'인 채로 페이지가 넘어갈 때까지 둔다
+      if (result === 'redirecting') return;
+      // 인앱 로그인 창을 직접 닫음 — 로그인 화면으로 복귀
+      if (result === 'cancelled') {
+        setLoggingIn(false);
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
       navigate('/', { replace: true });
     } catch {

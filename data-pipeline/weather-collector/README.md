@@ -32,6 +32,13 @@ python collect.py --once
 | `WEATHER_KAFKA_CLIENT_ID` | 아니요 | `tashu-weather-collector` | Kafka producer client ID |
 | `WEATHER_KAFKA_DELIVERY_TIMEOUT_SECONDS` | 아니요 | `10` | 전송 완료 대기시간 |
 | `WEATHER_KAFKA_SPOOL_DIR` | 아니요 | `<data>/kafka-spool` | 미전송 관측 outbox 디렉터리 |
+| `WEATHER_REDIS_ENABLED` | 아니요 | `false` | `true`이면 최신 날씨 Redis 저장 활성화 |
+| `WEATHER_REDIS_HOST` | 아니요 | `localhost` | 대여소 수집기와 동일한 Redis host |
+| `WEATHER_REDIS_PORT` | 아니요 | `6379` | 대여소 수집기와 동일한 Redis port |
+| `WEATHER_REDIS_DATABASE` | 아니요 | `0` | 대여소 실시간 snapshot과 동일한 논리 DB |
+| `WEATHER_REDIS_PASSWORD` | 아니요 | 없음 | 서버 환경파일에서 주입하는 Redis 비밀번호 |
+| `WEATHER_REDIS_LATEST_KEY` | 아니요 | `tashu:weather:latest:v1` | 최신 날씨 String 키 |
+| `WEATHER_REDIS_TTL_SECONDS` | 아니요 | `3600` | 최신 날씨 키 TTL(초) |
 
 `67,100`은 대전 대표 격자 기본값이다. 운영 배포 전 과거 Open-Meteo 학습에 사용한 대표 위치와 같은 생활권인지 AI 담당자와 최종 확인한다.
 
@@ -50,6 +57,11 @@ Kafka를 활성화하면 새 Parquet이 생성되는 관측만 먼저 outbox에 
 전송에 실패한 파일은 삭제하지 않고 다음 수집 주기에 오래된 순서로 재전송한다.
 메시지 key는 `nx:ny`, 중복 제거용 `event_id`는
 `observed_at:nx:ny`이며 API key는 메시지에 포함하지 않는다.
+
+Redis를 활성화하면 기상청 수집에 성공할 때마다 최신 관측을
+`tashu:weather:latest:v1`에 String JSON으로 저장하고 TTL을 갱신한다.
+같은 관측시각이라 새 Parquet이 생성되지 않아도 다시 저장한다. Redis 저장 실패는
+로그로 남기되 Parquet 저장, Kafka 발행, health 갱신을 중단시키지 않는다.
 
 운영 예시:
 

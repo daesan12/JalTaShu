@@ -25,7 +25,8 @@ const USER_NICKNAME_POOL = [
   '둔산질주', '갑천산책러', '유성불주먹', '주말라이더', '한밭바람',
 ];
 
-function mockUserNickname(userId: number): string {
+/** adminCycles(이용 이력의 이용자 표시)도 같은 닉네임을 쓴다 */
+export function mockUserNickname(userId: number): string {
   const base = USER_NICKNAME_POOL[userId % USER_NICKNAME_POOL.length];
   return userId <= USER_NICKNAME_POOL.length ? base : `${base}${userId}`;
 }
@@ -87,10 +88,10 @@ function activeBanOf(userId: number): MockBanRecord | null {
   );
 }
 
+/** 목록 응답 — 실서버처럼 닉네임 없이 준다 (닉네임 추가는 백엔드 전달 목록) */
 function mockUserSummary(userId: number) {
   return {
     userId,
-    nickname: mockUserNickname(userId),
     recentUsingAt: new Date(Date.now() - ((userId * 131) % 4000) * 60_000).toISOString(),
     userStatement: activeBanOf(userId) ? 'BANNED' : 'NORMAL',
   };
@@ -159,32 +160,46 @@ export const adminUserHandlers = [
     return HttpResponse.json(ok(null));
   }),
 
-  http.post('/api/admin/user/:userId/un-ban', async ({ params }) => {
+  // 밴 해제 — 실서버처럼 사용자가 아니라 밴 기록(banRecordId) 기준
+  http.post('/api/admin/user/ban/:banRecordId/release', async ({ params }) => {
     await delay(400);
     if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
-    const userId = Number(params.userId);
-    if (userId < 1 || userId > ADMIN_USER_COUNT) return fail(404, '존재하지 않는 사용자입니다.');
-    // 백엔드 releaseActiveBan처럼 유효한 제재에 해제 시각만 기록
     const records = getMockUserBans();
-    const active = records.find(
-      (b) =>
-        b.userId === userId &&
-        b.releasedAt === null &&
-        new Date(b.scheduledEndAt).getTime() > Date.now(),
-    );
-    if (active) active.releasedAt = new Date().toISOString();
+    const record = records.find((b) => b.banId === Number(params.banRecordId));
+    if (!record) return fail(404, '존재하지 않는 밴 기록입니다.');
+    if (record.releasedAt === null) record.releasedAt = new Date().toISOString();
     setMockUserBans(records);
     return HttpResponse.json(ok(null));
   }),
 
-  http.get('/api/admin/user/:userId/ban-records', async ({ params }) => {
+  // 최신 밴 기록 1건 (AdminUserBanHistoryResponse 실측) — 기록이 없으면 404
+  http.get('/api/admin/user/:userId/ban', async ({ params }) => {
     await delay(300);
     if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
     const userId = Number(params.userId);
-    const records = getMockUserBans()
+    if (userId < 1 || userId > ADMIN_USER_COUNT) return fail(404, '존재하지 않는 사용자입니다.');
+    const latest = getMockUserBans()
       .filter((b) => b.userId === userId)
-      .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-    return HttpResponse.json(ok(records));
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+    if (!latest) return fail(404, '밴 기록이 없습니다.');
+    // 조기 해제됐으면 해제 시각이 종료 시각이다 (백엔드 getUserBanHistory와 동일)
+    const scheduledEnd = new Date(latest.scheduledEndAt).getTime();
+    const released = latest.releasedAt ? new Date(latest.releasedAt).getTime() : null;
+    const banEndAt =
+      released !== null && released < scheduledEnd ? latest.releasedAt : latest.scheduledEndAt;
+    const period = Math.round(
+      (scheduledEnd - new Date(latest.startedAt).getTime()) / (24 * 3600_000),
+    );
+    return HttpResponse.json(
+      ok({
+        banRecordId: latest.banId,
+        banStartedAt: latest.startedAt,
+        banEndAt,
+        period,
+        comment: latest.comment,
+        adminId: 1,
+      }),
+    );
   }),
 
   http.get('/api/admin/user/:userId', async ({ params }) => {
@@ -198,6 +213,7 @@ export const adminUserHandlers = [
     return HttpResponse.json(
       ok({
         ...mockUserSummary(userId),
+        nickname: mockUserNickname(userId),
         joinedAt: new Date(Date.now() - (200 + userId * 9) * 24 * 3600_000).toISOString(),
         activeBan: active
           ? { scheduledEndAt: active.scheduledEndAt, comment: active.comment }

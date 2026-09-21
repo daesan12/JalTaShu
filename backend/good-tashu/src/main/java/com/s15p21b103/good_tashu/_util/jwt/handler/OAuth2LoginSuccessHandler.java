@@ -63,8 +63,8 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                 .httpOnly(true)
                 // HTTPS 전송용 쿠키
                 .secure(jwtProperties.secure())
-                // 같은 사이트의 요청을 중심으로 쿠키 전송 허용
-                .sameSite("LAX")
+                // 앱 WebView의 cross-site 요청을 허용하되 로컬 HTTP에서는 Lax 사용
+                .sameSite(jwtProperties.cookieSameSite())
                 // 재발급 등 이 경로에 해당하는 요청에 전송
                 .path(jwtProperties.cookiePath())
                 .maxAge(maxAgeSeconds)

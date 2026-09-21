@@ -1,5 +1,6 @@
 ext {
-    minSdkVersion = 24
+    // @capacitor/inappbrowser(인앱 카카오 로그인)가 26(Android 8.0) 이상을 요구한다
+    minSdkVersion = 26
     compileSdkVersion = 36
     targetSdkVersion = 36
     androidxActivityVersion = '1.11.0'
