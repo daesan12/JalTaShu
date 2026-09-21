@@ -159,14 +159,16 @@ def test_feature_rows_new_station_profile_nan():
 # ── 지평 계산 (배열) = probability.predict_horizons (대여소별) ──────────────
 
 def rates_frame(now, lam=(0.6, 0.9), mu=(0.3, 0.3)):
+    """N_FEATURE_BUCKETS개 버킷 율 — 주어진 값 뒤로는 마지막 값 유지 (60분 지평 대응)."""
     b0 = now.floor("15min")
-    b1 = b0 + pd.Timedelta(minutes=15)
-    return pd.DataFrame({
-        "station_id": ["ST0001", "ST0001", "ST0002", "ST0002"],
-        "bucket_start": [b0, b1, b0, b1],
-        "lambda_hat": [lam[0], lam[1], lam[0] * 3, lam[1] * 3],
-        "mu_hat": [mu[0], mu[1], 0.0, 0.0],
-    })
+    buckets = [b0 + k * pd.Timedelta(minutes=15) for k in range(config.N_FEATURE_BUCKETS)]
+    ext = lambda v: [v[k] if k < len(v) else v[-1] for k in range(len(buckets))]
+    rows = []
+    for st, lam_mul, mu_mul in (("ST0001", 1.0, 1.0), ("ST0002", 3.0, 0.0)):
+        for b, l, m in zip(buckets, ext(lam), ext(mu)):
+            rows.append({"station_id": st, "bucket_start": b,
+                         "lambda_hat": l * lam_mul, "mu_hat": m * mu_mul})
+    return pd.DataFrame(rows)
 
 
 def test_compute_predictions_matches_predict_horizons():
@@ -184,16 +186,20 @@ def test_compute_predictions_matches_predict_horizons():
             assert row["prob_out"] == pytest.approx(round(v["prob_out"], 3))
 
 
-def test_compute_predictions_applies_config_tail_correction():
-    """서빙 확률 = 원시 Skellam 꼬리 × config.TAIL_CORRECTION (s≥1·λ>0 행에서 원시값과 달라야 한다)."""
+def test_compute_predictions_applies_horizon_tail_correction():
+    """서빙 확률 = 원시 Skellam 꼬리 × 지평별 보정(앵커 보간) — 단지평은 원시보다 크고, 45분+는 원시와 같다(c=1.0)."""
     rates = rates_frame(NOW)
     preds = serve.compute_predictions(NOW, rates, pd.Series({"ST0001": 5}))
     tot = serve.horizon_totals(NOW, rates, pd.Series({"ST0001": 5}))
     s, lam, mu = tot["s"].to_numpy(), tot["lam_total"].to_numpy(), tot["mu_total"].to_numpy()
-    corrected = np.round(probability.depletion_probability(s, lam, mu, tail_correction=config.TAIL_CORRECTION), 3)
+    h = tot["horizon_min"].to_numpy()
+    corr = probability.tail_correction_for(h)
+    corrected = np.round(probability.depletion_probability(s, lam, mu, tail_correction=corr), 3)
     raw = probability.depletion_probability(s, lam, mu)
     assert preds["prob_out"].to_numpy() == pytest.approx(corrected)
-    assert config.TAIL_CORRECTION > 1.0 and (corrected > raw).any()
+    assert corr.max() > 1.0 and (corrected >= np.round(raw, 3) - 1e-9).all()
+    assert np.allclose(corrected[h >= 45], np.round(raw[h >= 45], 3))  # 장지평은 보정 1.0
+    assert probability.tail_correction_for(1) == 1.35 and probability.tail_correction_for(60) == 1.00
 
 
 def test_compute_predictions_clips_bikes_and_skips_missing_s():

@@ -20,6 +20,7 @@ from src.probability import (
     expected_bikes,
     horizon_total,
     predict_horizons,
+    tail_correction_for,
 )
 
 
@@ -124,12 +125,13 @@ def test_vectorized_over_stations():
 
 def test_predict_horizons_assembly():
     t = kst("2024-06-05 08:10")
-    lam = {kst("2024-06-05 08:00"): 3.0, kst("2024-06-05 08:15"): 6.0}
-    mu = {kst("2024-06-05 08:00"): 1.5, kst("2024-06-05 08:15"): 1.5}
+    buckets = [kst("2024-06-05 08:00") + k * pd.Timedelta(minutes=15) for k in range(config.N_FEATURE_BUCKETS)]
+    lam = {b: (3.0 if k == 0 else 6.0) for k, b in enumerate(buckets)}  # 60분 지평까지 버킷 율 제공
+    mu = {b: 1.5 for b in buckets}
     out = predict_horizons(t, s=8, lambda_rates=lam, mu_rates=mu)
     assert set(out) == set(config.HORIZONS_MIN)
     # h=15: λ_total=5.0, μ_total=1.5 → 예상 잔여 8+1.5−5.0=4.5
     assert out[15]["bikes"] == pytest.approx(4.5)
-    assert out[15]["prob_out"] == pytest.approx(float(depletion_probability(8, 5.0, 1.5, tail_correction=config.TAIL_CORRECTION)))
+    assert out[15]["prob_out"] == pytest.approx(float(depletion_probability(8, 5.0, 1.5, tail_correction=tail_correction_for(15))))
     # 지평이 길수록 고갈 확률 증가 (같은 율)
     assert out[5]["prob_out"] <= out[10]["prob_out"] <= out[15]["prob_out"]

@@ -300,10 +300,15 @@ def horizon_totals(now: pd.Timestamp, rates: pd.DataFrame, s_by_station: pd.Seri
 
 
 def compute_predictions(now: pd.Timestamp, rates: pd.DataFrame, s_by_station: pd.Series,
-                        tail_correction: float = config.TAIL_CORRECTION) -> pd.DataFrame:
-    """대여소 × 지평 → [station_id, horizon_min, bikes, prob_out]. 표시용 클립·반올림은 여기서."""
+                        tail_correction: float | None = None) -> pd.DataFrame:
+    """대여소 × 지평 → [station_id, horizon_min, bikes, prob_out]. 표시용 클립·반올림은 여기서.
+
+    tail_correction=None이면 지평별 앵커 보간(probability.tail_correction_for) — 서빙 기본.
+    """
     tot = horizon_totals(now, rates, s_by_station)
     s, lam, mu = tot["s"].to_numpy(), tot["lam_total"].to_numpy(), tot["mu_total"].to_numpy()
+    if tail_correction is None:
+        tail_correction = probability.tail_correction_for(tot["horizon_min"].to_numpy())
     return pd.DataFrame({
         "station_id": tot["station_id"].to_numpy(),
         "horizon_min": tot["horizon_min"].to_numpy(),

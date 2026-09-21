@@ -78,16 +78,18 @@ def replay_at(t: pd.Timestamp, snaps: pd.DataFrame, weather: pd.DataFrame, art: 
         "station_id": model["station_id"].to_numpy(),
         "horizon_min": model["horizon_min"].to_numpy(),
         "s": s, "lam_total": lam, "mu_total": mu,
-        # 서빙(serve.compute_predictions)과 같은 보정계수. 베이스라인에도 같은 값 — 과산포는 수요 과정의 성질이라
-        # 모델 고유가 아니고, 모델만 보정하면 비교가 불공정하다. calibrate의 격자 탐색은 원시 λ·μ·s로 다시 계산한다.
-        "prob_model": probability.depletion_probability(s, lam, mu, tail_correction=config.TAIL_CORRECTION),
+        # 서빙(serve.compute_predictions)과 같은 지평별 보정계수. 베이스라인에도 같은 값 — 과산포는 수요 과정의
+        # 성질이라 모델 고유가 아니고, 모델만 보정하면 비교가 불공정하다. calibrate의 격자 탐색은 원시 λ·μ·s로 다시 계산한다.
+        "prob_model": probability.depletion_probability(
+            s, lam, mu, tail_correction=probability.tail_correction_for(model["horizon_min"].to_numpy())),
         "bikes_pred": np.clip(probability.expected_bikes(s, lam, mu), 0.0, None),
     })
     prof_lam, prof_mu = prof["lam_total"].to_numpy(), prof["mu_total"].to_numpy()
     prof_known = ~(np.isnan(prof_lam) | np.isnan(prof_mu))
     out["prob_bl_profile"] = np.where(
         prof_known,
-        probability.depletion_probability(s, np.nan_to_num(prof_lam), np.nan_to_num(prof_mu), tail_correction=config.TAIL_CORRECTION),
+        probability.depletion_probability(s, np.nan_to_num(prof_lam), np.nan_to_num(prof_mu),
+                                          tail_correction=probability.tail_correction_for(out["horizon_min"].to_numpy())),
         np.nan,
     )
     out["prob_bl_current"] = (s <= config.DEPLETION_BIKES).astype(float)
