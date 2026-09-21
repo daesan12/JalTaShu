@@ -45,6 +45,6 @@ public class BikeStationService {
         CurrentStation current = realtime.findAll(List.of(master)).get(stationId);
         if (current == null) throw new MapException(BIKE_STATION_DATA_UNAVAILABLE);
         return new BikeStationDetailResponse(stationId, current.currentCnt(), current.time(),
-                predictions.findNext15Minutes(stationId));
+                predictions.findNext60Minutes(stationId));
     }
 }
