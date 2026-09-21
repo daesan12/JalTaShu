@@ -88,7 +88,7 @@ public interface CycleUsageRepository extends JpaRepository<CycleUsageEntity, Lo
     @Query(value= """
             SELECT SUM(TIMESTAMPDIFF(MINUTE, cu.rental_at, cu.return_at))
             FROM cycle_usages cu
-            WHERE cu.userId = :userId AND cu.return_at IS NOT NULL
+            WHERE cu.user_id = :userId AND cu.return_at IS NOT NULL
             """,
             nativeQuery = true
     )
