@@ -57,6 +57,14 @@ const LIFT_FOR_STATION_CLASS = '-translate-y-[58px]';
 const LIFT_FOR_MINI_SHEET_CLASS = '-translate-y-[148px]';
 
 /**
+ * 대여소 목록을 다시 받아오는 주기(ms).
+ * 수집기가 45초마다 Redis 스냅샷을 통째로 갈아끼우므로(`TASHU_INTERVAL_SECONDS`) 그 주기에 맞춘다.
+ * 이걸 두지 않으면 화면을 켜 둔 동안 갱신 배지의 숫자만 계속 커지고, 대여소를 탭해서 부르는
+ * 상세(그때그때 최신 스냅샷을 읽는다)와 기준 시각이 어긋난다.
+ */
+const STATIONS_REFETCH_INTERVAL_MS = 45 * 1000;
+
+/**
  * 07 메인 지도 — 네이버 지도 + 대여소 마커 + 오버레이 UI.
  * 상태는 기능별 훅(useJourneyPlanner·useRouteGuide·useRentalSheets·useNoticePopup)이 들고,
  * 이 컴포넌트는 URL 단계 플래그를 파생해 훅과 화면을 잇는 조립만 한다.
@@ -102,32 +110,34 @@ export function MapHomePage() {
   const {
     data: stations,
     dataUpdatedAt,
-    isFetching: stationsFetching,
     refetch: refetchStations,
   } = useQuery({
     queryKey: BIKE_STATIONS_QUERY_KEY,
     queryFn: getBikeStations,
+    refetchInterval: STATIONS_REFETCH_INTERVAL_MS,
   });
 
+  /*
+   * 새로고침 버튼의 회전은 **사용자가 누른 갱신**만 따라간다.
+   * 쿼리의 isFetching을 쓰면 45초마다 도는 자동 갱신에도 아이콘이 혼자 돌고 버튼이 잠깐 잠긴다.
+   */
+  const [refreshingStations, setRefreshingStations] = useState(false);
+
   /**
-   * 대여소 잔여 대수를 지금 다시 받아온다. 성공하면 `dataUpdatedAt`이 새로 찍혀 갱신 배지도 0초로 돌아간다.
+   * 대여소 잔여 대수를 지금 다시 받아온다. 성공하면 관측 시각이 새로 찍혀 갱신 배지도 0초로 돌아간다.
    * 실패해도 지도에 이미 그려진 대여소는 그대로 둔다 — 화면을 비우는 것보다 오래된 값이라도 보이는 편이 낫다.
    */
   async function refreshStations() {
+    setRefreshingStations(true);
     try {
       // throwOnError를 켜야 실패가 예외로 온다 — 기본값은 이미 받아둔 데이터가 있으면 성공처럼 보인다
       await refetchStations({ throwOnError: true });
     } catch {
       showToast('대여소 정보를 새로 불러오지 못했습니다.');
+    } finally {
+      setRefreshingStations(false);
     }
   }
-
-  /*
-   * 배지에 쓸 기준 시각. 서버가 대여소마다 관측 시각(`time`)을 주므로 그걸 먼저 쓴다 —
-   * 스냅샷 한 건에서 나오는 값이라 대여소끼리 같고, 값이 없는 대여소(실시간 정보 없음)는 건너뛴다.
-   * 전부 없으면 "우리가 목록을 받아온 시각"으로 떨어진다(#96에서 쓰던 방식).
-   */
-  const snapshotAt = stations?.find((s) => s.updatedAt !== null)?.updatedAt ?? null;
 
   const popup = useNoticePopup();
   const rental = useRentalSheets(stations);
@@ -357,7 +367,7 @@ export function MapHomePage() {
           {/* Figma대로 오른쪽 끝에 붙인다 — 대여소를 아직 못 받았으면 보여줄 시각도 없다 */}
           {stations && (
             <div className="self-end">
-              <UpdatedBadge updatedAt={snapshotAt ?? dataUpdatedAt} />
+              <UpdatedBadge updatedAt={dataUpdatedAt} />
             </div>
           )}
         </div>
@@ -369,7 +379,7 @@ export function MapHomePage() {
           className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${liftClass}`}
         >
           <WeatherButton />
-          <StationRefreshButton onClick={refreshStations} refreshing={stationsFetching} />
+          <StationRefreshButton onClick={refreshStations} refreshing={refreshingStations} />
           <CurrentLocationButton onClick={focusCurrentLocation} loading={location.loading} />
           {showRentButton ? (
             <Button full onClick={rental.openRentSheet}>

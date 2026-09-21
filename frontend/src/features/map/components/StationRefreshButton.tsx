@@ -8,8 +8,9 @@ interface StationRefreshButtonProps {
 
 /**
  * 대여소 잔여 대수를 지금 다시 받아오는 버튼 (07 현재위치 버튼 바로 위).
- * 지도는 대여소 목록을 한 번 받아 두고 계속 보여주기 때문에, 화면을 오래 켜 두면 숫자가 오래된 값이 된다.
+ * 지도는 수집 주기에 맞춰 스스로도 목록을 다시 받지만, 그 주기를 기다리지 않고 바로 받고 싶을 때 쓴다.
  * 갱신 배지가 "몇 초 전"인지 알려주고, 이 버튼이 그 값을 0초로 되돌린다.
+ * 자동 갱신은 실패해도 조용하지만, 이 버튼으로 받다 실패하면 안내 문구가 뜬다.
  */
 export function StationRefreshButton({ onClick, refreshing = false }: StationRefreshButtonProps) {
   return (
