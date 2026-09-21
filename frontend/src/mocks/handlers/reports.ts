@@ -1,4 +1,5 @@
 import { delay, http, HttpResponse } from 'msw';
+import { addMockUsage } from '@/mocks/handlers/rides';
 import { fail, getAuthState, ok, requireAuth } from '@/mocks/core';
 import { getMockClaims } from '@/mocks/handlers/adminClaims';
 import { STATIONS } from '@/mocks/stations';
@@ -38,11 +39,36 @@ export function setMockReports(reports: MockReport[]) {
 }
 
 /**
- * 이미 대여 중인 것으로 취급할 자전거 번호 — 대여 실패 경로를 검증할 때 이 값을 넣는다.
- * QrScanPage의 수동 입력 예시(22B01262)와 일부러 맞췄다 — 그 화면을 참고해 코드를 입력해도
- * 실패 케이스를 재현할 수 있게
+ * 지금 대여 중인 자전거 번호들.
+ *
+ * 처음부터 한 대(22B01262)를 빌려간 것으로 둔다 — 대여 실패 경로를 바로 재현할 수 있게
+ * `QrScanPage`의 수동 입력 예시와 일부러 맞춘 번호다.
+ * 대여·반납이 실제로 이 목록을 고쳐야 "QR로 빌리고 같은 QR로 반납"이 로컬에서도 돌아간다.
  */
-const RENTED_CYCLE_IDS = ['22B01262'];
+const RENTED_KEY = 'msw_rented_cycles';
+
+/** 자전거 번호 → 대여 시각(ISO). 반납할 때 이용 시간을 계산하려면 시작 시각이 있어야 한다 */
+type RentedCycles = Record<string, string>;
+
+function readRentedCycles(): RentedCycles {
+  try {
+    const raw = localStorage.getItem(RENTED_KEY);
+    if (raw === null) return { '22B01262': new Date(Date.now() - 20 * 60_000).toISOString() };
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed as RentedCycles;
+  } catch {
+    return {};
+  }
+}
+
+function writeRentedCycles(rented: RentedCycles) {
+  try {
+    localStorage.setItem(RENTED_KEY, JSON.stringify(rented));
+  } catch {
+    // 저장 불가 환경 무시
+  }
+}
 
 /** 저장된 enum을 18 화면의 부위 태그로 되돌린다 */
 const CATEGORY_TO_TAG: Record<string, string> = {
@@ -245,10 +271,13 @@ export const reportHandlers = [
     const body = (await request.json()) as { cycleId?: string };
     const cycleId = body.cycleId?.trim().toUpperCase();
     if (!cycleId) return fail(400, '자전거 번호를 입력해 주세요.');
-    if (RENTED_CYCLE_IDS.includes(cycleId)) {
+    const rented = readRentedCycles();
+    if (cycleId in rented) {
       return fail(409, '이미 대여 중인 자전거입니다.');
     }
-    return HttpResponse.json(ok(new Date().toISOString()));
+    const rentedAt = new Date().toISOString();
+    writeRentedCycles({ ...rented, [cycleId]: rentedAt });
+    return HttpResponse.json(ok(rentedAt));
   }),
 
   http.post('/api/cycle/return', async ({ request }) => {
@@ -261,9 +290,16 @@ export const reportHandlers = [
     if (!body.stationId || !STATIONS.some((station) => station.stationId === body.stationId)) {
       return fail(404, '존재하지 않는 대여소입니다.');
     }
-    if (!RENTED_CYCLE_IDS.includes(cycleId)) {
+    const rented = readRentedCycles();
+    const rentedAt = rented[cycleId];
+    if (rentedAt === undefined) {
       return fail(409, '대여 중인 자전거가 아닙니다.');
     }
-    return HttpResponse.json(ok(new Date().toISOString()));
+    const { [cycleId]: _removed, ...rest } = rented;
+    writeRentedCycles(rest);
+    // 실서버는 여기서 이용 기록 한 건을 만든다 — 목업도 만들어야 "나의 경로"까지 이어진다
+    const returnedAt = new Date().toISOString();
+    addMockUsage({ cycleId, stationId: body.stationId, rentedAt, returnedAt });
+    return HttpResponse.json(ok(returnedAt));
   }),
 ];

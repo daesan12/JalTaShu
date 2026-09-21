@@ -90,7 +90,7 @@ export function RouteDetailSheet({
               <span className="text-2xl font-bold tabular-nums text-gray-900">
                 {formatSecondsAsMinutes(summary.totalSec)}
               </span>
-              {summary.expectedBikeCnt === undefined ? null : (
+              {summary.expectedBikeCnt == null ? null : (
                 <span
                   className={`text-sm font-semibold ${BIKES_TEXT_CLASS[toStationStatus(summary.expectedBikeCnt)]}`}
                 >

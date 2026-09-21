@@ -329,3 +329,64 @@ describe('가입 흐름 (users/me 계약)', () => {
     expect(data).toHaveProperty('monthlyTime');
   });
 });
+
+describe('QR 대여 → 반납 → 이용 내역', () => {
+  const CODE = 'DJ99999';
+
+  it('빌린 자전거를 반납하면 이용 내역 맨 위에 생긴다', async () => {
+    await post('/api/auth/mock-login');
+
+    const rent = await post('/api/cycle/rental', { cycleId: CODE });
+    expect(rent.status).toBe(200);
+
+    // 같은 자전거를 또 빌릴 수는 없다 — 두 번째 스캔이 반납이어야 하는 이유
+    expect((await post('/api/cycle/rental', { cycleId: CODE })).status).toBe(409);
+
+    const before = await (await get('/api/cycle/usage/list')).json();
+    const give = await post('/api/cycle/return', { cycleId: CODE, stationId: 'ST0001' });
+    expect(give.status).toBe(200);
+
+    const after = await (await get('/api/cycle/usage/list')).json();
+    expect(after.data).toHaveLength(before.data.length + 1);
+    expect(after.data[0].cycleId).toBe(CODE);
+
+    // 반납한 뒤에는 대여 중이 아니므로 또 반납할 수 없다
+    expect((await post('/api/cycle/return', { cycleId: CODE, stationId: 'ST0001' })).status).toBe(
+      409,
+    );
+  });
+
+  it('안내 도착 저장이 방금 만든 기록에 붙는다', async () => {
+    await post('/api/auth/mock-login');
+    await post('/api/cycle/rental', { cycleId: CODE });
+    await post('/api/cycle/return', { cycleId: CODE, stationId: 'ST0001' });
+
+    const { data: list } = await (await get('/api/cycle/usage/list')).json();
+    const usageId = list[0].usageId;
+
+    // 저장 전에는 경로가 없어 상세가 요약만 보여준다
+    const before = await (await get(`/api/cycle/usage/${usageId}`)).json();
+    expect(before.data.pathInfo).toBeNull();
+
+    const road = [
+      { latitude: 36.3504, longitude: 127.3845, altitude: 50, travelStatus: 'WALK1', seq: 0 },
+      { latitude: 36.3561, longitude: 127.3901, altitude: 55, travelStatus: 'BIKE', seq: 1 },
+      { latitude: 36.3602, longitude: 127.3944, altitude: 52, travelStatus: 'WALK2', seq: 2 },
+    ];
+    const save = await post('/api/cycle/usage', {
+      pathInfo: { road },
+      createdAt: new Date(Date.now() - 600_000).toISOString(),
+      finishedAt: new Date().toISOString(),
+      totalDistance: 2000,
+      bikeDistance: 1500,
+    });
+    expect(save.status).toBe(200);
+
+    const after = await (await get(`/api/cycle/usage/${usageId}`)).json();
+    expect(after.data.pathInfo.road).toHaveLength(3);
+    expect(after.data.totalDistance).toBe(2000);
+    // 출발·도착은 경로의 처음·끝으로 바뀐다
+    expect(after.data.startingPoint.latitude).toBeCloseTo(36.3504, 4);
+    expect(after.data.endPoint.latitude).toBeCloseTo(36.3602, 4);
+  });
+});

@@ -7,7 +7,6 @@ import { Button } from '@/shared/ui/Button';
 import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/stations';
 import { ArrivalSummaryScreen } from '@/features/map/components/ArrivalSummaryScreen';
 import { CurrentLocationButton } from '@/features/map/components/CurrentLocationButton';
-import { CycleRentSheet } from '@/features/map/components/CycleRentSheet';
 import { CycleReturnSheet } from '@/features/map/components/CycleReturnSheet';
 import { DestinationSheet } from '@/features/map/components/DestinationSheet';
 import { MapPickLayer } from '@/features/map/components/MapPickLayer';
@@ -36,7 +35,10 @@ import { useRouteGuide } from '@/features/map/hooks/useRouteGuide';
 import { useToast } from '@/shared/lib/useToast';
 import { START_POS_FALLBACK } from '@/features/map/lib/mapDefaults';
 import { NOTICES_PATH } from '@/features/map/lib/noticeLink';
+import { clearRentalSession } from '@/features/rental/lib/rentalSession';
+import { useCycleRental, useScannedCode } from '@/features/map/hooks/useCycleRental';
 import {
+  CODE_PARAM,
   DETAIL_PARAM,
   FIELD_PARAM,
   GUIDE_PARAM,
@@ -141,6 +143,26 @@ export function MapHomePage() {
 
   const popup = useNoticePopup();
   const rental = useRentalSheets(stations);
+
+  /**
+   * QR 대여·반납. 스캔 화면은 민원·상태확인이 쓰던 것을 그대로 쓰고(`?next=/`),
+   * 돌아올 때 붙는 `?code=`를 한 번 처리한 뒤 지운다.
+   */
+  const cycleRental = useCycleRental({ stations, position: location.position, showToast });
+  useScannedCode(searchParams.get(CODE_PARAM), cycleRental.handleCode, () => {
+    setSearchParams(
+      (params) => {
+        params.delete(CODE_PARAM);
+        return params;
+      },
+      { replace: true },
+    );
+  });
+
+  /** "대여하기" — QR로 자전거를 확인한다. 카메라를 못 쓰면 그 화면의 번호 직접 입력으로 넘어간다 */
+  function openScanner() {
+    navigate(`/report/scan?next=${encodeURIComponent('/')}`);
+  }
   const journey = useJourneyPlanner({ location, showToast, viewedCenterAsStart });
   const { destination, routeResult, routeSummaries, selectedRouteIndex } = journey;
 
@@ -294,17 +316,13 @@ export function MapHomePage() {
   // 대여·반납 시트도 목적지 시트와 같은 mini(200px) 높이라 같은 값만큼 띄운다
   const liftClass = stationSheetOpen
     ? LIFT_FOR_STATION_CLASS
-    : destinationSheetOpen || rental.rentSheetOpen || rental.returnSheetOpen
+    : destinationSheetOpen || rental.returnSheetOpen
       ? LIFT_FOR_MINI_SHEET_CLASS
       : '';
   // "대여하기"는 아무것도 열려 있지 않은 맨 처음 지도에서만 필요하다 — 대여소를 보거나 목적지를
   // 확정하려는 중이면 이미 다른 화면으로 넘어간 것이라 굳이 보여줄 이유가 없다
   const showRentButton =
-    !stationSheetOpen &&
-    !destinationSheetOpen &&
-    !searchOpen &&
-    !rental.rentSheetOpen &&
-    !rental.returnSheetOpen;
+    !stationSheetOpen && !destinationSheetOpen && !searchOpen && !rental.returnSheetOpen;
 
   return (
     <div className="relative h-full overflow-hidden">
@@ -382,7 +400,7 @@ export function MapHomePage() {
           <StationRefreshButton onClick={refreshStations} refreshing={refreshingStations} />
           <CurrentLocationButton onClick={focusCurrentLocation} loading={location.loading} />
           {showRentButton ? (
-            <Button full onClick={rental.openRentSheet}>
+            <Button full onClick={openScanner}>
               대여하기
             </Button>
           ) : null}
@@ -397,17 +415,15 @@ export function MapHomePage() {
         onReturn={rental.openReturnSheet}
       />
 
-      <CycleRentSheet
-        open={rental.rentSheetOpen}
-        onClose={rental.closeRentSheet}
-        onRented={() => showToast('대여가 완료됐습니다. 안전하게 이용해 주세요.')}
-      />
-
       <CycleReturnSheet
         open={rental.returnSheetOpen}
         stationId={rental.returnStationId}
         onClose={rental.closeReturnSheet}
-        onReturned={() => showToast('반납이 완료됐습니다.')}
+        onReturned={() => {
+          // 번호를 직접 입력해 반납해도 "빌린 자전거" 기억은 지워야 다음 QR이 대여로 잡힌다
+          clearRentalSession();
+          showToast('반납이 완료됐습니다.');
+        }}
       />
 
       <DestinationSheet

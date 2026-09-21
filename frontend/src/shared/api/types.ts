@@ -181,8 +181,10 @@ export interface RouteCandidate {
    * 후보 `BIKE`·`UPHILL`은 **같은 대여소에서 빌려** 자전거 구간만 다르므로 이 값이 서로 같다.
    * 그래서 10의 "확보 우선" 칩은 값의 유무가 아니라 **값이 서로 다른지**로 켠다
    * (`bikesSortBlock`).
+   *
+   * 서버는 없을 때 필드를 빼기도 하고 `null`로 주기도 한다(실서버 실측) — 둘 다 "없음"이다.
    */
-  expectedBikeCnt?: number;
+  expectedBikeCnt?: number | null;
 }
 
 /** `GET /map/path` 응답 — 후보 배열이 `routes` 한 겹 안에 들어 있다 */

@@ -6,7 +6,7 @@ import { Button } from '@/shared/ui/Button';
 import { InputField } from '@/shared/ui/InputField';
 import { returnCycle } from '@/features/map/api/cycle';
 
-/** 대여(`CycleRentSheet`)와 같은 형식 — QR 인쇄본, `QrScanPage`의 수동 입력 패턴과 통일 */
+/** QR 인쇄본 형식 — `QrScanPage`의 수동 입력 패턴과 통일 */
 const CODE_PATTERN = /^[A-Za-z0-9]{6,12}$/;
 
 const stroke = {
