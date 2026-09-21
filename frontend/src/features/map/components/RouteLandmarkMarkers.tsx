@@ -7,12 +7,11 @@ const START_PIN_WIDTH = 42;
 const START_PIN_HEIGHT = 52;
 const STATION_MARKER_SIZE = 38;
 
-/** 출발은 검정, 도착(목적지 핀)은 파랑 — 둘을 한눈에 구분하려고 색을 나눈다 */
-const START_BLACK = '#18181B';
+const START_BLUE = '#2563EB';
 const STATION_GREEN = '#4C8A12';
 
-/** 출발은 검정색 핀과 흰색 중심점만 표시한다. */
-const START_PIN = `<svg viewBox="0 0 42 52" width="${START_PIN_WIDTH}" height="${START_PIN_HEIGHT}" aria-hidden="true" style="filter:drop-shadow(0 2px 3px rgb(0 0 0 / 0.28))"><path d="M21 51S4 35.2 4 20.5C4 11.4 11.6 4 21 4s17 7.4 17 16.5C38 35.2 21 51 21 51Z" fill="${START_BLACK}" stroke="#fff" stroke-width="2.5"/><circle cx="21" cy="20" r="5" fill="#fff"/></svg>`;
+/** 출발은 파란색 핀과 흰색 중심점만 표시한다. */
+const START_PIN = `<svg viewBox="0 0 42 52" width="${START_PIN_WIDTH}" height="${START_PIN_HEIGHT}" aria-hidden="true" style="filter:drop-shadow(0 2px 3px rgb(0 0 0 / 0.28))"><path d="M21 51S4 35.2 4 20.5C4 11.4 11.6 4 21 4s17 7.4 17 16.5C38 35.2 21 51 21 51Z" fill="${START_BLUE}" stroke="#fff" stroke-width="2.5"/><circle cx="21" cy="20" r="5" fill="#fff"/></svg>`;
 
 /** 두 대여소 마커가 같은 자전거 형태를 공유하고 채움/선 색만 달라지게 한다. */
 function stationMarker(fill: string, stroke: string, bike: string): string {
