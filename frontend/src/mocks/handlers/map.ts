@@ -516,6 +516,30 @@ export const mapHandlers = [
     );
   }),
 
+  /**
+   * 현재 날씨 (07 지도) — 백엔드 WeatherResponse 실스키마.
+   * 실서버는 Redis에 최신 관측이 없으면 data를 null로 주므로, 그 화면도 확인할 수 있게
+   * 분(minute)이 55를 넘는 동안에는 관측 없음으로 응답한다.
+   */
+  http.get('/api/map/weather', async () => {
+    await delay(300);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    const now = new Date();
+    if (now.getMinutes() >= 55) return HttpResponse.json(ok(null));
+    // 정시 관측 — 비 오는 화면은 짝수 시간대에 보이게 해 두 경우를 다 확인할 수 있다
+    const observed = new Date(now);
+    observed.setMinutes(0, 0, 0);
+    const raining = observed.getHours() % 2 === 0;
+    return HttpResponse.json(
+      ok({
+        observedAt: observed.toISOString(),
+        temperature: raining ? 18.3 : 23.7,
+        rainfall1h: raining ? 1.4 : 0,
+      }),
+    );
+  }),
+
   // ── 장소 검색 (08) — 백엔드 #18 MapController와 동일 경로 ─────────
   http.get('/api/map', async ({ request }) => {
     await delay(400);

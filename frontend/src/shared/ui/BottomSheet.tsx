@@ -1,5 +1,10 @@
 import { useRef, type ReactNode } from 'react';
-import { clampDragDelta, resolveSnapAfterDrag, type SnapPoint } from '@/shared/ui/bottomSheetSnap';
+import {
+  clampDragDelta,
+  getSnapHeights,
+  resolveSnapAfterDrag,
+  type SnapPoint,
+} from '@/shared/ui/bottomSheetSnap';
 
 export type { SnapPoint };
 
@@ -33,6 +38,12 @@ interface BottomSheetProps {
    * Figma 10-1 "Peek 이하 dismiss 불가". 기본 true
    */
   dismissible?: boolean;
+  /**
+   * 드래그를 시작·종료할 때 알린다.
+   * 스냅 단계에 따라 내용이 달라지는 시트가, **끌어올리는 동안에도 펼친 모습**을 미리 그리는 데 쓴다
+   * (스냅은 손을 뗀 뒤에야 바뀌므로 이 신호가 없으면 드래그 내내 빈 공간만 올라온다).
+   */
+  onDraggingChange?: (dragging: boolean) => void;
   children: ReactNode;
 }
 
@@ -43,10 +54,17 @@ export function BottomSheet({
   onClose,
   backdrop,
   dismissible = true,
+  onDraggingChange,
   children,
 }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragStartY = useRef<number | null>(null);
+  /**
+   * 드래그 중에는 시트를 **가장 큰 높이로 키워 두고** 그만큼 아래로 밀어 둔다.
+   * 그래야 손가락을 따라 올라오는 자리에 실제 내용이 들어 있다 — 높이를 그대로 두고 위치만 옮기면
+   * 시트 아래로 빈 배경만 끌려 올라온다. 이 값은 그 "밀어 둔 양"이다.
+   */
+  const dragBaseOffset = useRef(0);
   const showBackdrop = backdrop ?? (snapPoint === 'half' || snapPoint === 'tall');
   // snap 변경 콜백이 없는 시트(고정 높이)는 위로 드래그를 잠근다
   const canExpand = Boolean(onSnapChange);
@@ -54,18 +72,38 @@ export function BottomSheet({
   /** 드래그 종료·취소 시 인라인 스타일을 걷어내고 스냅 클래스로 복귀 */
   const endDrag = () => {
     dragStartY.current = null;
+    dragBaseOffset.current = 0;
     const sheet = sheetRef.current;
     if (sheet) {
       sheet.style.transition = '';
       sheet.style.translate = '';
+      sheet.style.height = '';
+      sheet.style.maxHeight = '';
     }
+    onDraggingChange?.(false);
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
     dragStartY.current = e.clientY;
     e.currentTarget.setPointerCapture(e.pointerId);
+    const sheet = sheetRef.current;
     // 손가락을 따라오는 동안에는 전환 애니메이션 끔
-    if (sheetRef.current) sheetRef.current.style.transition = 'none';
+    if (sheet) sheet.style.transition = 'none';
+    // 늘어날 수 있는 시트만 미리 키운다 — 고정 높이 시트는 내려서 닫기만 하므로 그대로 둔다
+    if (sheet && canExpand) {
+      /*
+       * 보정값은 **실제로 재서** 구한다. 스냅 클래스에 max-height가 걸려 있어(half은 480px)
+       * 계산한 높이를 그대로 믿으면 잘린 만큼 시트가 툭 내려앉는다 — 손잡이를 누르기만 해도
+       * 화면이 흔들렸다. max-height를 풀고 키운 뒤, 실제로 늘어난 만큼만 아래로 민다.
+       */
+      const before = sheet.getBoundingClientRect().height;
+      sheet.style.maxHeight = 'none';
+      sheet.style.height = `${Math.max(getSnapHeights(window.innerHeight).tall, before)}px`;
+      dragBaseOffset.current = sheet.getBoundingClientRect().height - before;
+      // 키운 만큼 아래로 밀어 화면에 보이는 높이는 지금 스냅 그대로 유지
+      sheet.style.translate = `-50% ${dragBaseOffset.current}px`;
+    }
+    onDraggingChange?.(true);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -77,8 +115,9 @@ export function BottomSheet({
       canExpand,
       dismissible,
     );
-    // Tailwind v4의 -translate-x-1/2(가로 중앙)를 유지하면서 세로만 이동
-    sheetRef.current.style.translate = `-50% ${delta}px`;
+    // Tailwind v4의 -translate-x-1/2(가로 중앙)를 유지하면서 세로만 이동.
+    // 미리 키워 둔 만큼(dragBaseOffset)을 더해야 손가락 위치와 시트 윗면이 일치한다
+    sheetRef.current.style.translate = `-50% ${dragBaseOffset.current + delta}px`;
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
