@@ -3,14 +3,15 @@ import { formatTimeAgo } from '@/shared/lib/format';
 
 interface UpdatedBadgeProps {
   /**
-   * 기준 시각 — 서버가 준 관측 시각(ISO 8601 문자열)이 있으면 그것,
-   * 없으면 우리가 목록을 받아온 시각(epoch ms, react-query `dataUpdatedAt`). 고르는 쪽은 호출부다.
+   * 대여소 목록을 **받아온 시각**(epoch ms, react-query `dataUpdatedAt`).
+   * 서버가 주는 관측 시각(`time`)이 아니다 — 이 배지는 "우리가 이 숫자를 언제 받아왔나"를 말한다.
+   * 실시간이 끊긴 대여소의 관측 시각은 대여소 시트가 따로 안내한다.
    */
-  updatedAt: string | number;
+  updatedAt: number;
 }
 
 /**
- * 대여소 정보가 얼마나 오래됐는지 보여주는 배지.
+ * 대여소 정보를 언제 받아왔는지 보여주는 배지.
  * 화면을 켜 둔 채로도 경과 시간이 올라가도록 1초마다 다시 그린다. 누를 수는 없다.
  */
 export function UpdatedBadge({ updatedAt }: UpdatedBadgeProps) {
