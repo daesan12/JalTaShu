@@ -52,9 +52,21 @@ function forecastFor(station: Station): StationForecastPoint[] {
  */
 const STATION_WITHOUT_REALTIME = 'ST0006';
 
+/**
+ * 실시간이 **끊긴** 대여소 — 최신 스냅샷에서 빠져 백엔드가 마지막 성공값으로 채워 주는 경우.
+ * 대수는 오는데 시각만 한참 과거라, 시트가 "N분 전 데이터"로 밝히는 화면을 로컬에서도 볼 수 있다.
+ * 값이 아예 없는 ST0006(실시간 정보 없음)과는 다른 상태다.
+ */
+const STATION_WITH_STALE_REALTIME = 'ST0007';
+
 /** 실시간 스냅샷 관측 시각 — 수집기가 올린 시각을 흉내 낸다(대여소 공통) */
 function snapshotTime(): string {
   return new Date(Date.now() - 42_000).toISOString();
+}
+
+/** 실시간이 끊긴 대여소의 관측 시각 — 마지막 성공값이라 몇 시간씩 밀려 있다 */
+function staleTime(): string {
+  return new Date(Date.now() - 3 * 3600_000).toISOString();
 }
 
 /** 08 장소 검색 목업 — 네이버 지역검색 응답을 백엔드가 정리한 형태(xPos=경도, yPos=위도) */
@@ -482,6 +494,7 @@ export const mapHandlers = [
     const time = snapshotTime();
     const stations = STATIONS.map((s) => {
       const offline = s.stationId === STATION_WITHOUT_REALTIME;
+      const stale = s.stationId === STATION_WITH_STALE_REALTIME;
       return {
         stationId: s.stationId,
         name: s.name,
@@ -489,7 +502,7 @@ export const mapHandlers = [
         yPos: s.lat,
         address: '대전광역시 (목업 주소)',
         currentCnt: offline ? null : s.currentBikes,
-        time: offline ? null : time,
+        time: offline ? null : stale ? staleTime() : time,
       };
     });
     return HttpResponse.json(ok(stations));
@@ -510,7 +523,8 @@ export const mapHandlers = [
       ok({
         stationId: station.stationId,
         currentCnt: station.currentBikes,
-        time: snapshotTime(),
+        time:
+          station.stationId === STATION_WITH_STALE_REALTIME ? staleTime() : snapshotTime(),
         futureData: forecastFor(station),
       }),
     );
