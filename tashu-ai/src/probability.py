@@ -98,13 +98,24 @@ def depletion_probability(s, lambda_total, mu_total, tail_correction: float = 1.
     return float(prob) if prob.ndim == 0 else prob
 
 
+def tail_correction_for(horizon_min):
+    """지평별 보정계수 — config.TAIL_CORRECTION_ANCHORS 선형 보간 (범위 밖은 가장자리 값).
+
+    스칼라·배열 모두 지원. 낙관 편향이 지평이 길수록 줄어드는 실측(2026-09-21 캘리브레이션)을 반영.
+    """
+    xs = np.array([h for h, _ in config.TAIL_CORRECTION_ANCHORS], dtype=float)
+    cs = np.array([c for _, c in config.TAIL_CORRECTION_ANCHORS], dtype=float)
+    out = np.interp(np.asarray(horizon_min, dtype=float), xs, cs)
+    return float(out) if out.ndim == 0 else out
+
+
 def predict_horizons(
     t: pd.Timestamp,
     s,
     lambda_rates: Mapping[pd.Timestamp, float],
     mu_rates: Mapping[pd.Timestamp, float],
     horizons_min: tuple[int, ...] = config.HORIZONS_MIN,
-    tail_correction: float = config.TAIL_CORRECTION,
+    tail_correction: float | None = None,  # None = 지평별 앵커 보간 (tail_correction_for)
 ) -> dict[int, dict[str, float]]:
     """한 대여소의 지평별 (예상 잔여, 고갈 확률) — predict 1회분 율로 지평 3개는 산수.
 
@@ -114,8 +125,9 @@ def predict_horizons(
     for h in horizons_min:
         lam = horizon_total(t, h, lambda_rates)
         mu = horizon_total(t, h, mu_rates)
+        c = tail_correction_for(h) if tail_correction is None else tail_correction
         out[h] = {
             "bikes": float(expected_bikes(s, lam, mu)),
-            "prob_out": float(depletion_probability(s, lam, mu, tail_correction)),
+            "prob_out": float(depletion_probability(s, lam, mu, c)),
         }
     return out

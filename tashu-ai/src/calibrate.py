@@ -111,7 +111,7 @@ def write_report(table: pd.DataFrame, metrics: pd.DataFrame, curve: pd.DataFrame
     print(f"기간 {t.min():%Y-%m-%d %H:%M} ~ {t.max():%Y-%m-%d %H:%M} KST | 시점 {t.nunique():,} | "
           f"대여소 {table['station_id'].nunique():,} | 표본 {len(table):,} | 고갈 {int(table['depleted'].sum()):,}"
           f" ({table['depleted'].mean():.2%})", file=log)
-    print(f"모델·프로파일 베이스라인 확률은 서빙과 같은 보정계수 {config.TAIL_CORRECTION} 적용 (config.TAIL_CORRECTION). "
+    print(f"모델·프로파일 베이스라인 확률은 서빙과 같은 지평별 보정 적용 (config.TAIL_CORRECTION_ANCHORS = {config.TAIL_CORRECTION_ANCHORS}). "
           f"아래 [보정계수 탐색]은 원시 λ·μ·s에서 격자를 다시 계산한 값.", file=log)
     print("\n[지표 — 지평 × 예측자] (Brier 낮을수록 / PR-AUC 높을수록 좋음)", file=log)
     view = metrics[metrics["group"] == "all"].pivot(index="horizon_min", columns="predictor", values=["brier", "pr_auc"])

@@ -22,8 +22,11 @@ import config
 from src import serve
 
 SPARK = config.SPARK_DIR / "train_buckets"
-COMPARE_COLS = ["slot_of_day", "weekday", "holiday_type", "temperature", "rainfall_1h",
-                "minutes_since_rain", "profile_rentals", "profile_returns"]
+# 정적·프로파일: 모든 버킷 행 비교. 날씨: **현재 버킷 행만** 비교 — 계약 §6에 따라 미래 버킷
+# 행의 날씨는 "예측 시점 t까지 발표된 값"이라, 학습 행(그 버킷 시각의 available)과 다른 것이 정상
+# (버킷 2개 시절엔 eff 시각이 거의 같아 우연히 일치했음 — 60분 확장으로 차이가 드러남).
+STATIC_COLS = ["slot_of_day", "weekday", "holiday_type", "profile_rentals", "profile_returns"]
+WEATHER_COLS = ["temperature", "rainfall_1h", "minutes_since_rain"]
 
 needs_data = pytest.mark.skipif(
     not (SPARK / "2026-01.parquet").exists() or not config.PROFILE_PATH.exists(),
@@ -48,7 +51,7 @@ _month_cache = {}
 def load_month(month: str) -> pd.DataFrame:
     if month not in _month_cache:
         df = pd.read_parquet(SPARK / f"{month}.parquet",
-                             columns=["station_id", "bucket_start", *COMPARE_COLS])
+                             columns=["station_id", "bucket_start", *STATIC_COLS, *WEATHER_COLS])
         df["bucket_start"] = df["bucket_start"].dt.tz_convert(config.TZ)  # 저장은 UTC (계약 §1)
         df["station_id"] = df["station_id"].astype(str)
         _month_cache[month] = df
@@ -86,16 +89,18 @@ def serving_rows_at(now: pd.Timestamp, month_df: pd.DataFrame, profile: pd.DataF
 def assert_columns_match(serving: pd.DataFrame, training: pd.DataFrame) -> None:
     merged = serving.merge(training, on=["station_id", "bucket_start"], suffixes=("_serve", "_train"))
     assert len(merged) == len(serving), "학습 표에 없는 (station, bucket) 행이 서빙에 있음"
-    for col in COMPARE_COLS:
-        a, b = merged[f"{col}_serve"], merged[f"{col}_train"]
+    current = merged["bucket_start"] == merged["bucket_start"].min()  # 현재 버킷 행 (t가 속한 버킷)
+    for col in STATIC_COLS + WEATHER_COLS:
+        scope = merged if col in STATIC_COLS else merged[current]
+        a, b = scope[f"{col}_serve"], scope[f"{col}_train"]
         if col == "holiday_type":
             bad = a != b.astype(str)
         else:
             a, b = a.astype("float64"), b.astype("float64")
             bad = ~(np.isclose(a, b, atol=1e-6, equal_nan=True))
         assert not bad.any(), (
-            f"{col} 불일치 {int(bad.sum())}/{len(merged)}행 — 예: "
-            f"{merged.loc[bad, ['station_id', 'bucket_start', f'{col}_serve', f'{col}_train']].head(3).to_dict('records')}"
+            f"{col} 불일치 {int(bad.sum())}/{len(scope)}행 — 예: "
+            f"{scope.loc[bad, ['station_id', 'bucket_start', f'{col}_serve', f'{col}_train']].head(3).to_dict('records')}"
         )
 
 

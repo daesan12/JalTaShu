@@ -24,8 +24,9 @@ def grid_stations(n=6, spacing_m=300.0):
 
 
 def test_eval_horizon_rounds_up_to_grid():
+    # EVAL 그리드가 60분까지 확장(2026-09-21)되어 도보 20분은 클램프(15) 대신 30분 지평으로 올림된다
     got = backtest.eval_horizon(np.array([1, 5, 6, 10, 12, 15, 20]))
-    assert got.tolist() == [5, 5, 10, 10, 15, 15, 15]
+    assert got.tolist() == [5, 5, 10, 10, 15, 15, 30]
 
 
 def test_candidate_table_geometry():

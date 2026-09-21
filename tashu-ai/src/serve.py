@@ -227,13 +227,16 @@ def readiness(snapshots: pd.DataFrame, weather: pd.DataFrame, now: pd.Timestamp,
 
 def build_feature_rows(now: pd.Timestamp, snapshots: pd.DataFrame, profile: pd.DataFrame,
                        weather: pd.DataFrame | None) -> pd.DataFrame:
-    """대여소당 현재·다음 버킷 행 2개 (계약 §8) — 학습과 같은 features 함수로 생성.
+    """대여소당 현재부터 N_FEATURE_BUCKETS개 버킷 행 (계약 §8) — 학습과 같은 features 함수로 생성.
 
     반환 컬럼: station_id(category), bucket_start + FEATURE_COLUMNS 전부.
     """
     stations = pd.Index(snapshots["station_id"].unique(), name="station_id")
     b0 = now.floor(f"{config.BUCKET_MINUTES}min")
-    buckets = pd.DatetimeIndex([b0, b0 + pd.Timedelta(minutes=config.BUCKET_MINUTES)], name="bucket_start")
+    buckets = pd.DatetimeIndex(
+        [b0 + k * pd.Timedelta(minutes=config.BUCKET_MINUTES) for k in range(config.N_FEATURE_BUCKETS)],
+        name="bucket_start",
+    )
     rows = pd.MultiIndex.from_product([stations, buckets]).to_frame(index=False)
 
     weather_obs = None if weather is None or weather.empty else extend_weather_to(weather, now)
@@ -297,10 +300,15 @@ def horizon_totals(now: pd.Timestamp, rates: pd.DataFrame, s_by_station: pd.Seri
 
 
 def compute_predictions(now: pd.Timestamp, rates: pd.DataFrame, s_by_station: pd.Series,
-                        tail_correction: float = config.TAIL_CORRECTION) -> pd.DataFrame:
-    """대여소 × 지평 → [station_id, horizon_min, bikes, prob_out]. 표시용 클립·반올림은 여기서."""
+                        tail_correction: float | None = None) -> pd.DataFrame:
+    """대여소 × 지평 → [station_id, horizon_min, bikes, prob_out]. 표시용 클립·반올림은 여기서.
+
+    tail_correction=None이면 지평별 앵커 보간(probability.tail_correction_for) — 서빙 기본.
+    """
     tot = horizon_totals(now, rates, s_by_station)
     s, lam, mu = tot["s"].to_numpy(), tot["lam_total"].to_numpy(), tot["mu_total"].to_numpy()
+    if tail_correction is None:
+        tail_correction = probability.tail_correction_for(tot["horizon_min"].to_numpy())
     return pd.DataFrame({
         "station_id": tot["station_id"].to_numpy(),
         "horizon_min": tot["horizon_min"].to_numpy(),
