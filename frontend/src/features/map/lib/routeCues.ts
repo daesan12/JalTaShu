@@ -36,13 +36,21 @@ export function isNotableManeuver(maneuver: RouteManeuver): boolean {
   return true;
 }
 
-/** 경로의 안내 지점 목록 — 거리 순. 경로가 바뀔 때만 다시 만들면 된다 */
+/**
+ * 경로의 안내 지점 목록 — 거리 순. 경로가 바뀔 때만 다시 만들면 된다.
+ *
+ * 첫 구간이 아닌 `depart`는 버린다. OSRM은 구간마다 `depart`와 `arrive`를 주는데 구간 경계에서
+ * 둘이 **같은 좌표**에 놓인다. 그대로 두면 대여소에서 "○○ 대여소입니다" 직후에 "출발하세요"가
+ * 겹쳐 터지고, 음성은 뒤엣것이 앞엣것을 끊어 정작 대여소 이름을 못 듣는다.
+ * 구간이 바뀐다는 사실은 그 자리의 `arrive` 문구가 이미 말해 준다(`routeVoice.ts`).
+ */
 export function buildRouteCues(route: RouteCandidate): RouteCue[] {
   const { points, stepStarts } = outlineRoute(route);
   if (points.length < 2) return [];
   const cumulative = cumulativeDistances(points);
   return stepStarts
     .filter((step) => isNotableManeuver(step.maneuver))
+    .filter((step) => step.maneuver.type !== 'depart' || step.legIndex === 0)
     .map((step) => ({
       atM: cumulative[step.index] ?? 0,
       legIndex: step.legIndex,
