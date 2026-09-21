@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="true"
@@ -24,6 +25,18 @@
             </intent-filter>
 
         </activity>
+
+        <!--
+            #115 백그라운드 위치 서비스 — 다른 앱이 켤 수 없게 막는다.
+            @capacitor-community/background-geolocation의 매니페스트가 exported="true"로
+            선언하는데, 실제로는 우리 앱 안에서 명시적 인텐트로 bindService 하므로
+            (BackgroundGeolocation.java:303) 외부 공개가 필요 없다. 열어 두면 다른 앱이
+            우리 위치 서비스를 띄워 알림을 보이게 하고 GPS로 배터리를 태울 수 있다.
+        -->
+        <service
+            android:name="com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService"
+            android:exported="false"
+            tools:replace="android:exported" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -51,4 +64,13 @@
 
     <!-- 알림 (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+        경로 안내 중 백그라운드 위치 (#115) — 화면이 꺼져도 안내가 이어지게 포그라운드 서비스를 띄운다.
+        플러그인 매니페스트에도 있지만, 이 앱이 포그라운드 서비스를 쓴다는 사실이 여기서 보여야 한다.
+        ACCESS_BACKGROUND_LOCATION은 필요 없다 — 사용자가 화면을 보며 "안내 시작"을 누를 때
+        서비스를 시작하므로 while-in-use 권한으로 충분하다.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 </manifest>
