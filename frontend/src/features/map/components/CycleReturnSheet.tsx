@@ -5,6 +5,9 @@ import { BottomSheet } from '@/shared/ui/BottomSheet';
 import { Button } from '@/shared/ui/Button';
 import { InputField } from '@/shared/ui/InputField';
 import { returnCycle } from '@/features/map/api/cycle';
+import { nearestStationId } from '@/features/map/lib/nearestStation';
+import type { LocationResult } from '@/features/map/hooks/useCurrentLocation';
+import type { BikeStation } from '@/shared/api/types';
 
 /** 대여(`CycleRentSheet`)와 같은 형식 — QR 인쇄본, `QrScanPage`의 수동 입력 패턴과 통일 */
 const CODE_PATTERN = /^[A-Za-z0-9]{6,12}$/;
@@ -19,8 +22,12 @@ const stroke = {
 
 interface CycleReturnSheetProps {
   open: boolean;
-  /** 반납할 대여소 — 대여소 시트에서 열었으므로 항상 정해져 있다. null이면 열리지 않는다 */
+  /** 대여소 시트에서 열었을 때의 대여소 — 위치를 못 얻었을 때 쓰는 폴백이다 */
   stationId: string | null;
+  /** 반납 대여소를 고르기 위한 후보 — 지도가 이미 들고 있는 목록을 그대로 쓴다 */
+  stations: BikeStation[] | undefined;
+  /** 현재 위치 확보 (`useCurrentLocation().ensure`) — 실패해도 throw하지 않는다 */
+  ensureLocation: () => Promise<LocationResult>;
   onClose: () => void;
   /** 반납 성공 — 부모가 토스트 등으로 안내한다 */
   onReturned: () => void;
@@ -28,11 +35,23 @@ interface CycleReturnSheetProps {
 
 /**
  * 07 대여소 시트의 "반납하기" — 자전거 번호를 입력해 반납을 요청한다.
- * 대여(#41)와 같은 방식이지만, 대여소는 검색하지 않는다 — 지금 열려 있는 대여소 시트의
- * 대여소가 곧 반납 대여소다(실제로 그 자리에서 반납하는 상황을 그대로 반영).
+ * 반납 대여소는 대여와 같은 방식으로 **현재 위치에서 가장 가까운 대여소**로 정한다 — 시트를
+ * 연 대여소와 실제로 서 있는 대여소가 다를 수 있고, 기록에 남아야 하는 건 실제 자리다.
+ * 위치를 못 얻었을 때만 시트를 연 대여소(`stationId`)로 돌아간다.
  */
-export function CycleReturnSheet({ open, stationId, onClose, onReturned }: CycleReturnSheetProps) {
+export function CycleReturnSheet({
+  open,
+  stationId,
+  stations,
+  ensureLocation,
+  onClose,
+  onReturned,
+}: CycleReturnSheetProps) {
   const [code, setCode] = useState('');
+  // 위치를 기다리는 동안에도 버튼이 살아 있으면 같은 반납이 두 번 나간다
+  const [locating, setLocating] = useState(false);
+  // 반납은 대여와 달리 대여소가 필수라, 못 정했으면 그 사실을 알려야 한다
+  const [stationError, setStationError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // autoFocus는 마운트 시점(시트가 닫혀 있어도 DOM에 존재)에 발동해 지도 진입만으로
@@ -52,6 +71,8 @@ export function CycleReturnSheet({ open, stationId, onClose, onReturned }: Cycle
   // 닫을 때는 입력값과 실패 상태를 같이 비운다 — 다음에 열었을 때 이전 시도가 남아 있지 않게
   function close() {
     setCode('');
+    setLocating(false);
+    setStationError(null);
     returnMutation.reset();
     onClose();
   }
@@ -59,9 +80,27 @@ export function CycleReturnSheet({ open, stationId, onClose, onReturned }: Cycle
   const trimmed = code.trim().toUpperCase();
   const formatValid = CODE_PATTERN.test(trimmed);
 
-  function submit() {
-    if (!formatValid || stationId === null) return;
-    returnMutation.mutate({ cycleId: trimmed, stationId });
+  async function submit() {
+    if (!formatValid || locating || returnMutation.isPending) return;
+    setLocating(true);
+    let nearest: string | null = null;
+    try {
+      const located = await ensureLocation();
+      if (located.ok) nearest = nearestStationId(stations, located.position);
+    } finally {
+      setLocating(false);
+    }
+
+    // 위치를 못 얻으면 시트를 연 대여소로 돌아간다. 그것마저 없으면 보낼 대여소가 없다
+    const target = nearest ?? stationId;
+    if (target === null) {
+      setStationError(
+        '위치를 확인할 수 없어 반납할 수 없습니다. 위치 권한을 켜고 다시 시도해 주세요.',
+      );
+      return;
+    }
+    setStationError(null);
+    returnMutation.mutate({ cycleId: trimmed, stationId: target });
   }
 
   return (
@@ -93,21 +132,27 @@ export function CycleReturnSheet({ open, stationId, onClose, onReturned }: Cycle
           onChange={(e) => setCode(e.target.value)}
           autoCapitalize="characters"
           ref={inputRef}
-          disabled={returnMutation.isPending}
+          disabled={locating || returnMutation.isPending}
           error={
             code.length > 0 && !formatValid
               ? '영문·숫자 6~12자로 입력해 주세요.'
-              : returnMutation.isError
-                ? returnMutation.error instanceof ApiError
-                  ? returnMutation.error.message
-                  : '반납에 실패했습니다. 다시 시도해 주세요.'
-                : undefined
+              : stationError !== null
+                ? stationError
+                : returnMutation.isError
+                  ? returnMutation.error instanceof ApiError
+                    ? returnMutation.error.message
+                    : '반납에 실패했습니다. 다시 시도해 주세요.'
+                  : undefined
           }
         />
 
         <div className="mt-auto pb-3">
-          <Button full onClick={submit} disabled={!formatValid || returnMutation.isPending}>
-            {returnMutation.isPending ? '반납하는 중…' : '반납하기'}
+          <Button
+            full
+            onClick={submit}
+            disabled={!formatValid || locating || returnMutation.isPending}
+          >
+            {locating ? '위치 확인 중…' : returnMutation.isPending ? '반납하는 중…' : '반납하기'}
           </Button>
         </div>
       </div>

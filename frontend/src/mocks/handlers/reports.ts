@@ -242,9 +242,16 @@ export const reportHandlers = [
     await delay(500);
     const authFail = requireAuth();
     if (authFail) return authFail;
-    const body = (await request.json()) as { cycleId?: string };
+    const body = (await request.json()) as { cycleId?: string; stationId?: string };
     const cycleId = body.cycleId?.trim().toUpperCase();
     if (!cycleId) return fail(400, '자전거 번호를 입력해 주세요.');
+    // 서버가 처음 보는 자전거를 이때 등록하므로(지연 등록) 번호 형식을 서버도 검증한다
+    if (!/^[A-Z0-9]{6,12}$/.test(cycleId))
+      return fail(400, '자전거 번호 형식이 올바르지 않습니다.');
+    // 출발 대여소는 선택값 — 위치 권한이 없으면 오지 않는다
+    if (body.stationId && !STATIONS.some((station) => station.stationId === body.stationId)) {
+      return fail(404, '존재하지 않는 대여소입니다.');
+    }
     if (RENTED_CYCLE_IDS.includes(cycleId)) {
       return fail(409, '이미 대여 중인 자전거입니다.');
     }

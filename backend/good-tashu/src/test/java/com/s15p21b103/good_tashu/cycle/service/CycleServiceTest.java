@@ -76,7 +76,7 @@ class CycleServiceTest {
     void rentalPreservesDepartureStationInUsageHistory() {
         existingUserAndCycle();
 
-        LocalDateTime rentalAt = cycleService.rentalCycle(1L, new CycleRentalRequest("C1"));
+        LocalDateTime rentalAt = cycleService.rentalCycle(1L, new CycleRentalRequest("C1", null));
 
         ArgumentCaptor<CycleUsageEntity> usageCaptor = ArgumentCaptor.forClass(CycleUsageEntity.class);
         verify(cycleUsageRepository).save(usageCaptor.capture());
@@ -93,27 +93,81 @@ class CycleServiceTest {
     @Test
     void rentalRejectsMissingUserWithoutWritingAnything() {
         when(userRepository.findById(1L)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> cycleService.rentalCycle(1L, new CycleRentalRequest("C1")))
+        assertThatThrownBy(() -> cycleService.rentalCycle(1L, new CycleRentalRequest("C1", null)))
                 .isInstanceOfSatisfying(UserException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(NOT_EXISTS_USER));
         verifyNoInteractions(cycleRepository, cycleUsageRepository, eventPublisher);
     }
 
+    // 타슈 공공 API가 개별 자전거 정보를 주지 않아 자전거 마스터를 미리 채울 수 없다.
+    // 처음 보는 번호는 대여 시점에 등록된다 — 등록하지 않으면 대여 자체가 성립하지 않는다.
     @Test
-    void rentalRejectsMissingCycle() {
+    void rentalRegistersUnknownCycleAtTheStationTheRiderIsStandingAt() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(cycleRepository.findById("C1")).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> cycleService.rentalCycle(1L, new CycleRentalRequest("C1")))
+        when(cycleRepository.findById("C2")).thenReturn(Optional.empty());
+        when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
+        when(cycleRepository.save(any(CycleEntity.class))).thenAnswer(call -> call.getArgument(0));
+
+        LocalDateTime rentalAt = cycleService.rentalCycle(1L, new CycleRentalRequest("C2", "S1"));
+
+        ArgumentCaptor<CycleEntity> cycleCaptor = ArgumentCaptor.forClass(CycleEntity.class);
+        verify(cycleRepository).save(cycleCaptor.capture());
+        assertThat(cycleCaptor.getValue().getCycleId()).isEqualTo("C2");
+        // 등록된 뒤 곧바로 대여되므로 저장 시점의 READY는 startRental()이 RENTING으로 바꾼다
+        assertThat(cycleCaptor.getValue().getStatus()).isEqualTo(CycleStatus.RENTING);
+
+        ArgumentCaptor<CycleUsageEntity> usageCaptor = ArgumentCaptor.forClass(CycleUsageEntity.class);
+        verify(cycleUsageRepository).save(usageCaptor.capture());
+        // 출발 대여소는 요청이 준 "현재 위치에서 가장 가까운 대여소"다
+        assertThat(usageCaptor.getValue().getRentalStationEntity()).isSameAs(station);
+        verify(eventPublisher).publishEvent(new CycleRentalStartedEvent(1L, rentalAt));
+    }
+
+    // 위치 권한을 거부해도 자전거는 빌릴 수 있어야 한다 — 출발 대여소만 비게 된다.
+    @Test
+    void rentalRegistersUnknownCycleWithoutStationWhenLocationIsUnknown() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(cycleRepository.findById("C2")).thenReturn(Optional.empty());
+        when(cycleRepository.save(any(CycleEntity.class))).thenAnswer(call -> call.getArgument(0));
+
+        cycleService.rentalCycle(1L, new CycleRentalRequest("C2", null));
+
+        ArgumentCaptor<CycleUsageEntity> usageCaptor = ArgumentCaptor.forClass(CycleUsageEntity.class);
+        verify(cycleUsageRepository).save(usageCaptor.capture());
+        assertThat(usageCaptor.getValue().getRentalStationEntity()).isNull();
+        verifyNoInteractions(stationRepository);
+    }
+
+    @Test
+    void rentalRejectsUnknownStationWithoutRegisteringCycle() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(cycleRepository.findById("C2")).thenReturn(Optional.empty());
+        when(stationRepository.findById("S404")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> cycleService.rentalCycle(1L, new CycleRentalRequest("C2", "S404")))
                 .isInstanceOfSatisfying(CycleException.class,
-                        error -> assertThat(error.getErrorCode()).isEqualTo(NOT_EXIST_CYCLE_ID));
+                        error -> assertThat(error.getErrorCode()).isEqualTo(NOT_EXIST_STATION_ID));
+        verify(cycleRepository, never()).save(any());
         verifyNoInteractions(cycleUsageRepository, eventPublisher);
+    }
+
+    // 소문자로 입력해도 같은 자전거다 — 대소문자만 다른 행이 따로 생기면 이력이 갈린다.
+    @Test
+    void rentalLooksUpCycleIdInUpperCase() {
+        existingUserAndCycle();
+
+        cycleService.rentalCycle(1L, new CycleRentalRequest("c1", null));
+
+        verify(cycleRepository).findById("C1");
+        verify(cycleRepository, never()).save(any());
+        verify(cycleUsageRepository).save(any());
     }
 
     @Test
     void rentalRejectsUnavailableCycle() {
         existingUserAndCycle();
         cycle.setStatus(CycleStatus.RENTING);
-        assertThatThrownBy(() -> cycleService.rentalCycle(1L, new CycleRentalRequest("C1")))
+        assertThatThrownBy(() -> cycleService.rentalCycle(1L, new CycleRentalRequest("C1", null)))
                 .isInstanceOfSatisfying(CycleException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(CYCLE_NOT_READY));
         verifyNoInteractions(cycleUsageRepository, eventPublisher);
@@ -123,7 +177,7 @@ class CycleServiceTest {
     void rentalRejectsUserAlreadyRentingWithoutChangingCycle() {
         existingUserAndCycle();
         when(cycleUsageRepository.existsByUserEntity_UserIdAndReturnAtIsNull(1L)).thenReturn(true);
-        assertThatThrownBy(() -> cycleService.rentalCycle(1L, new CycleRentalRequest("C1")))
+        assertThatThrownBy(() -> cycleService.rentalCycle(1L, new CycleRentalRequest("C1", null)))
                 .isInstanceOfSatisfying(CycleException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(ALREADY_RENTING));
         assertThat(cycle.getStatus()).isEqualTo(CycleStatus.READY);
