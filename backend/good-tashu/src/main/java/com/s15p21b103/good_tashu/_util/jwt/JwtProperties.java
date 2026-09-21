@@ -29,4 +29,11 @@ public record JwtProperties (
     @NotBlank
     String cookiePath
 ) {
+    /**
+     * Cross-site 요청이 필요한 HTTPS 환경에서는 None을 사용한다.
+     * SameSite=None 쿠키는 Secure가 필수이므로 로컬 HTTP에서는 Lax로 되돌린다.
+     */
+    public String cookieSameSite() {
+        return secure ? "None" : "Lax";
+    }
 }
