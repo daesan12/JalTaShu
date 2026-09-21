@@ -88,10 +88,38 @@ describe('관리자 핸들러 등록 순서', () => {
     await adminLogin();
     const list = await (await get('/api/admin/user/list')).json();
     expect(list.data.length).toBe(30);
+    // 상세 응답에는 userId·상태가 없다 (AdminUserDetailResponse 실측)
     const detail = await (await get('/api/admin/user/7')).json();
-    expect(detail.data.userId).toBe(7);
-    // 시드에 7번 사용자의 진행 중 제재가 있다
-    expect(detail.data.userStatement).toBe('BANNED');
+    expect(Object.keys(detail.data).sort()).toEqual([
+      'createdAt',
+      'nickname',
+      'recentUsingAt',
+      'totalUsingCnt',
+      'totalUsingTime',
+    ]);
+    // 시드에 7번 사용자의 진행 중 제재가 있어 목록은 BANNED로 준다
+    expect(list.data.find((u: { userId: number }) => u.userId === 7).userStatement).toBe('BANNED');
+  });
+
+  it('user/:userId/ban은 밴 이력 전체를 최신순 리스트로 준다', async () => {
+    await adminLogin();
+    const { data } = await (await get('/api/admin/user/7/ban')).json();
+    expect(data).toHaveLength(3);
+    expect(data[0]).toHaveProperty('banRecordId');
+    // 진행 중인 제재(종료 시각이 미래)가 맨 앞
+    expect(new Date(data[0].banEndAt).getTime()).toBeGreaterThan(Date.now());
+    // 밴 기록이 없는 사용자는 404가 아니라 빈 배열
+    const none = await (await get('/api/admin/user/8/ban')).json();
+    expect(none.data).toEqual([]);
+  });
+
+  it('user/:userId/path는 총 이용 거리와 경로 목록을 준다', async () => {
+    await adminLogin();
+    const { data } = await (await get('/api/admin/user/7/path')).json();
+    expect(data.totalUsingDistance).toBeGreaterThan(0);
+    expect(data.pathsList[0]).toHaveProperty('cycleDuration');
+    // 총 소요 시간은 도보를 포함하므로 자전거 탑승 시간보다 길다
+    expect(data.pathsList[0].totalDuration).toBeGreaterThan(data.pathsList[0].cycleDuration);
   });
 
   it('관리자 미로그인 요청은 401', async () => {

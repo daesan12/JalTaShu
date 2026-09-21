@@ -7,13 +7,14 @@ import {
   getAdminUsers,
   type UserStatus,
 } from '@/features/admin/api/adminUsers';
+import { formatUserCode } from '@/features/admin/lib/format';
 import { AdminBadge } from '@/features/admin/ui/AdminBadge';
 import { AdminFilterBar, AdminSearchInput, AdminSelect } from '@/features/admin/ui/AdminFilters';
 import { ADMIN_PAGE_SIZE, AdminPagination } from '@/features/admin/ui/AdminPagination';
 import { AdminTable } from '@/features/admin/ui/AdminTable';
 import { AdminTableStatus } from '@/features/admin/ui/AdminTableStatus';
 
-/** 04 사용자 목록 — 상태·정렬은 서버 파라미터(구현 O), 닉네임 검색만 클라 필터 */
+/** 04 사용자 목록 — 상태·정렬은 서버 파라미터(구현 O), 검색(닉네임·ID)만 클라 필터 */
 export function AdminUsersPage() {
   const navigate = useNavigate();
 
@@ -27,11 +28,16 @@ export function AdminUsersPage() {
     queryFn: () => getAdminUsers({ statement, order }),
   });
 
-  // 목록 응답에 닉네임이 없어(백엔드 전달 목록) 검색은 사용자 ID로 한다
+  // 서버에 검색 파라미터가 없어 닉네임·사용자 ID(U-000007 표기 포함)를 클라에서 거른다
   const filtered = useMemo(() => {
-    const keyword = search.trim();
+    const keyword = search.trim().toLowerCase();
     if (!keyword) return data ?? [];
-    return (data ?? []).filter((user) => String(user.userId).includes(keyword));
+    return (data ?? []).filter(
+      (user) =>
+        (user.nickname?.toLowerCase().includes(keyword) ?? false) ||
+        String(user.userId).includes(keyword) ||
+        formatUserCode(user.userId).toLowerCase().includes(keyword),
+    );
   }, [data, search]);
   const pageItems = filtered.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE);
 
@@ -41,7 +47,7 @@ export function AdminUsersPage() {
 
       <AdminFilterBar>
         <AdminSearchInput
-          placeholder="사용자 ID 검색"
+          placeholder="닉네임 · 사용자 ID 검색"
           className="w-72"
           value={search}
           onChange={(e) => {
@@ -79,13 +85,14 @@ export function AdminUsersPage() {
           <thead>
             <tr>
               <th className="w-40">사용자 ID</th>
+              <th>닉네임</th>
               <th className="w-28">상태</th>
-              <th>최근 이용</th>
+              <th className="w-48">최근 이용</th>
             </tr>
           </thead>
           <tbody>
             <AdminTableStatus
-              colSpan={3}
+              colSpan={4}
               isPending={isPending}
               isError={isError}
               onRetry={() => void refetch()}
@@ -94,7 +101,10 @@ export function AdminUsersPage() {
             />
             {pageItems.map((user) => (
               <tr key={user.userId} onClick={() => navigate(`/admin/users/${user.userId}`)}>
-                <td className="tabular-nums">사용자 #{user.userId}</td>
+                <td className="tabular-nums">{formatUserCode(user.userId)}</td>
+                <td className="truncate">
+                  {user.nickname ?? <span className="text-admin-muted">가입 미완료</span>}
+                </td>
                 <td>
                   <AdminBadge state={USER_STATUS_LABEL[user.userStatement]} />
                 </td>
