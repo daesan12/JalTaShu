@@ -1,0 +1,60 @@
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE:?set FRONTEND_IMAGE to an immutable ECR image}
+    pull_policy: never
+    container_name: tashu-frontend-${SLOT:?set SLOT to blue or green}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${FRONTEND_HOST_PORT:?set FRONTEND_HOST_PORT}:8080"
+    networks:
+      - tashu-app
+    healthcheck:
+      test: [CMD, wget, -qO-, http://127.0.0.1:8080/health]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.50
+
+  backend:
+    image: ${BACKEND_IMAGE:?set BACKEND_IMAGE to an immutable ECR image}
+    pull_policy: never
+    container_name: tashu-backend-${SLOT:?set SLOT to blue or green}
+    restart: unless-stopped
+    env_file:
+      - ${BACKEND_ENV_FILE:-/etc/tashu/backend-production/runtime.env}
+    environment:
+      OSRM_FOOT_BASE_URL: http://osrm-foot:5000
+      OSRM_BICYCLE_BASE_URL: http://osrm-bicycle:5000
+      OSRM_UPHILL_BASE_URL: http://osrm-uphill:5000
+      OSRM_DEM_DIRECTORY: /app/dem
+    volumes:
+      - ${TASHU_OSRM_DEM_DIR:-/opt/tashu/osrm/osrm-uphill/dem}:/app/dem:ro
+    ports:
+      - "127.0.0.1:${BACKEND_HOST_PORT:?set BACKEND_HOST_PORT}:8080"
+    networks:
+      - tashu-app
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -ec 'exec 3<>/dev/tcp/127.0.0.1/8080;
+          printf "GET /api/actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3;
+          grep -q '"'"'"status":"UP"'"'"' <&3'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    mem_limit: 1536m
+    cpus: 1.00
+
+networks:
+  tashu-app:
+    external: true
+    name: tashu-app

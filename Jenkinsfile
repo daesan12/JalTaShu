@@ -5,7 +5,7 @@ pipeline {
         skipDefaultCheckout(true)
         disableConcurrentBuilds(abortPrevious: true)
         buildDiscarder(logRotator(numToKeepStr: '20'))
-        timeout(time: 30, unit: 'MINUTES')
+        timeout(time: 45, unit: 'MINUTES')
     }
 
     parameters {
@@ -21,6 +21,7 @@ pipeline {
         AWS_DEFAULT_REGION = 'ap-northeast-2'
         AWS_EC2_METADATA_DISABLED = 'true'
         AWS_PAGER = ''
+        PRODUCTION_PUBLIC_HOST = 'j15b103.p.ssafy.io'
     }
 
     stages {
@@ -57,6 +58,9 @@ pipeline {
                     test -f infra/runtime/frontend/compose.staging.yml
                     test -f infra/runtime/frontend/scripts/deploy-staging.sh
                     test -f infra/runtime/frontend/scripts/jenkins-deploy-staging.sh
+                    test -f infra/runtime/production/compose.yml
+                    test -f infra/runtime/production/scripts/deploy-slot.sh
+                    test -f infra/runtime/production/scripts/jenkins-production-deploy.sh
                 '''
             }
         }
@@ -337,9 +341,243 @@ pipeline {
                 }
             }
         }
+
+        stage('Build and push production images') {
+            when {
+                branch 'main'
+            }
+            options {
+                lock(resource: 'server-b-heavy')
+            }
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-ecr-push',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    ),
+                    string(
+                        credentialsId: 'naver-map-client-id',
+                        variable: 'FRONTEND_MAP_CLIENT_ID'
+                    )
+                ]) {
+                    sh '''
+                        set -eu
+                        set +x
+
+                        account_id="$(aws sts get-caller-identity --query Account --output text)"
+                        registry="${account_id}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+                        production_tag="prod-${GIT_SHORT_SHA}"
+                        frontend_local="tashu/runtime-frontend:${production_tag}"
+                        backend_local="tashu/runtime-backend:${production_tag}"
+                        frontend_remote="${registry}/tashu/frontend:${production_tag}"
+                        backend_remote="${registry}/tashu/backend:${production_tag}"
+
+                        cleanup_ecr_session() {
+                            docker logout "${registry}" >/dev/null 2>&1 || true
+                            docker image rm --force \
+                              "${frontend_remote}" \
+                              "${backend_remote}" \
+                              >/dev/null 2>&1 || true
+                        }
+                        trap cleanup_ecr_session EXIT
+
+                        aws ecr describe-repositories \
+                          --repository-names tashu/frontend tashu/backend \
+                          >/dev/null
+
+                        docker build \
+                          --file infra/runtime/frontend/Dockerfile \
+                          --build-arg FRONTEND_API_PATH=/api \
+                          --build-arg FRONTEND_LOGIN_PATH=/auth \
+                          --build-arg FRONTEND_BASE_PATH=/ \
+                          --build-arg FRONTEND_ENABLE_MSW=false \
+                          --build-arg FRONTEND_MAP_CLIENT_ID="${FRONTEND_MAP_CLIENT_ID}" \
+                          --tag "${frontend_local}" \
+                          .
+
+                        docker build \
+                          --file backend/good-tashu/Dockerfile \
+                          --tag "${backend_local}" \
+                          backend/good-tashu
+
+                        docker tag "${frontend_local}" "${frontend_remote}"
+                        docker tag "${backend_local}" "${backend_remote}"
+
+                        aws ecr get-login-password \
+                          | docker login \
+                              --username AWS \
+                              --password-stdin "${registry}"
+
+                        if aws ecr describe-images \
+                          --repository-name tashu/frontend \
+                          --image-ids imageTag="${production_tag}" \
+                          >/dev/null 2>&1; then
+                            printf 'ECR image already exists: frontend tag=%s\n' "${production_tag}"
+                        else
+                            docker push "${frontend_remote}"
+                        fi
+
+                        if aws ecr describe-images \
+                          --repository-name tashu/backend \
+                          --image-ids imageTag="${production_tag}" \
+                          >/dev/null 2>&1; then
+                            printf 'ECR image already exists: backend tag=%s\n' "${production_tag}"
+                        else
+                            docker push "${backend_remote}"
+                        fi
+
+                        aws ecr describe-images \
+                          --repository-name tashu/frontend \
+                          --image-ids imageTag="${production_tag}" \
+                          --query 'imageDetails[0].imageDigest' \
+                          --output text \
+                          >/dev/null
+                        aws ecr describe-images \
+                          --repository-name tashu/backend \
+                          --image-ids imageTag="${production_tag}" \
+                          --query 'imageDetails[0].imageDigest' \
+                          --output text \
+                          >/dev/null
+
+                        printf 'Production ECR push verified: frontend/backend tag=%s\n' "${production_tag}"
+                    '''
+                }
+            }
+        }
+
+        stage('Prepare inactive production slot') {
+            when {
+                branch 'main'
+            }
+            options {
+                lock(resource: 'server-a-production-deploy')
+            }
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'server-a-deploy-host',
+                        variable: 'SERVER_A_DEPLOY_HOST'
+                    )
+                ]) {
+                    sshagent(credentials: ['server-a-staging-deploy']) {
+                        sh '''
+                            set -eu
+                            set +x
+                            ssh \
+                              -o BatchMode=yes \
+                              -o ConnectTimeout=10 \
+                              -o StrictHostKeyChecking=yes \
+                              -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts \
+                              "tashu-deploy@${SERVER_A_DEPLOY_HOST}" \
+                              "prepare-production ${GIT_SHORT_SHA}"
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Approve production traffic switch') {
+            when {
+                branch 'main'
+            }
+            options {
+                timeout(time: 15, unit: 'MINUTES')
+            }
+            steps {
+                input(
+                    message: "새 production ${GIT_SHORT_SHA}의 health check가 통과했습니다. 사용자 트래픽을 새 슬롯으로 전환할까요?",
+                    ok: 'Proceed'
+                )
+            }
+        }
+
+        stage('Switch and verify production traffic') {
+            when {
+                branch 'main'
+            }
+            options {
+                lock(resource: 'server-a-production-deploy')
+            }
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'server-a-deploy-host',
+                        variable: 'SERVER_A_DEPLOY_HOST'
+                    )
+                ]) {
+                    sshagent(credentials: ['server-a-staging-deploy']) {
+                        sh '''
+                            set -eu
+                            set +x
+
+                            remote_ssh() {
+                                ssh \
+                                  -o BatchMode=yes \
+                                  -o ConnectTimeout=10 \
+                                  -o StrictHostKeyChecking=yes \
+                                  -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts \
+                                  "tashu-deploy@${SERVER_A_DEPLOY_HOST}" \
+                                  "$1"
+                            }
+
+                            remote_ssh "activate-production ${GIT_SHORT_SHA}"
+
+                            production_verified=false
+                            for attempt in $(seq 1 15); do
+                                if curl --fail --silent \
+                                     "https://${PRODUCTION_PUBLIC_HOST}/health" \
+                                     | grep -qx ok && \
+                                   curl --fail --silent \
+                                     "https://${PRODUCTION_PUBLIC_HOST}/api/actuator/health" \
+                                     | grep -q '"status":"UP"'; then
+                                    production_verified=true
+                                    break
+                                fi
+                                sleep 2
+                            done
+
+                            if [ "${production_verified}" = true ]; then
+                                printf 'Production traffic verified: sha=%s\n' "${GIT_SHORT_SHA}"
+                                exit 0
+                            fi
+
+                            echo '공개 경로 검증에 실패해 직전 production으로 롤백합니다.' >&2
+                            remote_ssh 'rollback-production' || true
+                            exit 1
+                        '''
+                    }
+                }
+            }
+        }
     }
 
     post {
+        unsuccessful {
+            script {
+                if (env.BRANCH_NAME == 'main' && env.GIT_SHORT_SHA?.trim()) {
+                    withCredentials([
+                        string(
+                            credentialsId: 'server-a-deploy-host',
+                            variable: 'SERVER_A_DEPLOY_HOST'
+                        )
+                    ]) {
+                        sshagent(credentials: ['server-a-staging-deploy']) {
+                            sh '''
+                                ssh \
+                                  -o BatchMode=yes \
+                                  -o StrictHostKeyChecking=yes \
+                                  -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts \
+                                  -o ConnectTimeout=10 \
+                                  -T \
+                                  "tashu-deploy@${SERVER_A_DEPLOY_HOST}" \
+                                  "cleanup-production ${GIT_SHORT_SHA}"
+                            '''
+                        }
+                    }
+                }
+            }
+        }
         always {
             sh '''
                 if [ -n "${CI_IMAGE_TAG:-}" ]; then
@@ -354,6 +592,8 @@ pipeline {
                     docker image rm --force \
                       "tashu/runtime-frontend:${GIT_SHORT_SHA}" \
                       "tashu/runtime-backend:${GIT_SHORT_SHA}" \
+                      "tashu/runtime-frontend:prod-${GIT_SHORT_SHA}" \
+                      "tashu/runtime-backend:prod-${GIT_SHORT_SHA}" \
                       >/dev/null 2>&1 || true
                 fi
             '''

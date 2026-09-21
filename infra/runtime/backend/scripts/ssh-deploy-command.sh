@@ -1,19 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-read -r action image_tag extra <<< "${SSH_ORIGINAL_COMMAND:-}"
-
-if [[ ! ${image_tag:-} =~ ^[0-9a-f]{12}$ || -n ${extra:-} ]]; then
-  echo '허용되지 않은 배포 명령입니다.' >&2
-  exit 1
-fi
+read -r action argument extra <<< "${SSH_ORIGINAL_COMMAND:-}"
 
 case "${action:-}" in
   deploy-backend)
-    exec sudo -n /usr/local/sbin/tashu-jenkins-deploy-staging "${image_tag}"
+    [[ ${argument:-} =~ ^[0-9a-f]{12}$ && -z ${extra:-} ]] || exit 1
+    exec sudo -n /usr/local/sbin/tashu-jenkins-deploy-staging "${argument}"
     ;;
   deploy-frontend)
-    exec sudo -n /usr/local/sbin/tashu-jenkins-deploy-frontend-staging "${image_tag}"
+    [[ ${argument:-} =~ ^[0-9a-f]{12}$ && -z ${extra:-} ]] || exit 1
+    exec sudo -n /usr/local/sbin/tashu-jenkins-deploy-frontend-staging "${argument}"
+    ;;
+  prepare-production)
+    [[ ${argument:-} =~ ^[0-9a-f]{12}$ && -z ${extra:-} ]] || exit 1
+    exec sudo -n /usr/local/sbin/tashu-jenkins-production prepare "${argument}"
+    ;;
+  activate-production)
+    [[ ${argument:-} =~ ^[0-9a-f]{12}$ && -z ${extra:-} ]] || exit 1
+    exec sudo -n /usr/local/sbin/tashu-jenkins-production activate "${argument}"
+    ;;
+  cleanup-production)
+    [[ ${argument:-} =~ ^[0-9a-f]{12}$ && -z ${extra:-} ]] || exit 1
+    exec sudo -n /usr/local/sbin/tashu-jenkins-production cleanup "${argument}"
+    ;;
+  rollback-production)
+    [[ -z ${argument:-} && -z ${extra:-} ]] || exit 1
+    exec sudo -n /usr/local/sbin/tashu-jenkins-production rollback
     ;;
   *)
     echo '허용되지 않은 배포 명령입니다.' >&2
