@@ -43,9 +43,6 @@ public class CycleService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final StationRepository stationRepository;
-    private final ClaimRepository cycleClaimRepository;
-    private final ClaimReportRepository cycleClaimReportRepository;
-    private final S3Service s3Service;
     private final PathRepository pathRepository;
 
     @Transactional(readOnly = true)
@@ -108,15 +105,34 @@ public class CycleService {
         return new CyclePointResponse(station.getLatitude(), station.getLongitude());
     }
 
+    /**
+     * 타슈 공공 API가 개별 자전거 정보를 주지 않아 자전거 마스터를 미리 채울 수 없다.
+     * 그래서 처음 대여되는 시점에 등록한다 — 출발 대여소는 사용자의 현재 위치에서 가장 가까운 대여소다(추정값).
+     * 위치를 못 얻어 대여소를 모르면 대여소 없이 등록한다(대여 자체를 막지는 않는다).
+     */
+    private CycleEntity registerCycle(String cycleId, String stationId) {
+        StationEntity stationEntity = (stationId == null || stationId.isBlank()) ? null
+                : stationRepository.findById(stationId)
+                        .orElseThrow(() -> new CycleException(NOT_EXIST_STATION_ID));
+        return cycleRepository.save(CycleEntity.builder()
+                .cycleId(cycleId)
+                .status(CycleStatus.READY)
+                .stationEntity(stationEntity)
+                .build());
+    }
+
     //TODO: 동시성 처리
     @Transactional
     public LocalDateTime rentalCycle(Long userId, CycleRentalRequest request) {
         UserEntity userEntity = userRepository.findById(userId)
                 .orElseThrow(() -> new UserException(NOT_EXISTS_USER));
 
-        //조회
-        CycleEntity cycleEntity = cycleRepository.findById(request.cycleId())
-                .orElseThrow(() -> new CycleException(NOT_EXIST_CYCLE_ID));
+        //대소문자만 다른 자전거가 따로 등록되지 않도록 대문자로 맞춘다(프론트도 대문자로 입력받는다)
+        String cycleId = request.cycleId().toUpperCase();
+
+        //조회 — 처음 보는 자전거면 이 시점에 등록한다
+        CycleEntity cycleEntity = cycleRepository.findById(cycleId)
+                .orElseGet(() -> registerCycle(cycleId, request.stationId()));
         //자전거 대여가능상태 확인
         if(cycleEntity.getStatus() != CycleStatus.READY) {
             throw new CycleException(CYCLE_NOT_READY);
