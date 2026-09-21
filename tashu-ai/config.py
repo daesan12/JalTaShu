@@ -131,7 +131,12 @@ REPLAY_DIR = ARTIFACTS_DIR / "replay"                  # 시점별 예측 vs 실
 # 페이지 누락(~1,000행 결손)만 걸러내는 것이 목적.
 SNAPSHOT_COMPLETE_RATIO = 0.98
 REPLAY_STEP_MIN = 5                  # 리플레이 평가 시점 간격 (1분이면 7일 ≈ 3시간, 5분이면 ≈ 35분)
-EVAL_HORIZONS_MIN = (5, 10, 15)      # 지표 산출 지평 (1~15 전부는 내분점이라 대표 3개로 평가)
+EVAL_HORIZONS_MIN = (5, 10, 15, 30, 45, 60)  # 지표 산출 지평 — 30~60분은 1시간 확장 검증용 (2026-09-21)
+
+# 서빙·리플레이가 만드는 피처 행의 버킷 수: [t, t+h)가 최대 h/15+1개 버킷에 걸친다.
+# HORIZONS_MIN(서빙)과 EVAL_HORIZONS_MIN(리플레이 평가) 중 긴 쪽 기준으로 자동 산출 —
+# 지평을 늘릴 때 이 값을 따로 만질 필요 없음. (60분 → 5개, 15분 → 2개)
+N_FEATURE_BUCKETS = max(max(HORIZONS_MIN), max(EVAL_HORIZONS_MIN)) // BUCKET_MINUTES + 1
 CALIBRATION_BINS = 10                # 캘리브레이션 곡선 구간 수
 TAIL_CORRECTION_GRID = tuple(round(1.0 + 0.05 * i, 2) for i in range(11))  # 1.00 ~ 1.50 (실측 낙관 편향 1.03~1.28배)
 # 서빙에 적용하는 보정계수 (단일값, 전 지평·전 대여소). 2026-09-17 캘리브레이션(9/9~9/16 홀드아웃, 결정 구간 s≥1)에서

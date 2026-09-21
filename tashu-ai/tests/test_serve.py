@@ -103,13 +103,14 @@ def test_readiness_stale_weather_is_warning_not_block():
 
 # ── 피처 행 구성 (계약 §8: 대여소당 현재+다음 버킷) ────────────────────────
 
-def test_feature_rows_two_per_station_in_feature_order():
+def test_feature_rows_bucket_count_and_feature_order():
     rows = serve.build_feature_rows(NOW, snapshots(), profile(), weather())
-    assert len(rows) == 2 * len(STATIONS)
+    assert len(rows) == config.N_FEATURE_BUCKETS * len(STATIONS)
     assert list(rows.columns[:2]) == ["station_id", "bucket_start"]
     assert all(c in rows.columns for c in config.FEATURE_COLUMNS)
     buckets = sorted(rows["bucket_start"].unique())
-    assert buckets == [kst("2026-09-16 17:00"), kst("2026-09-16 17:15")]
+    assert buckets == [kst("2026-09-16 17:00") + k * pd.Timedelta(minutes=15)
+                       for k in range(config.N_FEATURE_BUCKETS)]
     assert str(rows["station_id"].dtype) == "category"
     assert list(rows["holiday_type"].cat.categories) == list(config.HOLIDAY_TYPES)
     assert rows["delta_30m"].dtype == "float64"
@@ -139,7 +140,10 @@ def test_extend_weather_grid_enables_tail_ffill():
     """마지막 관측(13:00) 뒤 3시간 안(16:00)은 ffill, 그 밖은 NaN — 학습과 같은 규칙을 끝단에 적용."""
     w = weather(last_hour_back=4)  # 관측은 13:00까지
     rows = serve.build_feature_rows(NOW, snapshots(), profile(), w)  # 17:10 → 16:00 관측 필요
-    assert rows["temperature"].notna().all()
+    # 버킷 17:00~17:30(eff 16:00 = 13:00+3h 한계)은 ffill, 17:45~(eff 17:00, 4시간)은 NaN
+    near = rows["bucket_start"] <= kst("2026-09-16 17:30")
+    assert rows.loc[near, "temperature"].notna().all()
+    assert rows.loc[~near, "temperature"].isna().all()
     later = kst("2026-09-16 18:10")  # → 17:00 필요, 13:00에서 4시간 → NaN
     rows2 = serve.build_feature_rows(later, snapshots(), profile(), w)
     assert rows2["temperature"].isna().all()
@@ -149,7 +153,7 @@ def test_feature_rows_new_station_profile_nan():
     """학습에 없던 대여소는 행 유지 + profile NaN (계약 §5)."""
     rows = serve.build_feature_rows(NOW, snapshots(["ST0001", "NEW9"]), profile(["ST0001"]), weather())
     new = rows[rows["station_id"] == "NEW9"]
-    assert len(new) == 2 and new["profile_rentals"].isna().all()
+    assert len(new) == config.N_FEATURE_BUCKETS and new["profile_rentals"].isna().all()
 
 
 # ── 지평 계산 (배열) = probability.predict_horizons (대여소별) ──────────────
