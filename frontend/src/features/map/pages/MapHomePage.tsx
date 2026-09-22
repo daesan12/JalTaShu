@@ -575,7 +575,6 @@ export function MapHomePage() {
 
       <CycleReturnSheet
         open={rental.returnSheetOpen}
-        stationId={rental.returnStationId}
         stations={stations}
         ensureLocation={location.ensure}
         onClose={rental.closeReturnSheet}

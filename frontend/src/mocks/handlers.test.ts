@@ -339,18 +339,23 @@ describe('가입 흐름 (users/me 계약)', () => {
 
 describe('QR 대여 → 반납 → 이용 내역', () => {
   const CODE = 'DJ99999';
+  const LOCATION = {
+    stationId: 'ST0001',
+    latitude: 36.362,
+    longitude: 127.3565,
+  };
 
   it('빌린 자전거를 반납하면 이용 내역 맨 위에 생긴다', async () => {
     await post('/api/auth/mock-login');
 
-    const rent = await post('/api/cycle/rental', { cycleId: CODE });
+    const rent = await post('/api/cycle/rental', { cycleId: CODE, ...LOCATION });
     expect(rent.status).toBe(200);
 
     // 같은 자전거를 또 빌릴 수는 없다 — 두 번째 스캔이 반납이어야 하는 이유
-    expect((await post('/api/cycle/rental', { cycleId: CODE })).status).toBe(409);
+    expect((await post('/api/cycle/rental', { cycleId: CODE, ...LOCATION })).status).toBe(409);
 
     const before = await (await get('/api/cycle/usage/list')).json();
-    const give = await post('/api/cycle/return', { cycleId: CODE, stationId: 'ST0001' });
+    const give = await post('/api/cycle/return', { cycleId: CODE, ...LOCATION });
     expect(give.status).toBe(200);
 
     const after = await (await get('/api/cycle/usage/list')).json();
@@ -358,15 +363,25 @@ describe('QR 대여 → 반납 → 이용 내역', () => {
     expect(after.data[0].cycleId).toBe(CODE);
 
     // 반납한 뒤에는 대여 중이 아니므로 또 반납할 수 없다
-    expect((await post('/api/cycle/return', { cycleId: CODE, stationId: 'ST0001' })).status).toBe(
+    expect((await post('/api/cycle/return', { cycleId: CODE, ...LOCATION })).status).toBe(
       409,
     );
   });
 
+  it('대여소에서 300m 밖이면 대여 요청을 거절한다', async () => {
+    await post('/api/auth/mock-login');
+    const response = await post('/api/cycle/rental', {
+      cycleId: 'DJ88888',
+      ...LOCATION,
+      latitude: LOCATION.latitude + 0.004,
+    });
+    expect(response.status).toBe(400);
+  });
+
   it('안내 도착 저장이 방금 만든 기록에 붙는다', async () => {
     await post('/api/auth/mock-login');
-    await post('/api/cycle/rental', { cycleId: CODE });
-    await post('/api/cycle/return', { cycleId: CODE, stationId: 'ST0001' });
+    await post('/api/cycle/rental', { cycleId: CODE, ...LOCATION });
+    await post('/api/cycle/return', { cycleId: CODE, ...LOCATION });
 
     const { data: list } = await (await get('/api/cycle/usage/list')).json();
     const usageId = list[0].usageId;

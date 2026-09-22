@@ -5,7 +5,10 @@ import { BottomSheet } from '@/shared/ui/BottomSheet';
 import { Button } from '@/shared/ui/Button';
 import { InputField } from '@/shared/ui/InputField';
 import { returnCycle } from '@/features/map/api/cycle';
-import { nearestStationId } from '@/features/map/lib/nearestStation';
+import {
+  CYCLE_STATION_RADIUS_M,
+  nearestStation,
+} from '@/features/map/lib/nearestStation';
 import type { LocationResult } from '@/features/map/hooks/useCurrentLocation';
 import type { BikeStation } from '@/shared/api/types';
 
@@ -22,8 +25,6 @@ const stroke = {
 
 interface CycleReturnSheetProps {
   open: boolean;
-  /** 대여소 시트에서 열었을 때의 대여소 — 위치를 못 얻었을 때 쓰는 폴백이다 */
-  stationId: string | null;
   /** 반납 대여소를 고르기 위한 후보 — 지도가 이미 들고 있는 목록을 그대로 쓴다 */
   stations: BikeStation[] | undefined;
   /** 현재 위치 확보 (`useCurrentLocation().ensure`) — 실패해도 throw하지 않는다 */
@@ -37,11 +38,10 @@ interface CycleReturnSheetProps {
  * 07 대여소 시트의 "반납하기" — 자전거 번호를 입력해 반납을 요청한다.
  * 반납 대여소는 대여와 같은 방식으로 **현재 위치에서 가장 가까운 대여소**로 정한다 — 시트를
  * 연 대여소와 실제로 서 있는 대여소가 다를 수 있고, 기록에 남아야 하는 건 실제 자리다.
- * 위치를 못 얻었을 때만 시트를 연 대여소(`stationId`)로 돌아간다.
+ * 위치를 확인할 수 없거나 300m 안에 대여소가 없으면 반납 요청을 보내지 않는다.
  */
 export function CycleReturnSheet({
   open,
-  stationId,
   stations,
   ensureLocation,
   onClose,
@@ -83,24 +83,29 @@ export function CycleReturnSheet({
   async function submit() {
     if (!formatValid || locating || returnMutation.isPending) return;
     setLocating(true);
-    let nearest: string | null = null;
+    let location: LocationResult | null = null;
     try {
-      const located = await ensureLocation();
-      if (located.ok) nearest = nearestStationId(stations, located.position);
+      location = await ensureLocation();
     } finally {
       setLocating(false);
     }
 
-    // 위치를 못 얻으면 시트를 연 대여소로 돌아간다. 그것마저 없으면 보낼 대여소가 없다
-    const target = nearest ?? stationId;
-    if (target === null) {
+    const nearest = location !== null && location.ok
+      ? nearestStation(stations, location.position)
+      : null;
+    if (nearest === null || location === null || !location.ok) {
       setStationError(
-        '위치를 확인할 수 없어 반납할 수 없습니다. 위치 권한을 켜고 다시 시도해 주세요.',
+        `대여소에서 ${CYCLE_STATION_RADIUS_M}m 안으로 이동하고 위치 권한을 켠 뒤 다시 시도해 주세요.`,
       );
       return;
     }
     setStationError(null);
-    returnMutation.mutate({ cycleId: trimmed, stationId: target });
+    returnMutation.mutate({
+      cycleId: trimmed,
+      stationId: nearest.stationId,
+      latitude: location.position.yPos,
+      longitude: location.position.xPos,
+    });
   }
 
   return (

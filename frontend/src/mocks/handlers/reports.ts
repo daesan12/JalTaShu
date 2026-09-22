@@ -3,6 +3,8 @@ import { addMockUsage } from '@/mocks/handlers/rides';
 import { fail, getAuthState, ok, requireAuth } from '@/mocks/core';
 import { getMockClaims } from '@/mocks/handlers/adminClaims';
 import { STATIONS } from '@/mocks/stations';
+import { haversineMeters } from '@/shared/lib/coords';
+import { CYCLE_STATION_RADIUS_M } from '@/features/map/lib/nearestStation';
 
 /** 내가 접수한 민원 — 새로고침에도 유지되도록 localStorage 사용 */
 const REPORTS_KEY = 'msw_reports';
@@ -268,15 +270,32 @@ export const reportHandlers = [
     await delay(500);
     const authFail = requireAuth();
     if (authFail) return authFail;
-    const body = (await request.json()) as { cycleId?: string; stationId?: string };
+    const body = (await request.json()) as {
+      cycleId?: string;
+      stationId?: string;
+      latitude?: number;
+      longitude?: number;
+    };
     const cycleId = body.cycleId?.trim().toUpperCase();
     if (!cycleId) return fail(400, '자전거 번호를 입력해 주세요.');
     // 서버가 처음 보는 자전거를 이때 등록하므로(지연 등록) 번호 형식을 서버도 검증한다
     if (!/^[A-Z0-9]{6,12}$/.test(cycleId))
       return fail(400, '자전거 번호 형식이 올바르지 않습니다.');
     // 출발 대여소는 선택값 — 위치 권한이 없으면 오지 않는다
-    if (body.stationId && !STATIONS.some((station) => station.stationId === body.stationId)) {
+    const station = STATIONS.find((item) => item.stationId === body.stationId);
+    if (station === undefined) {
       return fail(404, '존재하지 않는 대여소입니다.');
+    }
+    if (typeof body.latitude !== 'number' || typeof body.longitude !== 'number'
+        || !Number.isFinite(body.latitude) || !Number.isFinite(body.longitude)) {
+      return fail(400, '현재 위치를 확인할 수 없습니다.');
+    }
+    const distance = haversineMeters(
+      { lat: body.latitude, lng: body.longitude },
+      { lat: station.lat, lng: station.lng },
+    );
+    if (distance > CYCLE_STATION_RADIUS_M) {
+      return fail(400, `대여소 ${CYCLE_STATION_RADIUS_M}m 이내에서 이용해 주세요.`);
     }
     const rented = readRentedCycles();
     if (cycleId in rented) {
@@ -291,11 +310,28 @@ export const reportHandlers = [
     await delay(500);
     const authFail = requireAuth();
     if (authFail) return authFail;
-    const body = (await request.json()) as { cycleId?: string; stationId?: string };
+    const body = (await request.json()) as {
+      cycleId?: string;
+      stationId?: string;
+      latitude?: number;
+      longitude?: number;
+    };
     const cycleId = body.cycleId?.trim().toUpperCase();
     if (!cycleId) return fail(400, '자전거 번호를 입력해 주세요.');
-    if (!body.stationId || !STATIONS.some((station) => station.stationId === body.stationId)) {
+    const station = STATIONS.find((item) => item.stationId === body.stationId);
+    if (station === undefined) {
       return fail(404, '존재하지 않는 대여소입니다.');
+    }
+    if (typeof body.latitude !== 'number' || typeof body.longitude !== 'number'
+        || !Number.isFinite(body.latitude) || !Number.isFinite(body.longitude)) {
+      return fail(400, '현재 위치를 확인할 수 없습니다.');
+    }
+    const distance = haversineMeters(
+      { lat: body.latitude, lng: body.longitude },
+      { lat: station.lat, lng: station.lng },
+    );
+    if (distance > CYCLE_STATION_RADIUS_M) {
+      return fail(400, `대여소 ${CYCLE_STATION_RADIUS_M}m 이내에서 이용해 주세요.`);
     }
     const rented = readRentedCycles();
     const rentedAt = rented[cycleId];
