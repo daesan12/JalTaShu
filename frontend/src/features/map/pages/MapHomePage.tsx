@@ -229,10 +229,14 @@ export function MapHomePage() {
   const compareActive = routeResult !== null && compareInUrl && !searchOpen && !pickActive;
   // 11 상세는 비교 위에 한 단계 더 쌓인 상태다
   const detailActive = compareActive && detailInUrl;
-  const detailRoute =
-    detailActive && selectedRouteIndex !== null
-      ? (routeResult?.routes[selectedRouteIndex] ?? null)
-      : null;
+  /**
+   * 지금 고른 경로 — 화면 단계와 무관하다. 10 비교에서 바로 안내를 시작할 수 있어야 해서
+   * 상세를 거치지 않아도 값이 있어야 한다.
+   */
+  const selectedRoute =
+    selectedRouteIndex === null ? null : (routeResult?.routes[selectedRouteIndex] ?? null);
+  /** 지도에 한 경로만 그리는 건 상세 단계부터다 — 비교에서는 후보를 전부 그린다 */
+  const detailRoute = detailActive ? selectedRoute : null;
   // 12 안내는 상세 위에 한 단계 더 쌓인 상태다
   const guideActive = detailActive && guideInUrl && detailRoute !== null;
   const compareSheetOpen = compareActive && !stationSheetOpen && !detailActive;
@@ -371,9 +375,9 @@ export function MapHomePage() {
     setSearchParams({ [ROUTES_PARAM]: '1', [DETAIL_PARAM]: '1', [GUIDE_PARAM]: '1' });
   }
 
-  // 11의 "안내 시작" → 선택 출발지와 실제 GPS가 다르면 먼저 시작 방식을 묻는다.
+  // 10·11의 "안내 시작" → 선택 출발지와 실제 GPS가 다르면 먼저 시작 방식을 묻는다.
   async function startGuide() {
-    if (detailRoute === null) return;
+    if (selectedRoute === null) return;
     if (journey.customStart === null) {
       activateGuide();
       return;
@@ -399,11 +403,11 @@ export function MapHomePage() {
 
   /** 실제 위치에서 사용자가 고른 출발지까지 먼저 안내하고 원래 경로를 이어 간다. */
   async function guideToSelectedStart() {
-    if (routeStartChoice === null || detailRoute === null) return;
+    if (routeStartChoice === null || selectedRoute === null) return;
     // 비동기 경로 조회 전에 사용자 클릭 문맥에서 음성을 먼저 준비한다.
     guide.primeVoice();
     setRouteStartPending('to-start');
-    const loaded = await journey.startGuideToCustomStart(routeStartChoice.current, detailRoute);
+    const loaded = await journey.startGuideToCustomStart(routeStartChoice.current, selectedRoute);
     setRouteStartPending(null);
     if (!loaded) return;
     setRouteStartChoice(null);
@@ -616,7 +620,8 @@ export function MapHomePage() {
           onSortChange={journey.changeRouteSort}
           selectedIndex={selectedRouteIndex}
           onSelect={journey.setSelectedRouteIndex}
-          onStart={journey.openRouteDetail}
+          onOpenDetail={journey.openRouteDetail}
+          onStart={startGuide}
           showToast={showToast}
         />
       )}
