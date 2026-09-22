@@ -89,10 +89,19 @@ export function AdminHeatmapPage() {
 
   // 크기 기준 — 서버가 시간별 스냅샷만 줘서 하루 최대 고정 스케일은 불가능해졌다.
   // 현재 시간대 최대를 기준으로 삼는다(시간을 옮기면 스케일이 함께 바뀐다)
-  const maxCount = useMemo(
-    () => Math.max(0, ...(data ?? []).map(countOf)),
-    [data, countOf],
-  );
+  const maxCount = useMemo(() => Math.max(0, ...(data ?? []).map(countOf)), [data, countOf]);
+
+  // 실제로 지도에 그려지는 원의 수 — 0건은 HeatmapLayer가 건너뛴다.
+  // 응답이 아예 비어도, 통합 모드에서 대여·반납이 상쇄돼도 화면은 똑같이 빈 지도라 따로 센다
+  const drawnCount = cells.reduce((count, cell) => (cell.count > 0 ? count + 1 : count), 0);
+
+  // 빈 화면이 "고장"으로 보이지 않게 이유를 적는다 — 응답 자체가 없는 경우와 상쇄된 경우를 구분
+  const emptyReason =
+    (data ?? []).length === 0
+      ? '대여·반납 기록이 없습니다.'
+      : mode === 'net'
+        ? '대여와 반납이 서로 상쇄돼 표시할 순유출입이 없습니다.'
+        : `${MODE_LABEL[mode]} 기록이 없습니다.`;
 
   // 하단 요약: 통합 모드는 유출·유입을 나눠 보여준다
   const hourSummary = useMemo(() => {
@@ -168,6 +177,17 @@ export function AdminHeatmapPage() {
             <AdminButton variant="secondary" size="sm" onClick={() => void refetch()}>
               다시 시도
             </AdminButton>
+          </div>
+        )}
+        {/* 조회는 됐는데 그릴 원이 없을 때 — 지도는 계속 움직일 수 있게 클릭을 통과시킨다 */}
+        {!isPending && !isError && drawnCount === 0 && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-md border border-admin-line bg-admin-bg/95 px-4 py-3 text-center">
+              <p className="text-sm font-medium text-admin-text">
+                {hour}시 기준 직전 1시간에 {emptyReason}
+              </p>
+              <p className="mt-1 text-xs text-admin-muted">앱에서 발생한 대여·반납만 집계합니다.</p>
+            </div>
           </div>
         )}
       </div>
