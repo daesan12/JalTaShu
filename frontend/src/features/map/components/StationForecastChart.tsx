@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from 'react';
 import type { StationForecastPoint } from '@/shared/api/types';
 import { formatBikes } from '@/features/map/lib/bikeCount';
 import { STATION_STATUS_LABEL, type StationStatus } from '@/shared/ui/stationStatus';
-import { toForecastTimeline } from '@/features/map/lib/stationForecastTimeline';
+import { findLowestUpcoming, toForecastTimeline } from '@/features/map/lib/stationForecastTimeline';
 
 /**
  * 대여소 예상 대수 (2-1) — 대표 예측 시점을 드래그해서 보는 타임 다이얼.
@@ -42,6 +42,10 @@ export function StationForecastChart({ points, currentBikes }: StationForecastCh
   const bikesText = selected.bikes === null ? '–' : formatBikes(selected.bikes);
   const statusText = selected.bikes === null ? '정보 없음' : STATION_STATUS_LABEL[selected.status];
 
+  // 다이얼을 끝까지 끌어보지 않아도 위험한 때를 알 수 있게 미리 짚어 준다
+  const lowest = findLowestUpcoming(timeline);
+  const rangeLabel = timeline[timeline.length - 1]?.label ?? '';
+
   return (
     <section aria-label="현재와 향후 예상 자전거 수" className="rounded-[22px] border border-line bg-surface-soft/65 p-3.5">
       <div
@@ -50,6 +54,10 @@ export function StationForecastChart({ points, currentBikes }: StationForecastCh
         <div>
           <p className="text-xs font-semibold text-muted">
             {selected.horizon === 0 ? '현재 대여 가능' : `${selected.label} 예상`}
+            {/* 고른 시점이 몇 시인지 — "30분 뒤"를 사용자가 암산하지 않도록 */}
+            {selected.clock === null ? null : (
+              <span className="font-medium text-gray-400"> · {selected.clock}</span>
+            )}
           </p>
           <p className="mt-1 flex items-baseline gap-1 text-ink">
             <span className="text-[34px] font-bold leading-none tabular-nums">{bikesText}</span>
@@ -109,6 +117,14 @@ export function StationForecastChart({ points, currentBikes }: StationForecastCh
           })}
         </ol>
       </div>
+      {lowest === null || lowest.bikes === null ? null : (
+        <p className="mt-3 text-center text-xs text-muted">
+          앞으로 {rangeLabel} 중 가장 적을 때{' '}
+          <span className="font-semibold text-ink">
+            {lowest.label} <span className="tabular-nums">{formatBikes(lowest.bikes)}</span>대
+          </span>
+        </p>
+      )}
       <p className="mt-2 text-center text-[11px] font-medium text-gray-400">
         다이얼을 좌우로 움직여 예상 시점을 확인하세요
       </p>
