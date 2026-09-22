@@ -27,6 +27,7 @@ public class NoticeService {
     public List<PopupListResponse> getPopupList() {
         return popupRepository.findAllByOrderByCreatedAtDescPopUpIdDesc().stream()
                 .map(popup -> new PopupListResponse(
+                        popup.getPopUpId(),
                         popup.getTitle(),
                         s3Service.createDownloadUrl(popup.getPhotoUrl()),
                         popup.getNotice().getNoticeId()))

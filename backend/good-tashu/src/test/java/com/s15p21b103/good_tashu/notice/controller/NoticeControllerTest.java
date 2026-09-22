@@ -39,16 +39,16 @@ class NoticeControllerTest {
     @Test
     void popupListUsesConfirmedResponseFields() throws Exception {
         when(noticeService.getPopupList()).thenReturn(List.of(
-                new PopupListResponse("팝업 제목", "https://example.com/signed-photo", 7L)));
+                new PopupListResponse(3L, "팝업 제목", "https://example.com/signed-photo", 7L)));
 
         mvc.perform(get("/api/notice/pop-up"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].popupId").value(3))
                 .andExpect(jsonPath("$.data[0].title").value("팝업 제목"))
                 .andExpect(jsonPath("$.data[0].photoUrl").value("https://example.com/signed-photo"))
-                .andExpect(jsonPath("$.data[0].noticeId").value(7))
-                .andExpect(jsonPath("$.data[0].popupId").doesNotExist());
+                .andExpect(jsonPath("$.data[0].noticeId").value(7));
     }
 
     @Test

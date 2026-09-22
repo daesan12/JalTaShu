@@ -9,6 +9,7 @@ import com.s15p21b103.good_tashu.admin.dto.res.AdminPopupCreateResponse;
 import com.s15p21b103.good_tashu.admin.service.AdminNoticeService;
 import com.s15p21b103.good_tashu.notice.dto.res.NoticeDetailResponse;
 import com.s15p21b103.good_tashu.notice.dto.res.NoticeListResponse;
+import com.s15p21b103.good_tashu.notice.dto.res.PopupListResponse;
 import com.s15p21b103.good_tashu.notice.service.NoticeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +52,12 @@ public class AdminNoticeController {
             @CurrentAdminId Long adminId,
             @Valid @RequestBody AdminNoticeCreateRequest request) {
         return ApiResponse.success(adminNoticeService.createNotice(adminId, request));
+    }
+
+    @GetMapping("/pop-up")
+    public ApiResponse<List<PopupListResponse>> getPopupList(
+            @CurrentAdminId Long adminId) {
+        return ApiResponse.success(noticeService.getPopupList());
     }
 
     @PatchMapping("/notice/{noticeId}")
