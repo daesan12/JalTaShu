@@ -8,7 +8,11 @@ import {
   writeRentalSession,
 } from '@/features/rental/lib/rentalSession';
 import { rentCycle, returnCycle } from '@/features/map/api/cycle';
-import { RETURN_RADIUS_M, nearestStation } from '@/features/map/lib/nearestStation';
+import {
+  RETURN_RADIUS_M,
+  nearestStation,
+  nearestStationId,
+} from '@/features/map/lib/nearestStation';
 
 interface ReturnInput {
   cycleId: string;
@@ -65,7 +69,8 @@ export function useCycleRental({ stations, position, showToast }: UseCycleRental
     const session = readRentalSession();
 
     if (session === null) {
-      rent.mutate({ cycleId: code });
+      const stationId = position === null ? undefined : nearestStationId(stations, position) ?? undefined;
+      rent.mutate({ cycleId: code, stationId });
       return;
     }
 

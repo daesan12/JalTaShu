@@ -8,18 +8,23 @@ import { apiPost } from '@/shared/api/client';
  */
 export interface RentCycleRequest {
   cycleId: string;
+  /**
+   * 출발 대여소 — 현재 위치에서 가장 가까운 대여소(`nearestStationId`).
+   * 서버는 처음 보는 자전거를 이때 등록하는데(지연 등록), 그 자전거가 어느 대여소에 있었는지는
+   * 이 값으로만 알 수 있다. 위치 권한이 없으면 생략하고, 그때는 출발 대여소 없이 대여만 된다.
+   */
+  stationId?: string;
 }
 
 /** 성공 시 대여 시작 시각(ISO 8601)을 돌려준다 */
-export function rentCycle({ cycleId }: RentCycleRequest): Promise<string> {
-  return apiPost<string>('/cycle/rental', { cycleId });
+export function rentCycle({ cycleId, stationId }: RentCycleRequest): Promise<string> {
+  return apiPost<string>('/cycle/rental', { cycleId, stationId });
 }
 
 /**
  * 자전거 반납 요청 — 백엔드 `POST /api/cycle/return`.
- * 대여와 달리 반납할 대여소(`stationId`)가 필요하다. 07 대여소 마커를 눌러 그 시트가 열린
- * 상태에서 반납하는 흐름이라, `stationId`는 지금 열려 있는 대여소 시트의 대여소로 정해진다
- * (따로 검색해서 고르지 않는다).
+ * 대여와 달리 `stationId`가 필수다. 대여와 같은 방식으로 현재 위치에서 가장 가까운 대여소를
+ * 고르고(`nearestStationId`), 위치를 못 얻었을 때만 열려 있던 대여소 시트의 대여소로 돌아간다.
  */
 export interface ReturnCycleRequest {
   cycleId: string;

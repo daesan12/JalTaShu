@@ -576,6 +576,8 @@ export function MapHomePage() {
       <CycleReturnSheet
         open={rental.returnSheetOpen}
         stationId={rental.returnStationId}
+        stations={stations}
+        ensureLocation={location.ensure}
         onClose={rental.closeReturnSheet}
         onReturned={() => {
           // 번호를 직접 입력해 반납해도 "빌린 자전거" 기억은 지워야 다음 QR이 대여로 잡힌다
