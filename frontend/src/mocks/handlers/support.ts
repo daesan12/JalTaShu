@@ -1,5 +1,6 @@
 import { delay, http, HttpResponse } from 'msw';
 import { ok, requireAuth, fail } from '@/mocks/core';
+import { getMockPopups } from '@/mocks/handlers/adminNotices';
 
 /** 가짜 Open API 신청 내역 — 새로고침에도 유지되도록 localStorage 사용 */
 const OPEN_API_KEY = 'msw_openapi_requests';
@@ -67,18 +68,11 @@ export const supportHandlers = [
   // ── 공지 팝업 (07-1 — 백엔드 PopupListResponse 실측) ──────────────
   // 공지사항 목록과는 별개 데이터. 관리자가 팝업을 따로 등록하며, 등록할 때 공지 하나를
   // 반드시 연결한다(PopupEntity.notice가 not null) — 그래서 모든 팝업이 누를 수 있다.
+  // 목록은 관리자 핸들러와 **같은 저장소**를 본다 — 관리자 화면에서 핀을 켜고 끄면 여기에 반영된다.
   http.get('/api/notice/pop-up', async () => {
     await delay(300);
     const authFail = requireAuth();
     if (authFail) return authFail;
-    return HttpResponse.json(
-      ok([
-        { popupId: 5, title: '임시 폐쇄 대여소 안내', photoUrl: '/notices/notice-01-temporary-closure.jpg', noticeId: 5 },
-        { popupId: 4, title: '공공 데이터 활용 설문조사', photoUrl: '/notices/notice-02-public-data-survey.jpg', noticeId: 4 },
-        { popupId: 3, title: '이용약관 개정 알림', photoUrl: '/notices/notice-03-terms-update.jpg', noticeId: 3 },
-        { popupId: 2, title: '안전수칙 확인 절차 개선', photoUrl: '/notices/notice-04-safety-check.jpg', noticeId: 2 },
-        { popupId: 1, title: '대여소 반납 안내', photoUrl: '/notices/notice-05-return-check.jpg', noticeId: 1 },
-      ]),
-    );
+    return HttpResponse.json(ok(getMockPopups()));
   }),
 ];

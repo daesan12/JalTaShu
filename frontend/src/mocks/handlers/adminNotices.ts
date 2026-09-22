@@ -15,6 +15,46 @@ export interface MockNotice {
   createdAt: string;
 }
 
+const ADMIN_POPUPS_KEY = 'msw_admin_popups';
+
+/** 팝업 한 건 — 백엔드 PopupListResponse 실측(popupId 포함, 이슈 #128) */
+export interface MockPopup {
+  popupId: number;
+  title: string;
+  photoUrl: string;
+  noticeId: number;
+}
+
+/**
+ * 기본 팝업 5장 — 앱 번들 이미지와 같은 것을 가리킨다.
+ * noticeId 1~5는 seed 공지(V3 마이그레이션)와 같은 번호다.
+ */
+const SEED_POPUPS: MockPopup[] = [
+  { popupId: 5, title: '임시 폐쇄 대여소 안내', photoUrl: '/notices/notice-01-temporary-closure.jpg', noticeId: 5 },
+  { popupId: 4, title: '공공 데이터 활용 설문조사', photoUrl: '/notices/notice-02-public-data-survey.jpg', noticeId: 4 },
+  { popupId: 3, title: '이용약관 개정 알림', photoUrl: '/notices/notice-03-terms-update.jpg', noticeId: 3 },
+  { popupId: 2, title: '안전수칙 확인 절차 개선', photoUrl: '/notices/notice-04-safety-check.jpg', noticeId: 2 },
+  { popupId: 1, title: '대여소 반납 안내', photoUrl: '/notices/notice-05-return-check.jpg', noticeId: 1 },
+];
+
+export function getMockPopups(): MockPopup[] {
+  try {
+    const raw = localStorage.getItem(ADMIN_POPUPS_KEY);
+    if (raw) return JSON.parse(raw) as MockPopup[];
+  } catch {
+    // 저장소를 못 읽으면 기본값으로 돈다
+  }
+  return [...SEED_POPUPS];
+}
+
+function setMockPopups(popups: MockPopup[]): void {
+  try {
+    localStorage.setItem(ADMIN_POPUPS_KEY, JSON.stringify(popups));
+  } catch {
+    // 저장 실패는 무시한다 — 다음 새로고침에 기본값으로 돌아간다
+  }
+}
+
 /** 실서버 기준: 이용자든 관리자든 로그인돼 있으면 조회 가능 */
 function anyLoggedIn(): boolean {
   return isAdminLoggedIn() || getAuthState().loggedIn;
@@ -73,11 +113,15 @@ function noticeList() {
     .map(({ noticeId, title, author, createdAt }) => ({ noticeId, title, author, createdAt }));
 }
 
-/** AdminNoticeListResponse — 관리자 목록에만 연결된 팝업 ID를 포함한다. */
+/**
+ * AdminNoticeListResponse — 관리자 목록에만 연결된 팝업 ID를 포함한다.
+ * 팝업 저장소를 보고 채우므로 관리자 화면에서 핀을 켜고 끄면 다음 조회에 그대로 나타난다.
+ */
 function adminNoticeList() {
+  const popups = getMockPopups();
   return noticeList().map((notice) => ({
     ...notice,
-    popupId: notice.noticeId <= 5 ? notice.noticeId : null,
+    popupId: popups.find((popup) => popup.noticeId === notice.noticeId)?.popupId ?? null,
   }));
 }
 
@@ -151,6 +195,56 @@ export const adminNoticeHandlers = [
       return fail(404, '존재하지 않는 공지입니다.');
     }
     setMockNotices(notices.filter((n) => n.noticeId !== noticeId));
+    return HttpResponse.json(ok(null));
+  }),
+
+  /** GET /admin/pop-up — 관리자 전용 팝업 목록(이슈 #128). 앱용 `/notice/pop-up`과 같은 저장소다 */
+  http.get('/api/admin/pop-up', async () => {
+    await delay(300);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    return HttpResponse.json(ok(getMockPopups()));
+  }),
+
+  /*
+   * 팝업 고정(핀) — 백엔드는 multipart로 title·photo·noticeId를 받는다.
+   * 목업은 파일을 S3에 올릴 수 없으므로 **업로드한 이미지는 무시하고** 연결된 공지 번호로
+   * 번들 이미지 하나를 골라 준다. 화면 흐름(등록 → 목록 갱신 → 팝업 노출)만 확인하는 용도다.
+   */
+  http.post('/api/admin/pop-up', async ({ request }) => {
+    await delay(400);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const form = await request.formData();
+    const title = String(form.get('title') ?? '').trim();
+    const noticeId = Number(form.get('noticeId'));
+    if (!title || title.length > 255) return fail(400, '팝업 제목은 1~255자로 입력해주세요.');
+    if (!form.get('photo')) return fail(400, '팝업 이미지를 올려주세요.');
+    if (!getMockNotices().some((n) => n.noticeId === noticeId)) {
+      return fail(404, '존재하지 않는 공지입니다.');
+    }
+    const popups = getMockPopups();
+    if (popups.some((p) => p.noticeId === noticeId)) {
+      return fail(400, '이미 팝업으로 고정된 공지입니다.');
+    }
+    const popup: MockPopup = {
+      popupId: Math.max(0, ...popups.map((p) => p.popupId)) + 1,
+      title,
+      // 올린 파일 대신 번들 이미지를 돌려 쓴다 — 목업에는 저장할 곳이 없다
+      photoUrl: SEED_POPUPS[popups.length % SEED_POPUPS.length].photoUrl,
+      noticeId,
+    };
+    setMockPopups([popup, ...popups]);
+    return HttpResponse.json(ok({ popupId: popup.popupId }));
+  }),
+
+  http.delete('/api/admin/pop-up/:popupId', async ({ params }) => {
+    await delay(400);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const popups = getMockPopups();
+    const popupId = Number(params.popupId);
+    if (!popups.some((p) => p.popupId === popupId)) {
+      return fail(404, '존재하지 않는 팝업입니다.');
+    }
+    setMockPopups(popups.filter((p) => p.popupId !== popupId));
     return HttpResponse.json(ok(null));
   }),
 ];
