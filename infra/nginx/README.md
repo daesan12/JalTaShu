@@ -27,7 +27,9 @@ production은 Blue·Green 중 활성 slot 하나만 바라본다.
 
 `proxy_pass` 뒤의 `/`로 외부 staging prefix를 제거한다. 예를 들어 `/staging-api/users/me`는 Backend의 `/api/users/me`로 전달된다.
 
-Backend refresh cookie의 Path는 현재 `/api/auth`다. 브라우저가 `/staging-api/auth` 요청에 쿠키를 보내도록 `proxy_cookie_path`로 staging 경로를 맞춘다.
+Backend의 사용자·관리자 refresh cookie Path는 각각 `/api/auth`, `/api/admin`이다.
+브라우저가 `/staging-api/auth`, `/staging-api/admin` 요청에 쿠키를 보내도록
+`proxy_cookie_path`로 staging 경로를 맞춘다.
 
 ## OAuth callback 분리
 

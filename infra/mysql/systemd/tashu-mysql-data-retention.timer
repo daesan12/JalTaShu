@@ -1,0 +1,11 @@
+[Unit]
+Description=Prune Tashu real-time MySQL history every 15 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00,15,30,45:00 UTC
+RandomizedDelaySec=2m
+Persistent=true
+Unit=tashu-mysql-data-retention.service
+
+[Install]
+WantedBy=timers.target

@@ -1,5 +1,3 @@
-import type { PredictionHorizon } from '@/shared/config/constants';
-
 /**
  * 백엔드 공통 응답 래퍼 (backend/good-tashu ApiResponse.java와 동일 형태)
  * HTTP status와 body의 code는 항상 일치. 에러 시 data는 null.
@@ -20,45 +18,39 @@ export interface Station {
   currentBikes: number;
 }
 
-/**
- * 대여소 예상 대수 한 점 — 대여소 상세의 대수 추이 그래프에서 쓴다.
- * ⚠ 백엔드 스펙 미확정 프론트 가정(2026-09-14). 실제 응답이 오면 이 타입과 `api/stations.ts`만 고친다.
- */
+/** 대여소 예상 대수 한 점 — `GET /map/bike-station/{stationId}`의 `futureData` */
 export interface StationForecastPoint {
   /** 예측 시각 (ISO 8601) */
   dateTime: string;
-  /** 그 시각의 예상 잔여 대수 */
+  /** 그 시각의 예상 잔여 대수. 예측값이라 소수로 온다(6.8 등) */
   bikeCnt: number;
-}
-
-/**
- * 07 메인 지도용 대여소 — 백엔드 `GET /map/bike-station` 대응. 응답 필드명은 미확정이라 임시 스키마.
- * - 백엔드 원본은 `xPos`=경도, `yPos`=위도(확정). 실제 응답이 오면 이 파일과 api/stations.ts에서만 lat/lng로 맞춘다
- * - 도보 시간·거리는 화면에 표시하지 않으므로 받지도, 계산하지도 않는다
- */
-export interface BikeStation extends Station {
-  /** 데이터 갱신 시각 (ISO 8601, KST) — 명세의 `time`. 07 갱신 배지에서 사용 */
-  updatedAt: string;
-  /**
-   * 앞으로의 예상 대수. 목록 응답에 함께 온다고 **가정**한다(별도 상세 API로 갈라지면 `api/stations.ts`만 고친다).
-   * 예측 모델이 아직이라 값이 없을 수 있어 optional — 없으면 그래프 자리에 안내만 띄운다
-   */
-  futureData?: StationForecastPoint[];
-}
-
-/**
- * 예측 재고 — Redis 캐시 `pred:{station_id}:{horizon_min}` 스키마와 대응.
- * 예측 캐시가 죽으면(TTL 만료) 백엔드는 prediction 없이 currentBikes만 내려줌 → nullable로 다룰 것.
- */
-export interface StationPrediction {
-  stationId: string;
-  horizonMin: PredictionHorizon;
-  /** 도착 시점 예상 잔여 대수 (UI는 점 추정 단독 표시 금지 — 위험 배지 병기) */
-  bikes: number;
-  /** 도착 시점 고갈 확률 0~1 */
+  /** 그 시각의 고갈 확률 0~1 — **받기만 하고 화면에 표시하지 않는다**(확률 미표시 결정) */
   probOut: number;
-  /** 예측 생성 시각 (ISO 8601, KST) */
-  updatedAt: string;
+}
+
+/**
+ * 07 메인 지도용 대여소 — 백엔드 `GET /map/bike-station` 응답을 화면용으로 옮긴 것.
+ * 응답은 `currentCnt`·`time`·`xPos`(경도)·`yPos`(위도)이고, 이름 변환과 좌표 변환(`posToLatLng`)은
+ * **`features/map/api/stations.ts` 한 곳에서만** 한다. 화면은 이 타입만 본다.
+ * 도보 시간·거리는 표시하지 않으므로 받지도, 계산하지도 않는다.
+ */
+export interface BikeStation extends Omit<Station, 'currentBikes'> {
+  address: string | null;
+  /**
+   * 현재 잔여 대수. 실시간 스냅샷에 없는 대여소는 **null**로 온다.
+   * 0으로 바꾸지 않는다 — 자전거가 없다는 거짓말이 된다.
+   */
+  currentBikes: number | null;
+  /** 그 대수가 **몇 시 기준**인지 (ISO 8601, 응답의 `time`). 스냅샷에 없으면 null */
+  updatedAt: string | null;
+}
+
+/** 대여소 상세 — `GET /map/bike-station/{stationId}`. 예상 대수는 목록이 아니라 여기에만 있다 */
+export interface BikeStationDetail {
+  stationId: string;
+  currentBikes: number | null;
+  updatedAt: string | null;
+  futureData: StationForecastPoint[];
 }
 
 /**
@@ -90,28 +82,119 @@ export interface Pos {
   yPos: number;
 }
 
-/** 경로 구간 행동 — 백엔드 통보값(9/14 이의 없으면 확정). RENT/RETURN은 대여소에서의 대여·반납 */
-export type RouteBehave = 'WALK' | 'BIKE' | 'RENT' | 'RETURN';
+/** 경로 후보 종류 — 서버 `routes[].type` 그대로. BIKE=일반, UPHILL=오르막 회피, WALK=자전거 없이 도보만 */
+export type RouteType = 'BIKE' | 'UPHILL' | 'WALK';
+
+/** 출발지에서 자전거를 빌릴 대여소 선택 기준 */
+export type StationStrategy = 'NEAREST' | 'BIKE_SECURE';
+
+/** 구간 이동 수단 — 서버 `legs[].mode` */
+export type TravelMode = 'WALK' | 'BICYCLE';
 
 /**
- * 경로 후보 하나 — 백엔드 `GET /map/path`(OSRM 경유) 응답 배열의 원소.
- * ⚠ 9/14 백엔드 확인 전 프론트 가정. 실제 응답이 오면 이 타입과 `features/map/api/routes.ts`만 고친다.
- * - 최상위 배열 = 경로 후보 4개 (가정)
- * - `distance`(m)·`time`(초)·`behave`는 같은 인덱스가 같은 구간. 기본은 도보→자전거→도보 3구간이며,
- *   RENT/RETURN이 길이 0 구간으로 끼어 올 수 있다(백엔드 확인 필요)
- * - `altitude`는 `location`보다 촘촘해 인덱스로 대응시키지 않는다 → 11 고도 그래프는 위치(거리) 기준
+ * 재탐색(`GET /map/re-route`)에 보내는 "지금 어디쯤 가는 중인지".
+ * 도보는 대여소에 가는 길(WALK1)과 반납 뒤 목적지로 가는 길(WALK2)을 구분한다.
  */
-export interface RoutePath {
-  distance: number[];
-  time: number[];
-  behave: RouteBehave[];
-  /** 경로선 좌표 */
-  location: Pos[];
-  /** 고도 — (경도, 위도, 고도 m) 묶음 */
-  altitude: (Pos & { altitude: number })[];
+export type TravelStatus = 'WALK1' | 'BIKE' | 'WALK2';
+
+/**
+ * 경로 응답 안의 좌표 — GeoJSON 순서라 **`[경도, 위도]`**다.
+ * 이 프로젝트의 다른 API는 `{xPos, yPos}`를 쓰므로 여기만 형태가 다르다.
+ * 지도에 찍을 때는 반드시 `osrmToLatLng()`로만 바꾼다(좌표 뒤집힘이 1순위 버그).
+ */
+export type GeoPos = [number, number];
+
+/** 대여·반납 대여소 — 경로가 어느 대여소를 쓰는지 서버가 알려준다 */
+export interface RouteStation {
+  stationId: string;
+  name: string;
+  location: GeoPos;
+}
+
+/**
+ * 회전 안내 한 건 — 그 step이 **시작될 때** 하는 동작이다.
+ *
+ * ⚠ 이름이 `behave`지만 **이동 수단이 아니다.** 예전에 WALK/BIKE/RENT/RETURN으로 가정했던 그 필드가
+ * 아니라 OSRM 회전 정보다. 이동 수단은 `RouteLeg.mode`에 따로 있다.
+ * 화면(12 회전 안내·음성)은 다음 이슈에서 만들고, 여기서는 타입만 갖춰 둔다.
+ */
+export interface RouteManeuver {
+  /** OSRM maneuver type — `depart`·`turn`·`arrive`·`roundabout` 등 */
+  type: string;
+  /** 방향 — `left`·`right`·`slight left` 등. 직진이면 없을 수 있다 */
+  modifier: string | null;
+  /** 회전교차로에서 나갈 출구 번호. 회전교차로가 아니면 없다 */
+  exit: number | null;
+  /** 이 동작을 하는 지점 */
+  location: GeoPos;
+  /** 서버가 만들어 준 한국어 안내문("우회전하세요") — 그대로 보여주면 된다 */
+  instruction: string;
+}
+
+/** 경로선 좌표 한 점. 고도가 좌표마다 붙어 온다 */
+export interface RoutePoint {
+  location: GeoPos;
+  /** 고도(m) */
+  altitude: number;
+}
+
+/** 회전과 회전 사이 한 토막 */
+export interface RouteStep {
+  /** 거리(m) */
+  distance: number;
+  /** 소요 시간(초) */
+  time: number;
+  roadName: string;
+  travelMode: string;
+  points: RoutePoint[];
+  behave: RouteManeuver;
+}
+
+/** 이동 수단 단위 구간 — 도보 → 자전거 → 도보. **경계를 서버가 나눠 준다**(프론트가 추정하지 않는다) */
+export interface RouteLeg {
+  mode: TravelMode;
+  /** 거리(m) */
+  distance: number;
+  /** 소요 시간(초) */
+  time: number;
+  steps: RouteStep[];
+}
+
+/**
+ * 경로 후보 하나 — 백엔드 `GET /map/path` 응답 `routes[]`의 원소.
+ * 일반 대여소와 확보 우선 대여소마다 BIKE·UPHILL 후보가 생겨 최대 4개다.
+ * 확보 가능한 별도 대여소가 없으면 일반 후보 2개만 오며, 도보가 유리하면 WALK 1개만 온다.
+ */
+export interface RouteCandidate {
+  type: RouteType;
+  stationStrategy: StationStrategy;
+  /** 대여 대여소. 자전거를 타지 않는 WALK 후보는 없다 */
+  startStation: RouteStation | null;
+  /** 반납 대여소. 자전거를 타지 않는 WALK 후보는 없다 */
+  endStation: RouteStation | null;
+  /** 총 거리(m) */
+  totalDistance: number;
+  /** 총 소요 시간(초) */
+  totalTime: number;
+  legs: RouteLeg[];
   /**
-   * 대여 대여소에 도착하는 시점에 확보 가능한 대수 (필드명 가정 — 예측 모델 지원 여부는 협의 중).
-   * 10·11에서 "도착 시 N대"로 표시. 확률은 표시하지 않는다
+   * 대여 대여소 도착 시점에 확보 가능한 대수(#106에서 응답에 들어왔다). 소수로 온다.
+   *
+   * 서버가 도보 구간 시간을 분으로 올려 그 지평의 예측을 읽는다. **없는 경우가 둘** 있어서
+   * optional로 둔다 — 도보가 15분을 넘어 예측 지평 밖이거나, `WALK` 단독 후보라 대여소가 없거나.
+   *
+   * 같은 stationStrategy의 `BIKE`·`UPHILL`은 같은 대여소에서 빌리므로 값이 서로 같다.
+   *
+   * 서버는 없을 때 필드를 빼기도 하고 `null`로 주기도 한다(실서버 실측) — 둘 다 "없음"이다.
    */
-  expectedBikeCnt: number;
+  expectedBikeCnt?: number | null;
+  /** 대전시가 공개한 고정 추천 코스를 OSRM 도로 좌표로 미리 계산한 경로인지 여부 */
+  recommendedCourse?: boolean;
+  /** 고도 원본이 포함된 경로인지 여부. false면 상세 화면에서 고도 그래프를 숨긴다. */
+  elevationAvailable?: boolean;
+}
+
+/** `GET /map/path` 응답 — 후보 배열이 `routes` 한 겹 안에 들어 있다 */
+export interface PathResponse {
+  routes: RouteCandidate[];
 }

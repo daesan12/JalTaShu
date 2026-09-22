@@ -8,6 +8,7 @@ readonly registry_scanning_config="${script_dir}/registry-scanning-configuration
 readonly repositories=(
   "tashu/frontend"
   "tashu/backend"
+  "tashu/ai"
 )
 
 command -v aws >/dev/null 2>&1 || {

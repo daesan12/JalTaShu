@@ -20,18 +20,56 @@
   --color-status-mid: #f59e0b;
   --color-status-low: #ef4444;
 
-  /* 10 경로 비교 — 후보 강점 뱃지·지도 경로선 공용: 가장 빠름 / 자전거 많음 / 오르막 적음 / 도보 짧음 */
-  --color-route-fast: #a0522d;
-  --color-route-bikes: #6b8e23;
-  --color-route-flat: #3b82f6;
+  /* 10 경로 비교 — 후보 종류(서버 routes[].type) 라벨·지도 경로선 공용: 일반 / 오르막 적음 / 도보 */
+  --color-route-bike: #a0522d;
+  --color-route-uphill: #3b82f6;
   --color-route-walk: #8b5cf6;
 
   /* surface */
   --color-background: #f5f6f8;
   --color-surface: #ffffff;
 
+  /* 사용자 앱 공통 화면 — 따뜻한 배경과 또렷한 정보 위계 */
+  --color-canvas: #f6f8f3;
+  --color-surface-soft: #eef2ea;
+  --color-line: #dfe6da;
+  --color-ink: #182115;
+  --color-muted: #667061;
+
   /* etc */
   --color-kakao: #fee500;
+
+  /*
+   * 관리자 웹(/admin) 전용 — 모바일 화면에서는 쓰지 않는다.
+   * Figma는 전체 다크였으나 표를 오래 보는 화면이라 본문은 흰색으로 간다.
+   * 차콜 사이드바 + 화이트 본문. 브랜드 그린은 활성 인디케이터와 상태 표시에만 쓴다.
+   */
+  --color-admin-sidebar: #1c1c1e;
+  --color-admin-sidebar-active: #2c2c2e;
+  --color-admin-sidebar-label: #9a9a9f;
+  --color-admin-indicator: #7cb342;
+  --color-admin-bg: #ffffff;
+  --color-admin-panel: #f4f4f5;
+  --color-admin-line: #e4e4e7;
+  --color-admin-text: #18181b;
+  --color-admin-muted: #71717a;
+
+  --color-admin-primary: #18181b; /* Primary 버튼 바탕 — 값은 text와 같지만 쓰임이 달라 따로 둔다 */
+  --color-admin-primary-hover: #3f3f46;
+
+  /* Admin/Badge 5종을 색 역할 3개로 묶는다: 정상=해결됨(초록), 정지=미해결(빨강) */
+  --color-admin-danger: #dc2626; /* Danger 버튼 바탕 */
+  --color-admin-danger-hover: #b91c1c;
+  --color-admin-danger-bg: #fee2e2; /* 미해결 · 정지 */
+  --color-admin-danger-text: #991b1b;
+  --color-admin-warn-bg: #fef3c7; /* 처리중 */
+  --color-admin-warn-text: #92400e;
+  --color-admin-ok-bg: #e8f0dc; /* 해결됨 */
+  --color-admin-ok-text: #3c6e0e;
+
+  /* 01 히트맵 오버레이 — 대여(유출)는 난색, 반납(유입)은 한색으로 방향을 구분 */
+  --color-admin-heat-rent: #ea580c;
+  --color-admin-heat-return: #2563eb;
 }
 
 /* 안전영역(노치·홈 인디케이터) 유틸 — Capacitor WebView 대비 */
@@ -64,6 +102,10 @@
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
+    /* 한국어 줄바꿈은 단어(어절) 단위로 — 좁은 화면(360dp)에서 "이용자"가 "이용/자"로
+       꺾이는 것 방지. 공백 없는 긴 문자열(URL 등)은 overflow-wrap이 받아준다 */
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
 
   /* 입력창에서는 텍스트 선택 허용 */
@@ -78,5 +120,65 @@
   /* 실시간으로 바뀌는 숫자(잔여 대수, 남은 시간)에 사용 — 자릿수 흔들림 방지 */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* 대여소 예측 시점 다이얼 — 네 단계 값은 그대로 두고 드래그 가능한 손잡이만 시각화 */
+  .forecast-range {
+    --forecast-progress: 0%;
+    height: 30px;
+    appearance: none;
+    cursor: ew-resize;
+    background: transparent;
+  }
+
+  .forecast-range::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      var(--color-primary) 0 var(--forecast-progress),
+      var(--color-line) var(--forecast-progress) 100%
+    );
+  }
+
+  .forecast-range::-webkit-slider-thumb {
+    width: 26px;
+    height: 26px;
+    margin-top: -10px;
+    appearance: none;
+    border: 7px solid var(--color-surface);
+    border-radius: 999px;
+    background: var(--color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 28%, transparent),
+      0 4px 12px rgb(24 33 21 / 18%);
+  }
+
+  .forecast-range::-moz-range-track {
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      var(--color-primary) 0 var(--forecast-progress),
+      var(--color-line) var(--forecast-progress) 100%
+    );
+  }
+
+  .forecast-range::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 7px solid var(--color-surface);
+    border-radius: 999px;
+    background: var(--color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 28%, transparent),
+      0 4px 12px rgb(24 33 21 / 18%);
+  }
+
+  .forecast-range:focus-visible {
+    outline: none;
+  }
+
+  .forecast-range:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 24%, transparent),
+      0 4px 12px rgb(24 33 21 / 18%);
   }
 }

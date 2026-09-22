@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import type jsQRType from 'jsqr';
 
 /** 기획 확정: 150ms 간격 스캔, 성공 시 진동 + 카메라 정지, 이탈 시 track stop */
@@ -15,9 +16,31 @@ export type ScannerStatus =
 interface BarcodeDetectorLike {
   detect(source: CanvasImageSource): Promise<{ rawValue: string }[]>;
 }
+interface BarcodeDetectorConstructor {
+  new (options?: { formats: string[] }): BarcodeDetectorLike;
+  /** 미지원 플랫폼은 빈 배열을 반환 (안드로이드 WebView 등 — API는 있지만 인식 불가) */
+  getSupportedFormats?(): Promise<string[]>;
+}
 declare global {
   interface Window {
-    BarcodeDetector?: new (options?: { formats: string[] }) => BarcodeDetectorLike;
+    BarcodeDetector?: BarcodeDetectorConstructor;
+  }
+}
+
+/**
+ * BarcodeDetector가 이 기기에서 실제로 QR을 인식할 수 있는지 확인.
+ * API 존재 여부만으로 판단하면 안드로이드 WebView처럼 "있지만 동작 안 함"인 환경에서
+ * jsQR 폴백이 영영 실행되지 않는다.
+ */
+async function createWorkingDetector(): Promise<BarcodeDetectorLike | null> {
+  const BarcodeDetector = window.BarcodeDetector;
+  if (!BarcodeDetector) return null;
+  try {
+    const formats = (await BarcodeDetector.getSupportedFormats?.()) ?? [];
+    if (!formats.includes('qr_code')) return null;
+    return new BarcodeDetector({ formats: ['qr_code'] });
+  } catch {
+    return null;
   }
 }
 
@@ -55,7 +78,12 @@ export function useQrScanner(onCode: (raw: string) => boolean) {
     setStatus('starting');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } }, // 후면 카메라 우선
+        video: {
+          facingMode: { ideal: 'environment' }, // 후면 카메라 우선
+          // 기본 해상도(480p)는 jsQR이 인식하기에 너무 낮다 — 720p 이상 요청 (ideal이라 미지원 기기도 안전)
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
       });
       streamRef.current = stream;
       const video = videoRef.current;
@@ -66,19 +94,26 @@ export function useQrScanner(onCode: (raw: string) => boolean) {
       video.srcObject = stream;
       await video.play();
 
-      const detector = window.BarcodeDetector
-        ? new window.BarcodeDetector({ formats: ['qr_code'] })
-        : null;
+      // 안드로이드 WebView의 BarcodeDetector는 지원 목록에 qr_code를 답하면서도
+      // 실제 인식은 못 하는 기기가 있어, 앱에서는 검증된 jsQR만 사용한다.
+      let detector = Capacitor.isNativePlatform() ? null : await createWorkingDetector();
       // 폴백 라이브러리는 필요한 브라우저에서만 로드 (메인 번들 미포함)
-      const jsQR = detector ? null : (await import('jsqr')).default;
+      let jsQR = detector ? null : (await import('jsqr')).default;
 
       const tick = async () => {
         if (!videoRef.current || videoRef.current.readyState < 2) return;
-        const raw = detector
-          ? await detectWithBarcodeDetector(detector, videoRef.current)
-          : jsQR
-            ? detectWithJsQr(jsQR, videoRef.current, canvasRef)
-            : null;
+        let raw: string | null = null;
+        if (detector) {
+          try {
+            raw = (await detector.detect(videoRef.current))[0]?.rawValue ?? null;
+          } catch {
+            // 지원 목록엔 있었지만 실제 detect가 실패하는 기기 — jsQR로 영구 전환
+            detector = null;
+            jsQR ??= (await import('jsqr')).default;
+          }
+        } else if (jsQR) {
+          raw = detectWithJsQr(jsQR, videoRef.current, canvasRef);
+        }
         if (raw && onCodeRef.current(raw)) {
           navigator.vibrate?.(200); // 성공 진동 (미지원 브라우저는 무시)
           stop();
@@ -96,18 +131,6 @@ export function useQrScanner(onCode: (raw: string) => boolean) {
   useEffect(() => stop, [stop]);
 
   return { videoRef, status, start, stop };
-}
-
-async function detectWithBarcodeDetector(
-  detector: BarcodeDetectorLike,
-  video: HTMLVideoElement,
-): Promise<string | null> {
-  try {
-    const codes = await detector.detect(video);
-    return codes[0]?.rawValue ?? null;
-  } catch {
-    return null;
-  }
 }
 
 function detectWithJsQr(

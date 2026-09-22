@@ -1,7 +1,7 @@
 import { formatDistance } from '@/shared/lib/format';
 import { BottomSheet } from '@/shared/ui/BottomSheet';
 import { Button } from '@/shared/ui/Button';
-import { formatMinutes } from '@/features/map/lib/routeMetrics';
+import { formatSecondsAsMinutes } from '@/features/map/lib/routeMetrics';
 import type { RouteProgress } from '@/features/map/lib/routeProgress';
 
 interface RouteGuideSheetProps {
@@ -28,7 +28,7 @@ export function RouteGuideSheet({ open, progress, remainingSec, onEnd }: RouteGu
             {formatDistance(progress.remainingM)} 남음
           </p>
           <p className="mt-0.5 truncate text-xs tabular-nums text-gray-500">
-            도착까지 약 {formatMinutes(remainingSec)}
+            도착까지 약 {formatSecondsAsMinutes(remainingSec)}
           </p>
         </div>
         <Button variant="line" onClick={onEnd} className="shrink-0">

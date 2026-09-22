@@ -1,0 +1,47 @@
+name: tashu-osrm
+
+x-osrm: &osrm
+  image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+  command: ["osrm-routed", "--algorithm", "mld", "/data/map.osrm"]
+  restart: unless-stopped
+  networks:
+    - tashu-app
+  security_opt:
+    - no-new-privileges:true
+  read_only: true
+  tmpfs:
+    - /tmp
+  stop_grace_period: 30s
+  mem_limit: 1g
+  cpus: 0.75
+  logging:
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  osrm-foot:
+    <<: *osrm
+    volumes:
+      - ./data/foot:/data:ro
+    ports:
+      - "127.0.0.1:5000:5000"
+
+  osrm-bicycle:
+    <<: *osrm
+    volumes:
+      - ./data/bicycle:/data:ro
+    ports:
+      - "127.0.0.1:5001:5000"
+
+  osrm-uphill:
+    <<: *osrm
+    volumes:
+      - ./data/uphill:/data:ro
+    ports:
+      - "127.0.0.1:5002:5000"
+
+networks:
+  tashu-app:
+    external: true
+    name: tashu-app

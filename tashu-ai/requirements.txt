@@ -1,0 +1,15 @@
+# Tashu AI (CLAUDE.md: pandas/LightGBM/scipy/scikit-learn/joblib, no GPU/DL)
+# Versions PINNED to the training environment (2026-09-15) — models are joblib(pickle)
+# artifacts, so serving must load them with the same library versions.
+pandas==3.0.5
+pyarrow==25.0.1
+numpy==2.4.6
+tzdata==2026.4        # Windows lacks IANA tz DB - required for Asia/Seoul aware datetimes
+lightgbm==4.7.0
+scipy==1.17.1
+scikit-learn==1.9.1
+joblib==1.6.0
+holidays==0.104       # holiday_type feature
+pymysql==1.2.0        # serve: MySQL tashu_data read-only (pymysql.__version__ 문자열은 2.2.8로 다르게 찍힘 — pip 버전이 기준)
+redis==8.1.0          # serve: prediction cache
+pytest==9.1.1

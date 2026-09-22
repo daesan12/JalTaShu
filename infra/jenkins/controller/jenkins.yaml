@@ -79,6 +79,19 @@ credentials:
               id: "server-a-deploy-host"
               secret: "${server_a_deploy_host}"
               description: "Server A private deployment host"
+          - basicSSHUserPrivateKey:
+              scope: GLOBAL
+              id: "server-b-ai-deploy"
+              username: "tashu-ai-deploy"
+              description: "SSH key restricted to the Server B AI serving deploy command"
+              privateKeySource:
+                directEntry:
+                  privateKey: "${server_b_ai_deploy_private_key}"
+          - string:
+              scope: GLOBAL
+              id: "server-b-deploy-host"
+              secret: "${server_b_deploy_host}"
+              description: "Server B private deployment host"
           - string:
               scope: GLOBAL
               id: "naver-map-client-id"

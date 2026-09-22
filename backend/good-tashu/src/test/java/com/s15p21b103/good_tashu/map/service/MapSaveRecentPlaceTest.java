@@ -1,7 +1,7 @@
 package com.s15p21b103.good_tashu.map.service;
 
 import com.s15p21b103.good_tashu.map.domain.RecentPlaceEntity;
-import com.s15p21b103.good_tashu.map.domain.req.RecentPlaceRequest;
+import com.s15p21b103.good_tashu.map.dto.req.RecentPlaceRequest;
 import com.s15p21b103.good_tashu.map.repository.RecentPlaceRepository;
 import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import com.s15p21b103.good_tashu.user.exception.UserException;
@@ -19,7 +19,7 @@ class MapSaveRecentPlaceTest {
     private final RecentPlaceRepository places = mock(RecentPlaceRepository.class);
     private final UserRepository users = mock(UserRepository.class);
     private final MapService service = new MapService(
-            mock(com.s15p21b103.good_tashu.map.client.NaverPlaceClient.class), places, users);
+            mock(com.s15p21b103.good_tashu.map.client.NaverPlaceClient.class), places, users, mock(PathService.class));
 
     @Test
     void savesSelectedPlaceWithCorrectCoordinates() {

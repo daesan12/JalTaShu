@@ -1,74 +1,125 @@
-import type { Pos, RoutePath, RouteBehave } from '@/shared/api/types';
+import type {
+  RouteCandidate,
+  RouteLeg,
+  RouteManeuver,
+  RoutePoint,
+  TravelMode,
+} from '@/shared/api/types';
+import { haversineMeters, osrmToLatLng, type LatLng } from '@/shared/lib/coords';
 
 /**
- * 11 경로 상세 — 경로 하나를 "도보/자전거 구간"으로 나눈다.
- * 지도 폴리라인(2색)과 구간 안내 목록이 같은 결과를 쓴다. 순수 함수라 유닛 테스트한다.
- */
-
-/** 이동이 있는 구간만 남긴 요약 — RENT/RETURN처럼 길이 0인 구간은 제외된다 */
-export interface RouteLeg {
-  behave: RouteBehave;
-  /** 이 구간의 거리(m) */
-  distanceM: number;
-  /** 이 구간의 소요 시간(초) */
-  timeSec: number;
-}
-
-export interface RouteLegPath extends RouteLeg {
-  /** 이 구간에 해당하는 경로 좌표(2점 이상) */
-  points: Pos[];
-}
-
-/** 실제로 이동하는 구간인지 — 대여·반납(RENT/RETURN)은 길이 0으로 끼어 온다 */
-function isMoving(distanceM: number): boolean {
-  return distanceM > 0;
-}
-
-/** 구간 안내 목록 — 이동이 있는 구간만, 응답 순서 그대로 */
-export function toLegs(route: RoutePath): RouteLeg[] {
-  const legs: RouteLeg[] = [];
-  for (let i = 0; i < route.behave.length; i++) {
-    const distanceM = route.distance[i] ?? 0;
-    if (!isMoving(distanceM)) continue;
-    legs.push({ behave: route.behave[i], distanceM, timeSec: route.time[i] ?? 0 });
-  }
-  return legs;
-}
-
-/**
- * 경로 좌표를 구간별로 쪼갠다 — 지도에 도보/자전거 2색으로 그리기 위해서.
+ * 경로 하나를 "도보/자전거 구간"으로 나눈다 — 지도 폴리라인(2색)과 11의 구간 안내 목록이 같은 결과를 쓴다.
  *
- * ⚠ 가정(2026-09-14): 백엔드 `location[]`은 경로 전체 좌표가 한 줄로 온다. 어느 좌표가 어느 구간인지
- * 알려주는 필드가 없어, `distance[]`의 누적 비율로 좌표 인덱스를 나눈다(좌표가 경로를 따라 고르게
- * 찍혀 있다고 본다). 실제 응답이 구간별로 쪼개져 오면 이 함수만 고친다.
- * 경계 좌표는 양쪽 구간이 함께 가져 선이 끊겨 보이지 않게 한다.
+ * 예전에는 응답에 구간 경계가 없어 거리 누적 비율로 좌표를 잘라 **추정**했는데, 실응답은
+ * `legs[].mode`로 이미 나뉘어 오고 좌표도 leg 안에 들어 있다. 그래서 여기서는 **자르지 않고 꺼내기만** 한다.
  */
-export function splitByLeg(route: RoutePath): RouteLegPath[] {
-  const points = route.location;
-  const legs = toLegs(route);
-  if (points.length < 2 || legs.length === 0) return [];
 
-  const totalM = legs.reduce((sum, leg) => sum + leg.distanceM, 0);
-  if (totalM <= 0) return [];
+/** 같은 좌표인지 — step 경계에서 같은 점이 두 번 나온다 */
+function samePoint(a: RoutePoint, b: RoutePoint): boolean {
+  return a.location[0] === b.location[0] && a.location[1] === b.location[1];
+}
 
-  const lastIndex = points.length - 1;
-  const result: RouteLegPath[] = [];
-  let coveredM = 0;
-  let startIndex = 0;
+/** 이어 붙이면서 바로 앞과 같은 좌표는 버린다 */
+function appendPoints(into: RoutePoint[], points: RoutePoint[]): void {
+  for (const point of points) {
+    const last = into[into.length - 1];
+    if (last !== undefined && samePoint(last, point)) continue;
+    into.push(point);
+  }
+}
 
-  legs.forEach((leg, i) => {
-    coveredM += leg.distanceM;
-    const endIndex =
-      i === legs.length - 1
-        ? lastIndex
-        : Math.min(
-            lastIndex,
-            Math.max(startIndex + 1, Math.round((coveredM / totalM) * lastIndex)),
-          );
-    result.push({ ...leg, points: points.slice(startIndex, endIndex + 1) });
-    startIndex = endIndex;
+/** 구간 하나의 좌표 — step들을 이어 붙인다 */
+export function legPoints(leg: RouteLeg): RoutePoint[] {
+  const points: RoutePoint[] = [];
+  for (const step of leg.steps) appendPoints(points, step.points);
+  return points;
+}
+
+/** 경로 전체 좌표 — 고도 그래프·진행률처럼 경로를 한 줄로 봐야 하는 곳에서 쓴다 */
+export function routePoints(route: RouteCandidate): RoutePoint[] {
+  const points: RoutePoint[] = [];
+  for (const leg of route.legs) appendPoints(points, legPoints(leg));
+  return points;
+}
+
+/** 경로 전체를 지도 좌표로 — 폴리라인·화면 맞춤(fitBounds)에 쓴다 */
+export function routeLatLngs(route: RouteCandidate): LatLng[] {
+  return routePoints(route).map((point) => osrmToLatLng(point.location));
+}
+
+/** 이동이 있는 구간만 — 길이 0인 구간은 목록에도 지도에도 내지 않는다 */
+export function toLegs(route: RouteCandidate): RouteLeg[] {
+  return route.legs.filter((leg) => leg.distance > 0);
+}
+
+export interface RouteLegPath {
+  leg: RouteLeg;
+  /** 이 구간의 경로선 좌표(2점 이상) */
+  points: LatLng[];
+}
+
+/** 구간별 좌표 — 지도에 도보/자전거 2색으로 그리기 위해서 */
+export function splitByLeg(route: RouteCandidate): RouteLegPath[] {
+  return toLegs(route)
+    .map((leg) => ({ leg, points: legPoints(leg).map((p) => osrmToLatLng(p.location)) }))
+    .filter((entry) => entry.points.length >= 2);
+}
+
+/** 경로를 한 줄로 편 결과 — 구간·회전이 몇 번째 좌표에서 시작하는지 함께 들고 있다 */
+export interface RouteOutline {
+  /** 이동 구간 좌표를 이어 붙인 것(경계 중복 제거) */
+  points: RoutePoint[];
+  /** 이동 구간별 **마지막** 좌표 인덱스 */
+  legEndIndexes: number[];
+  /** step이 시작되는 좌표 인덱스와 그 step의 회전 정보 */
+  stepStarts: { index: number; legIndex: number; mode: TravelMode; maneuver: RouteManeuver }[];
+}
+
+/**
+ * 진행률·회전 안내가 **같은 좌표열과 같은 중복 제거 규칙**을 쓰도록 한 곳에서 편다.
+ * 두 곳이 따로 펴면 거리 기준이 미묘하게 어긋나 "몇 m 앞" 이 틀어진다.
+ */
+export function outlineRoute(route: RouteCandidate): RouteOutline {
+  const points: RoutePoint[] = [];
+  const legEndIndexes: number[] = [];
+  const stepStarts: RouteOutline['stepStarts'] = [];
+
+  toLegs(route).forEach((leg, legIndex) => {
+    for (const step of leg.steps) {
+      let started = false;
+      for (const point of step.points) {
+        const last = points[points.length - 1];
+        const duplicate =
+          last !== undefined &&
+          last.location[0] === point.location[0] &&
+          last.location[1] === point.location[1];
+        if (!duplicate) points.push(point);
+        if (!started) {
+          // 중복이라 건너뛴 경우에도 방금 그 좌표(= 앞 step의 끝)가 이 step의 시작점이다
+          stepStarts.push({
+            index: points.length - 1,
+            legIndex,
+            mode: leg.mode,
+            maneuver: step.behave,
+          });
+          started = true;
+        }
+      }
+    }
+    legEndIndexes.push(points.length - 1);
   });
 
-  // 좌표가 구간 수보다 적으면 뒤쪽 구간이 1점만 받을 수 있다 — 선을 못 그리므로 버린다
-  return result.filter((leg) => leg.points.length >= 2);
+  return { points, legEndIndexes, stepStarts };
+}
+
+/** 좌표 사이의 누적 거리(m). 첫 항목은 0 */
+export function cumulativeDistances(points: RoutePoint[]): number[] {
+  const cumulative = [0];
+  for (let i = 1; i < points.length; i++) {
+    cumulative.push(
+      cumulative[i - 1] +
+        haversineMeters(osrmToLatLng(points[i - 1].location), osrmToLatLng(points[i].location)),
+    );
+  }
+  return cumulative;
 }

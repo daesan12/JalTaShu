@@ -22,6 +22,24 @@ public class JwtService {
     private final JwtProperties jwtProperties;
     private final UserRepository userRepository;
     private final JwtEncoder jwtEncoder;
+
+    public String createAdminAccessToken(Long adminId, String authVersion) {
+        Instant now = Instant.now();
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(jwtProperties.issuer())
+                .subject("admin:" + adminId)
+                .audience(List.of(jwtProperties.audience()))
+                .expiresAt(now.plus(jwtProperties.accessTokenExpires()))
+                .issuedAt(now)
+                .id(UUID.randomUUID().toString())
+                .claim("client_id", jwtProperties.clientId())
+                .claim("principalType", "ADMIN")
+                .claim("authVersion", authVersion)
+                .claim("roles", List.of("ADMIN"))
+                .build();
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).type("at+jwt").build();
+        return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+    }
     
     // Access Token 생성
     public String createAccessToken(Long userId, String authVersion) {

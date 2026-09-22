@@ -8,6 +8,14 @@ pipeline {
         timeout(time: 45, unit: 'MINUTES')
     }
 
+    parameters {
+        booleanParam(
+            name: 'DEPLOY_AI_SERVING',
+            defaultValue: false,
+            description: 'AI·Backend Redis 계약과 Server B 배포 준비가 끝난 뒤에만 활성화'
+        )
+    }
+
     environment {
         CI = 'true'
         AWS_DEFAULT_REGION = 'ap-northeast-2'
@@ -42,6 +50,11 @@ pipeline {
                     test -f infra/jenkins/pipeline/frontend.Dockerfile
                     test -f infra/jenkins/pipeline/collector.Dockerfile
                     test -f infra/jenkins/pipeline/backend.Dockerfile
+                    test -f infra/jenkins/pipeline/ai-serving.Dockerfile
+                    test -f tashu-ai/src/serve.py
+                    test -f tashu-ai/requirements.txt
+                    test -f infra/runtime/ai-serving/compose.yml
+                    test -f infra/runtime/ai-serving/scripts/jenkins-deploy-staging.sh
                     test -f infra/runtime/frontend/compose.staging.yml
                     test -f infra/runtime/frontend/scripts/deploy-staging.sh
                     test -f infra/runtime/frontend/scripts/jenkins-deploy-staging.sh
@@ -75,6 +88,17 @@ pipeline {
                               --file infra/jenkins/pipeline/frontend.Dockerfile \
                               --tag "tashu/ci-frontend:${CI_IMAGE_TAG}" \
                               frontend
+                        '''
+                    }
+                }
+
+                stage('AI serving tests and image') {
+                    steps {
+                        sh '''
+                            docker build \
+                              --file infra/jenkins/pipeline/ai-serving.Dockerfile \
+                              --tag "tashu/ci-ai-serving:${CI_IMAGE_TAG}" \
+                              tashu-ai
                         '''
                     }
                 }
@@ -126,20 +150,23 @@ pipeline {
                         registry="${account_id}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
                         frontend_local="tashu/runtime-frontend:${GIT_SHORT_SHA}"
                         backend_local="tashu/runtime-backend:${GIT_SHORT_SHA}"
+                        ai_local="tashu/ci-ai-serving:${CI_IMAGE_TAG}"
                         frontend_remote="${registry}/tashu/frontend:${GIT_SHORT_SHA}"
                         backend_remote="${registry}/tashu/backend:${GIT_SHORT_SHA}"
+                        ai_remote="${registry}/tashu/ai:${GIT_SHORT_SHA}"
 
                         cleanup_ecr_session() {
                             docker logout "${registry}" >/dev/null 2>&1 || true
                             docker image rm --force \
                               "${frontend_remote}" \
                               "${backend_remote}" \
+                              "${ai_remote}" \
                               >/dev/null 2>&1 || true
                         }
                         trap cleanup_ecr_session EXIT
 
                         aws ecr describe-repositories \
-                          --repository-names tashu/frontend tashu/backend \
+                          --repository-names tashu/frontend tashu/backend tashu/ai \
                           >/dev/null
 
                         docker build \
@@ -159,6 +186,7 @@ pipeline {
 
                         docker tag "${frontend_local}" "${frontend_remote}"
                         docker tag "${backend_local}" "${backend_remote}"
+                        docker tag "${ai_local}" "${ai_remote}"
 
                         aws ecr get-login-password \
                           | docker login \
@@ -183,6 +211,15 @@ pipeline {
                             docker push "${backend_remote}"
                         fi
 
+                        if aws ecr describe-images \
+                          --repository-name tashu/ai \
+                          --image-ids imageTag="${GIT_SHORT_SHA}" \
+                          >/dev/null 2>&1; then
+                            printf 'ECR image already exists: ai-serving tag=%s\n' "${GIT_SHORT_SHA}"
+                        else
+                            docker push "${ai_remote}"
+                        fi
+
                         aws ecr describe-images \
                           --repository-name tashu/frontend \
                           --image-ids imageTag="${GIT_SHORT_SHA}" \
@@ -196,8 +233,49 @@ pipeline {
                           --output text \
                           >/dev/null
 
-                        printf 'ECR push verified: frontend/backend tag=%s\n' "${GIT_SHORT_SHA}"
+                        aws ecr describe-images \
+                          --repository-name tashu/ai \
+                          --image-ids imageTag="${GIT_SHORT_SHA}" \
+                          --query 'imageDetails[0].imageDigest' \
+                          --output text \
+                          >/dev/null
+
+                        printf 'ECR push verified: frontend/backend/ai-serving tag=%s\n' "${GIT_SHORT_SHA}"
                     '''
+                }
+            }
+        }
+
+        stage('Deploy AI serving staging') {
+            when {
+                allOf {
+                    branch 'develop'
+                    expression { params.DEPLOY_AI_SERVING }
+                }
+            }
+            options {
+                lock(resource: 'server-b-ai-serving-deploy')
+            }
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'server-b-deploy-host',
+                        variable: 'SERVER_B_DEPLOY_HOST'
+                    )
+                ]) {
+                    sshagent(credentials: ['server-b-ai-deploy']) {
+                        sh '''
+                            set -eu
+                            set +x
+                            ssh \
+                              -o BatchMode=yes \
+                              -o ConnectTimeout=10 \
+                              -o StrictHostKeyChecking=yes \
+                              -o UserKnownHostsFile=/etc/ssh/server-b-known-hosts \
+                              "tashu-ai-deploy@${SERVER_B_DEPLOY_HOST}" \
+                              "deploy-ai-serving ${GIT_SHORT_SHA}"
+                        '''
+                    }
                 }
             }
         }
@@ -489,7 +567,7 @@ pipeline {
                                 ssh \
                                   -o BatchMode=yes \
                                   -o StrictHostKeyChecking=yes \
-                                  -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+                                  -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts \
                                   -o ConnectTimeout=10 \
                                   -T \
                                   "tashu-deploy@${SERVER_A_DEPLOY_HOST}" \
@@ -507,6 +585,7 @@ pipeline {
                       "tashu/ci-collector:${CI_IMAGE_TAG}" \
                       "tashu/ci-frontend:${CI_IMAGE_TAG}" \
                       "tashu/ci-backend:${CI_IMAGE_TAG}" \
+                      "tashu/ci-ai-serving:${CI_IMAGE_TAG}" \
                       >/dev/null 2>&1 || true
                 fi
                 if [ -n "${GIT_SHORT_SHA:-}" ]; then

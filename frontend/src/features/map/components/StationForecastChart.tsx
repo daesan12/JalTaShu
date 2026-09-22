@@ -1,87 +1,133 @@
+import { useState, type CSSProperties } from 'react';
 import type { StationForecastPoint } from '@/shared/api/types';
-import {
-  STATION_STATUS_LABEL,
-  toStationStatus,
-  type StationStatus,
-} from '@/shared/ui/stationStatus';
+import { formatBikes } from '@/features/map/lib/bikeCount';
+import { STATION_STATUS_LABEL, type StationStatus } from '@/shared/ui/stationStatus';
+import { findLowestUpcoming, toForecastTimeline } from '@/features/map/lib/stationForecastTimeline';
 
 /**
- * 대여소 예상 대수 추이 (2-1) — 시간대별 막대.
+ * 대여소 예상 대수 (2-1) — 대표 예측 시점을 드래그해서 보는 타임 다이얼.
  *
- * 색은 대여소 마커·뱃지와 **같은 여유/보통/부족 판정**을 쓴다(`toStationStatus`).
- * 화면마다 다른 색을 쓰면 같은 숫자가 다르게 읽힌다. 기준값이 바뀌면 그 함수만 고치면 된다.
- * 확률은 표시하지 않는다(기존 결정) — 대수와 상태만.
+ * 15분 응답은 현재·5·10·15분을, 60분 응답은 현재·5·10·15·30·45·60분을 보여준다.
+ * 다이얼은 받은 예측값 중 하나를 고를 뿐 값을 계산하거나 보간하지 않는다.
  */
 
-/** 막대 색 — index.css 토큰을 그대로 쓴다 */
-const BAR_CLASS: Record<StationStatus, string> = {
-  high: 'bg-status-high',
-  mid: 'bg-status-mid',
-  low: 'bg-status-low',
+const STATUS_TEXT_CLASS: Record<StationStatus, string> = {
+  high: 'text-status-high',
+  mid: 'text-status-mid',
+  low: 'text-status-low',
+  unknown: 'text-gray-400',
 };
 
-const TIME_FORMAT = new Intl.DateTimeFormat('ko-KR', {
-  hour: 'numeric',
-  minute: '2-digit',
-  hour12: false,
-});
-
-function formatTime(dateTime: string): string {
-  const date = new Date(dateTime);
-  return Number.isNaN(date.getTime()) ? '-' : TIME_FORMAT.format(date);
-}
+const STATUS_PANEL_CLASS: Record<StationStatus, string> = {
+  high: 'border-primary/15 bg-primary-light',
+  mid: 'border-amber-200 bg-amber-50',
+  low: 'border-red-200 bg-red-50',
+  unknown: 'border-gray-200 bg-gray-50',
+};
 
 interface StationForecastChartProps {
   points: StationForecastPoint[];
-  /** 현재 대수 — 막대 높이 기준을 현재값까지 포함해 잡는다 */
-  currentBikes: number;
+  /** 현재 대수. 모르면 null */
+  currentBikes: number | null;
 }
 
 export function StationForecastChart({ points, currentBikes }: StationForecastChartProps) {
-  // 0대일 때도 막대가 보이도록 최소 높이를 주고, 가장 큰 값이 꽉 차게 맞춘다
-  const max = Math.max(currentBikes, ...points.map((p) => p.bikeCnt), 1);
+  const timeline = toForecastTimeline(points, currentBikes);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const safeIndex = Math.min(selectedIndex, timeline.length - 1);
+  const selected = timeline[safeIndex] ?? timeline[0];
+  const progress = timeline.length <= 1 ? 0 : (safeIndex / (timeline.length - 1)) * 100;
+  const edgeInset = 50 / timeline.length;
+  const trackWidth = 100 - edgeInset * 2;
+  const bikesText = selected.bikes === null ? '–' : formatBikes(selected.bikes);
+  const statusText = selected.bikes === null ? '정보 없음' : STATION_STATUS_LABEL[selected.status];
+
+  // 다이얼을 끝까지 끌어보지 않아도 위험한 때를 알 수 있게 미리 짚어 준다
+  const lowest = findLowestUpcoming(timeline);
+  const rangeLabel = timeline[timeline.length - 1]?.label ?? '';
 
   return (
-    <div>
+    <section aria-label="현재와 향후 예상 자전거 수" className="rounded-[22px] border border-line bg-surface-soft/65 p-3.5">
       <div
-        role="img"
-        aria-label={`예상 대수 추이: ${points
-          .map((p) => `${formatTime(p.dateTime)} ${p.bikeCnt}대`)
-          .join(', ')}`}
-        className="flex h-32 items-end gap-2"
+        className={`flex min-h-[96px] items-center justify-between gap-4 rounded-2xl border px-4 py-3 shadow-sm transition-[background-color,border-color] duration-200 ${STATUS_PANEL_CLASS[selected.status]}`}
       >
-        {points.map((point) => {
-          const status = toStationStatus(point.bikeCnt);
-          return (
-            // 칸에 h-full을 줘야 막대의 퍼센트 높이가 기준을 갖는다.
-            // 기준 높이가 없는 부모에 퍼센트를 주면 0으로 계산돼 막대가 아예 안 보인다
-            <div
-              key={point.dateTime}
-              className="flex h-full min-w-0 flex-1 flex-col justify-end gap-1"
-            >
-              <span className="text-center text-xs font-semibold tabular-nums text-gray-500">
-                {point.bikeCnt}
-              </span>
-              <div
-                title={`${formatTime(point.dateTime)} · ${point.bikeCnt}대 (${STATION_STATUS_LABEL[status]})`}
-                className={`w-full rounded-t ${BAR_CLASS[status]}`}
-                // 0대도 보이도록 최소 높이를 주고, 위쪽은 숫자 자리로 비워 둔다
-                style={{ height: `${Math.max(5, (point.bikeCnt / max) * 85)}%` }}
-              />
-            </div>
-          );
-        })}
+        <div>
+          <p className="text-xs font-semibold text-muted">
+            {selected.horizon === 0 ? '현재 대여 가능' : `${selected.label} 예상`}
+            {/* 고른 시점이 몇 시인지 — "30분 뒤"를 사용자가 암산하지 않도록 */}
+            {selected.clock === null ? null : (
+              <span className="font-medium text-gray-400"> · {selected.clock}</span>
+            )}
+          </p>
+          <p className="mt-1 flex items-baseline gap-1 text-ink">
+            <span className="text-[34px] font-bold leading-none tabular-nums">{bikesText}</span>
+            {selected.bikes === null ? null : <span className="text-sm font-semibold">대</span>}
+          </p>
+        </div>
+        <span
+          className={`rounded-full bg-surface/80 px-3 py-1.5 text-sm font-bold shadow-sm ${STATUS_TEXT_CLASS[selected.status]}`}
+        >
+          {statusText}
+        </span>
       </div>
-      <div className="mt-1.5 flex gap-2 border-t border-gray-200 pt-1.5">
-        {points.map((point) => (
-          <span
-            key={point.dateTime}
-            className="min-w-0 flex-1 text-center text-xs tabular-nums text-gray-400"
-          >
-            {formatTime(point.dateTime)}
+
+      <div className="mt-4">
+        <input
+          type="range"
+          min={0}
+          max={timeline.length - 1}
+          step={1}
+          value={safeIndex}
+          onChange={(event) => setSelectedIndex(Number(event.currentTarget.value))}
+          aria-label="예상 시간 선택"
+          aria-valuetext={`${selected.label}, ${selected.bikes === null ? '정보 없음' : `${bikesText}대 ${statusText}`}`}
+          className="forecast-range block touch-pan-y"
+          style={
+            {
+              '--forecast-progress': `${progress}%`,
+              marginInlineStart: `${edgeInset}%`,
+              width: `${trackWidth}%`,
+            } as CSSProperties
+          }
+        />
+
+        <ol
+          className="mt-1 grid gap-0.5"
+          style={{ gridTemplateColumns: `repeat(${timeline.length}, minmax(0, 1fr))` }}
+        >
+          {timeline.map((item, index) => {
+            const active = index === safeIndex;
+            return (
+              <li key={item.horizon} className="min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setSelectedIndex(index)}
+                  aria-pressed={active}
+                  className={`w-full rounded-xl px-0.5 py-1.5 text-center transition-[background-color,color,scale] duration-100 active:scale-95 ${
+                    active ? 'bg-surface text-ink shadow-sm' : 'text-muted'
+                  }`}
+                >
+                  <span className="block whitespace-nowrap text-[10px] font-semibold sm:text-[11px]">{item.label}</span>
+                  <span className={`mt-0.5 block text-[11px] font-bold tabular-nums sm:text-xs ${active ? STATUS_TEXT_CLASS[item.status] : ''}`}>
+                    {item.bikes === null ? '–' : `${formatBikes(item.bikes)}대`}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+      {lowest === null || lowest.bikes === null ? null : (
+        <p className="mt-3 text-center text-xs text-muted">
+          앞으로 {rangeLabel} 중 가장 적을 때{' '}
+          <span className="font-semibold text-ink">
+            {lowest.label} <span className="tabular-nums">{formatBikes(lowest.bikes)}</span>대
           </span>
-        ))}
-      </div>
-    </div>
+        </p>
+      )}
+      <p className="mt-2 text-center text-[11px] font-medium text-gray-400">
+        다이얼을 좌우로 움직여 예상 시점을 확인하세요
+      </p>
+    </section>
   );
 }

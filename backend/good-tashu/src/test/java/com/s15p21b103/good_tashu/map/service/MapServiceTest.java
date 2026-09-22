@@ -13,7 +13,7 @@ import static org.mockito.Mockito.*;
 
 class MapServiceTest {
     private final NaverPlaceClient client = mock(NaverPlaceClient.class);
-    private final MapService service = new MapService(client, mock(RecentPlaceRepository.class), mock(UserRepository.class));
+    private final MapService service = new MapService(client, mock(RecentPlaceRepository.class), mock(UserRepository.class), mock(PathService.class));
 
     @Test
     void convertsNaverResultAndCoordinates() {

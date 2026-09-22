@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the Tashu weather S3 Bronze upload every hour
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5min
+AccuracySec=1min
+Unit=tashu-weather-s3-sync.service
+
+[Install]
+WantedBy=timers.target

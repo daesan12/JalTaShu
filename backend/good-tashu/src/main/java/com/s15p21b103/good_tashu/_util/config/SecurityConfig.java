@@ -27,6 +27,14 @@ import java.util.List;
 public class SecurityConfig {
 
     @Bean
+    @Order(0)
+    public SecurityFilterChain swaggerSecurityFilterChain(HttpSecurity http) throws Exception {
+        http.securityMatcher("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml")
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
     public UrlBasedCorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of("http://localhost:5173"));
@@ -95,17 +103,22 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         // Refresh Token API는 자체적으로 Refresh Token을 검증
+                        .requestMatchers(org.springframework.http.HttpMethod.POST,
+                                "/api/admin/login", "/api/admin/token/refresh").permitAll()
                         .requestMatchers("/api/auth/token/**")
                         .permitAll()
                         // 헬스체크 API
                         .requestMatchers("/api/actuator/health/**")
                         .permitAll()
+                        // ADMIN이 사용하는 API
+                        .requestMatchers("/api/admin/**")
+                        .hasRole("ADMIN")
                         // GUEST가 사용하는 API
                         .requestMatchers("/api/auth/sign-up")
                         .hasRole("GUEST")
                         // 가입 전 사용자도 유효한 AT로 로그아웃할 수 있다.
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/logout")
-                        .authenticated()
+                        .hasAnyRole("USER", "GUEST")
                         // 그 외 일반 API는 USER만 허용
                         .anyRequest()
                         .hasRole("USER")

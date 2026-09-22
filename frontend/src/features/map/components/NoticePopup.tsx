@@ -68,7 +68,7 @@ export function NoticePopup({ notices, onClose, onHideForWeek, onOpenNotice }: N
           )}
 
           <div
-            className="relative w-full overflow-hidden rounded-2xl bg-surface"
+            className="relative w-full overflow-hidden rounded-2xl bg-[#fefdf8]"
             style={{ maxWidth: IMAGE_WIDTH }}
           >
             <ul
@@ -81,34 +81,26 @@ export function NoticePopup({ notices, onClose, onHideForWeek, onOpenNotice }: N
               className="flex snap-x snap-mandatory overflow-x-auto [&::-webkit-scrollbar]:hidden"
               style={{ aspectRatio: `${IMAGE_WIDTH} / ${IMAGE_HEIGHT}` }}
             >
-              {notices.map((notice, index) => {
-                // 지역 상수로 빼야 아래 onClick 안에서도 null이 아님이 유지된다
-                const { linkedNoticeId } = notice;
-                const image = (
-                  <img
-                    src={notice.imageUrl}
-                    alt={`공지 ${index + 1}`}
-                    className="h-full w-full object-contain"
-                    draggable={false}
-                  />
-                );
-
-                return (
-                  <li key={notice.id} className="h-full w-full shrink-0 snap-center bg-background">
-                    {linkedNoticeId === null ? (
-                      image
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => onOpenNotice(linkedNoticeId)}
-                        className="block h-full w-full"
-                      >
-                        {image}
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
+              {/*
+                한 번 받아 그대로 보여주기만 하는 목록이라(정렬·추가·삭제 없음) 인덱스를 key로 쓴다.
+                팝업은 항상 공지에 연결돼 있어 언제나 누를 수 있다.
+              */}
+              {notices.map((notice, index) => (
+                <li key={index} className="h-full w-full shrink-0 snap-center bg-[#fefdf8]">
+                  <button
+                    type="button"
+                    onClick={() => onOpenNotice(notice.noticeId)}
+                    className="block h-full w-full"
+                  >
+                    <img
+                      src={notice.photoUrl}
+                      alt={notice.title}
+                      className="h-full w-full object-contain"
+                      draggable={false}
+                    />
+                  </button>
+                </li>
+              ))}
             </ul>
 
             {multiple && (

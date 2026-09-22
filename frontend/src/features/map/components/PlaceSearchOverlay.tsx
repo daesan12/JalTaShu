@@ -179,17 +179,23 @@ export function PlaceSearchOverlay({
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-2 pr-2">
+          <p className="px-1 text-xs font-semibold text-primary">
+            {isStartMode ? '출발지를 찾고 있어요' : '도착지를 찾고 있어요'}
+          </p>
           {/* 목적지를 고르는 화면에서만 출발지 줄을 보여준다. 누르면 출발지 고르는 화면(field='start')으로 들어간다 */}
           {isStartMode ? null : (
             <button
               type="button"
               onClick={onEditStart}
-              className="flex min-h-11 items-center gap-2.5 rounded-xl bg-background px-3.5 text-left transition-[background-color] duration-75 active:bg-gray-100"
+              className="flex min-h-12 items-center gap-2.5 rounded-xl border border-gray-200 bg-background px-3.5 text-left transition-[background-color] duration-75 active:bg-gray-100"
             >
               <span aria-hidden="true" className="flex h-4 w-4 items-center justify-center">
                 <span className="h-3.5 w-3.5 rounded-full border-[2.5px] border-primary" />
               </span>
-              <span className="truncate text-[15px] text-gray-900">{startLabel}</span>
+              <span className="min-w-0">
+                <span className="block text-[10px] font-semibold text-gray-400">출발</span>
+                <span className="block truncate text-[15px] text-gray-900">{startLabel}</span>
+              </span>
             </button>
           )}
 
@@ -209,7 +215,8 @@ export function PlaceSearchOverlay({
               enterKeyHint="search"
               autoComplete="off"
               autoFocus
-              className="min-h-11 w-full rounded-xl border border-gray-200 bg-surface pr-11 pl-10 text-[15px] text-gray-900 placeholder-gray-400 transition-[border-color] duration-75 focus:border-primary focus:outline-none"
+              aria-label={isStartMode ? '출발지 검색' : '도착지 검색'}
+              className="min-h-12 w-full rounded-xl border border-primary bg-primary-light/30 pr-11 pl-10 text-[15px] text-gray-900 placeholder-gray-500 transition-[border-color,box-shadow] duration-75 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none motion-reduce:transition-none"
             />
             {input ? (
               <button

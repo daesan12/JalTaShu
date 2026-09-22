@@ -75,11 +75,32 @@ Server A에서 다음 명령을 한 번 실행한다.
 sudo /opt/tashu/infra/runtime/production/scripts/render-backend-env.sh
 ```
 
-이 스크립트는 기존 Kakao·JWT Secret, MySQL production 비밀번호, Redis 비밀번호를 읽어
+이 스크립트는 기존 Kakao·JWT Secret, MySQL production 비밀번호, Redis 비밀번호,
+Naver Place 자격증명과 관리자 초기 계정 설정을 읽어
 `/etc/tashu/backend-production/runtime.env`를 `0600 root:root`로 만든다. 값은 출력하지 않는다.
 production OAuth 성공·실패 주소는 각각 공개 origin의 `/`, `/login`이다.
 Kakao 개발자 콘솔에는 기존 staging callback과 별도로 production callback
 `https://j15b103.p.ssafy.io/production-oauth-callback/kakao`를 등록해야 한다.
+
+Backend는 인증용 Redis DB 0, 실시간 대여소·날씨 조회용 Redis DB 0,
+AI 예측 조회용 Redis DB 2를 사용한다. OSRM 세 컨테이너는 `tashu-app` network의
+서비스 이름으로 연결하고 DEM은 `/opt/tashu/osrm/osrm-uphill/dem`을 읽기 전용으로
+`/app/dem`에 마운트한다.
+
+필수 Server A Secret 원본은 다음과 같으며 Git에 넣지 않는다.
+
+```text
+/etc/tashu/backend-staging/oauth.env
+/etc/tashu/backend-staging/jwt.env
+/etc/tashu/mysql/prod-password
+/etc/tashu/redis/runtime.env
+/etc/tashu/backend-common/naver-place.env
+/etc/tashu/backend-common/admin-bootstrap.env
+```
+
+공개 production에서 초기 관리자 생성이 활성화된 경우 비밀번호는 12자 이상이어야 한다.
+초기 계정 생성과 로그인 검증이 끝나면 `ADMIN_BOOTSTRAP_ENABLED=false`로 바꾸고 다음
+Backend 배포에서 runtime 환경파일을 다시 생성한다.
 
 ## 수동 검증
 

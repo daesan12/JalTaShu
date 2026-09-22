@@ -17,7 +17,9 @@ public enum UserErrorCode {
 
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "Refresh Token이 유효하지 않습니다."),
 
-    FORBIDDEN(HttpStatus.FORBIDDEN, "해당 요청에 권한이 없습니다.");
+    FORBIDDEN(HttpStatus.FORBIDDEN, "해당 요청에 권한이 없습니다."),
+
+    BANNED_USER(HttpStatus.FORBIDDEN, "제재 중인 사용자는 이 기능을 이용할 수 없습니다.");
 
     private final HttpStatus status;
     private final String message;

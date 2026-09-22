@@ -5,8 +5,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.io.IOException;
@@ -88,6 +91,27 @@ public class S3Service {
                 .presignPutObject(request)
                 .url()
                 .toString();
+    }
+
+    // 저장된 객체 키를 일정 시간 동안 접근 가능한 조회 URL로 변환한다.
+    public String createDownloadUrl(String key) {
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(BUCKET)
+                .key(key)
+                .build();
+        GetObjectPresignRequest request = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofMinutes(5))
+                .getObjectRequest(getObjectRequest)
+                .build();
+
+        return s3Presigner.presignGetObject(request).url().toString();
+    }
+
+    public void deleteImage(String key) {
+        if (key == null || key.isBlank()) {
+            return;
+        }
+        s3Client.deleteObject(DeleteObjectRequest.builder().bucket(BUCKET).key(key).build());
     }
 
 }

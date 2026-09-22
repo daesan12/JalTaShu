@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Navigate, useNavigate } from 'react-router';
 import { Button } from '@/shared/ui/Button';
+import logoWordmark from '@/assets/brand/logo-wordmark.png';
 import { startKakaoLogin } from '@/features/auth/api/auth';
 import { ME_QUERY_KEY, useAuth } from '@/features/auth/hooks/useAuth';
 
@@ -20,7 +21,15 @@ export function LoginPage() {
   const handleKakaoLogin = async () => {
     setLoggingIn(true);
     try {
-      await startKakaoLogin(); // 실제 백엔드 연동 시엔 여기서 페이지가 카카오로 이동함
+      const result = await startKakaoLogin();
+      // 카카오로 떠나는 중(웹) — 여기서 invalidate·navigate를 하면 브라우저가 대기 중인
+      // 카카오 이동을 취소한다. 버튼은 '로그인 중…'인 채로 페이지가 넘어갈 때까지 둔다
+      if (result === 'redirecting') return;
+      // 인앱 로그인 창을 직접 닫음 — 로그인 화면으로 복귀
+      if (result === 'cancelled') {
+        setLoggingIn(false);
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
       navigate('/', { replace: true });
     } catch {
@@ -32,10 +41,14 @@ export function LoginPage() {
     <div className="flex flex-1 flex-col px-6">
       {/* 로고 영역 */}
       <div className="flex flex-1 flex-col items-center justify-center">
-        <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-primary">
-          <span className="text-2xl font-bold text-white">잘타슈</span>
-        </div>
-        <p className="mt-4 text-[15px] text-gray-500">대전 자전거 여정 내비게이션</p>
+        <img
+          src={logoWordmark}
+          alt="잘타슈"
+          width={1200}
+          height={401}
+          className="h-auto w-full max-w-[280px]"
+        />
+        <p className="mt-5 text-[15px] text-gray-500">대전 자전거 여정 내비게이션</p>
       </div>
 
       {/* 하단: 카카오 로그인 */}

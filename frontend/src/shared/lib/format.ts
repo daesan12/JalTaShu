@@ -20,9 +20,9 @@ export function formatDate(iso: string): string {
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
 }
 
-/** ISO 시각 → "10초 전" / "3분 전" / "5시간 전" / "3일 전" / "2주 전" */
-export function formatTimeAgo(iso: string): string {
-  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+/** ISO 시각 또는 epoch(ms) → "10초 전" / "3분 전" / "5시간 전" / "3일 전" / "2주 전" */
+export function formatTimeAgo(at: string | number): string {
+  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(at).getTime()) / 1000));
   if (diffSec < 60) return `${diffSec}초 전`;
   if (diffSec < 3600) return `${Math.floor(diffSec / 60)}분 전`;
   if (diffSec < 86_400) return `${Math.floor(diffSec / 3600)}시간 전`;

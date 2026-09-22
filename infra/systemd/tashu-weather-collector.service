@@ -1,0 +1,34 @@
+[Unit]
+Description=Tashu KMA weather observation collector
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=tashu-weather
+Group=tashu-weather
+EnvironmentFile=/etc/tashu/weather-collector.env
+WorkingDirectory=/opt/tashu/weather-collector/app
+RuntimeDirectory=tashu-weather-collector
+RuntimeDirectoryMode=0750
+ExecStart=/usr/bin/flock --nonblock /run/tashu-weather-collector/collector.lock /opt/tashu/weather-collector/venv/bin/python /opt/tashu/weather-collector/app/collect.py
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=60s
+UMask=0027
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+ReadWritePaths=/srv/tashu/data/weather
+
+[Install]
+WantedBy=multi-user.target

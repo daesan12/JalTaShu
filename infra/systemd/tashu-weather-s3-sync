@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly SOURCE_DIR='/srv/tashu/data/weather/observations'
+readonly DESTINATION='s3://s15p21b103-tashu-datalake/bronze/realtime/weather/observations/'
+
+if [[ ! -d "$SOURCE_DIR" ]]; then
+  printf 'weather_sync_error=source_directory_missing path=%s\n' "$SOURCE_DIR" >&2
+  exit 1
+fi
+
+if [[ ! -r "${AWS_SHARED_CREDENTIALS_FILE:-}" ]]; then
+  printf 'weather_sync_error=credentials_unreadable\n' >&2
+  exit 1
+fi
+
+file_count="$(find "$SOURCE_DIR" -type f -name '*.parquet' | wc -l)"
+started_at="$(date +%s)"
+printf 'weather_sync_start parquet_files=%s\n' "$file_count"
+
+/usr/local/bin/aws s3 sync \
+  "$SOURCE_DIR/" \
+  "$DESTINATION" \
+  --exclude '*' \
+  --include '*.parquet' \
+  --only-show-errors
+
+duration="$(( $(date +%s) - started_at ))"
+printf 'weather_sync_complete parquet_files=%s duration_seconds=%s\n' "$file_count" "$duration"

@@ -31,6 +31,8 @@ services:
       - aws_ecr_secret_access_key
       - server_a_deploy_private_key
       - server_a_deploy_host
+      - server_b_ai_deploy_private_key
+      - server_b_deploy_host
       - naver_map_client_id
     healthcheck:
       test:
@@ -63,6 +65,7 @@ services:
       - /srv/tashu/data/jenkins-agent-ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key:ro
       - /srv/tashu/data/jenkins-agent-ssh/ssh_host_ed25519_key.pub:/etc/ssh/ssh_host_ed25519_key.pub:ro
       - ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-a-deploy-known-hosts:/etc/ssh/ssh_known_hosts:ro
+      - ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-b-deploy-known-hosts:/etc/ssh/server-b-known-hosts:ro
     healthcheck:
       test:
         - CMD-SHELL
@@ -98,6 +101,10 @@ secrets:
     file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-a-deploy-ed25519
   server_a_deploy_host:
     file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-a-deploy-host
+  server_b_ai_deploy_private_key:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-b-ai-deploy-ed25519
+  server_b_deploy_host:
+    file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/server-b-deploy-host
   naver_map_client_id:
     file: ${JENKINS_SECRET_DIR:-/etc/tashu/jenkins}/naver-map-client-id
 
