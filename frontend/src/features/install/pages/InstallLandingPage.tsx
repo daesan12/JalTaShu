@@ -9,8 +9,11 @@ import {
   AnimatePresence,
 } from 'framer-motion';
 import './installLanding.css';
-// Replace these empty strings with actual app screenshots/GIFs, relative to Vite's base.
-const media = { hero: '', forecast: '', route: '', map: '', navigation: '' };
+
+const installScreen = (filename: string) =>
+  `${import.meta.env.BASE_URL}install/screens/${filename}`;
+
+const media = { hero: installScreen('home-map.jpg') };
 
 const appHref = import.meta.env.BASE_URL;
 const times = ['현재', '5분 뒤', '10분 뒤', '15분 뒤'];
@@ -87,19 +90,18 @@ function Arrow() {
 function Reveal({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={className}>{children}</div>;
 }
-// Add screen-only portrait screenshots/GIFs to src. Empty entries stay gray.
 const featureScreens = {
-  forecast: [{ title: '대여소 예측', src: '' }],
+  forecast: [{ title: '시간별 예상 자전거 수', src: installScreen('station-forecast.jpg') }],
   route: [
-    { title: '경로 후보 비교', src: '' },
-    { title: '선택한 경로 상세', src: '' },
+    { title: '경로 후보 비교', src: installScreen('route-compare.jpg') },
+    { title: '경사도와 경로 상세', src: installScreen('route-elevation.jpg') },
+    { title: '도보·자전거 구간 안내', src: installScreen('route-segments.jpg') },
   ],
   map: [
-    { title: '장소 검색', src: '' },
-    { title: '출발·도착 선택', src: '' },
-    { title: '주변 대여소', src: '' },
+    { title: '주변 대여소 확인', src: installScreen('home-map.jpg') },
+    { title: '장소 선택과 경로 찾기', src: installScreen('place-selected.jpg') },
   ],
-  navigation: [{ title: '주행 중 음성 안내', src: '' }],
+  navigation: [{ title: '주행 중 음성 길 안내', src: installScreen('voice-navigation.jpg') }],
 };
 function MediaSlot({ name, label }: { name: keyof typeof featureScreens; label: string }) {
   const [active, setActive] = useState(0);
