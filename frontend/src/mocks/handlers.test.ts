@@ -415,3 +415,20 @@ describe('QR 대여 → 반납 → 이용 내역', () => {
     expect(after.data.endPoint.latitude).toBeCloseTo(36.3602, 4);
   });
 });
+
+describe('QR 자전거 상태 확인', () => {
+  it('데모 QR은 점검 필요 상태와 최근 하자 제보를 함께 보여준다', async () => {
+    await post('/api/auth/mock-login');
+
+    const statement = await (await get('/api/cycle/statement/22B01260')).json();
+    expect(statement.data.rideable).toBe(false);
+
+    const claims = await (await get('/api/claim/list?cycleId=22B01260')).json();
+    expect(claims.data).toHaveLength(3);
+    expect(claims.data.map((claim: { claimCategory: string }) => claim.claimCategory)).toEqual([
+      'BREAK',
+      'TIRE',
+      'SADDLE',
+    ]);
+  });
+});

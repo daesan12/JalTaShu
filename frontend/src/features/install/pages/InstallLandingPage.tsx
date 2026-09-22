@@ -101,6 +101,7 @@ const featureScreens = {
     { title: '주변 대여소 확인', src: installScreen('home-map.jpg') },
     { title: '장소 선택과 경로 찾기', src: installScreen('place-selected.jpg') },
   ],
+  bikeStatus: [{ title: 'QR로 확인한 자전거 상태', src: installScreen('bike-status.jpg') }],
   navigation: [{ title: '주행 중 음성 길 안내', src: installScreen('voice-navigation.jpg') }],
 };
 function MediaSlot({ name, label }: { name: keyof typeof featureScreens; label: string }) {
@@ -485,12 +486,87 @@ function JourneyProgress({ percent }: { percent: number }) {
     </div>
   );
 }
+function BikeStatusFeature() {
+  const reduced = useReducedMotion();
+  return (
+    <section className="jt-bike-status jt-section" id="bike-status">
+      <Reveal className="jt-bike-status-copy">
+        <p className="jt-eyebrow">04 — 대여하기 전에</p>
+        <h2>
+          QR을 찍고,
+          <br />
+          <em>자전거 상태부터.</em>
+        </h2>
+        <p>
+          타기 전에 QR을 찍으면 점검이 필요한지,
+          <br />
+          최근 어떤 부위에 제보가 있었는지 확인할 수 있어요.
+        </p>
+        <ul className="jt-bike-status-points">
+          <li>
+            <span>01</span>
+            <strong>QR 스캔</strong>
+            <small>자전거 번호를 바로 확인</small>
+          </li>
+          <li>
+            <span>02</span>
+            <strong>하자 부위</strong>
+            <small>브레이크·타이어·안장 표시</small>
+          </li>
+          <li>
+            <span>03</span>
+            <strong>최근 제보</strong>
+            <small>이용자 제보 내용과 시각 확인</small>
+          </li>
+        </ul>
+      </Reveal>
+      <Reveal className="jt-bike-status-scene">
+        <div className="jt-qr-visual" aria-hidden="true">
+          <span className="jt-qr-corner corner-a" />
+          <span className="jt-qr-corner corner-b" />
+          <span className="jt-qr-corner corner-c" />
+          <span className="jt-qr-corner corner-d" />
+          <div className="jt-qr-grid">
+            {Array.from({ length: 49 }, (_, index) => (
+              <i key={index} className={(index * 7 + index * index) % 5 < 2 ? 'is-filled' : ''} />
+            ))}
+          </div>
+          <motion.span
+            className="jt-scan-line"
+            animate={reduced ? undefined : { y: [0, 114, 0] }}
+            transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <small>자전거 QR</small>
+        </div>
+        <MediaSlot name="bikeStatus" label="QR 자전거 상태 확인 앱 화면" />
+        <motion.div
+          className="jt-condition-card"
+          initial={false}
+          whileInView={reduced ? undefined : { y: [8, 0], opacity: [0, 1] }}
+          viewport={{ once: false, amount: 0.6 }}
+          transition={{ duration: 0.45 }}
+        >
+          <span>점검 필요</span>
+          <strong>최근 제보 3건</strong>
+          <div>
+            <i />
+            브레이크
+            <i />
+            타이어
+            <i />
+            안장
+          </div>
+        </motion.div>
+      </Reveal>
+    </section>
+  );
+}
 function VoiceFeature() {
   const reduced = useReducedMotion();
   return (
     <section className="jt-voice jt-section" id="navigation">
       <Reveal className="jt-feature-heading">
-        <p className="jt-eyebrow">04 — 달리는 동안에도</p>
+        <p className="jt-eyebrow">05 — 달리는 동안에도</p>
         <h2>
           시선은 앞에,
           <br />
@@ -606,6 +682,7 @@ const chapters = [
   { id: 'features', label: '자전거 수 예측' },
   { id: 'routes', label: '경로 비교' },
   { id: 'map', label: '장소·대여소' },
+  { id: 'bike-status', label: '자전거 상태' },
   { id: 'navigation', label: '음성 길 안내' },
   { id: 'install', label: '이용·설치' },
 ];
@@ -722,6 +799,7 @@ function useChapterEntrance() {
       '#features .jt-feature-heading', '#features .jt-screen-gallery', '#features .jt-forecast-play',
       '#routes .jt-route-header', '#routes .jt-route-scene',
       '#map .jt-map-copy', '#map .jt-map-demo',
+      '#bike-status .jt-bike-status-copy', '#bike-status .jt-bike-status-scene',
       '#navigation .jt-feature-heading', '#navigation .jt-voice-scene',
       '#install .jt-finish', '#install > .jt-eyebrow', '#install > h2',
       '#install > .jt-actions', '#install .jt-install-guide',
@@ -1003,6 +1081,7 @@ export function InstallLandingPage() {
           </div>
         </Reveal>
       </section>
+      <BikeStatusFeature />
       <VoiceFeature />
       <section className="jt-install" id="install">
         <div className="jt-finish">

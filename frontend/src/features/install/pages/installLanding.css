@@ -3603,14 +3603,333 @@
   }
 }
 
+/* QR 상태 확인: 실제 앱 화면과 스캔 과정을 한 장면으로 연결한다. */
+.jt-bike-status {
+  position: relative;
+  grid-template-columns: minmax(0, 0.9fr) minmax(440px, 1.1fr);
+  gap: clamp(50px, 7vw, 110px);
+  min-height: 820px;
+}
+.jt-bike-status::before {
+  content: '';
+  position: absolute;
+  right: -6vw;
+  top: 50%;
+  width: min(56vw, 690px);
+  aspect-ratio: 1;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #e5efda 0 38%, #edf4e680 58%, transparent 72%);
+  pointer-events: none;
+}
+.jt-bike-status-copy,
+.jt-bike-status-scene {
+  position: relative;
+  z-index: 1;
+}
+.jt-bike-status-copy > p:last-of-type {
+  margin-top: 25px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.9;
+}
+.jt-bike-status-points {
+  display: grid;
+  gap: 9px;
+  margin: 34px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.jt-bike-status-points li {
+  display: grid;
+  grid-template-columns: 32px 92px 1fr;
+  align-items: center;
+  min-height: 58px;
+  padding: 10px 16px;
+  border: 1px solid #dae5d1;
+  border-radius: 18px;
+  background: #ffffffa3;
+  box-shadow: 0 10px 30px #3449250a;
+}
+.jt-bike-status-points span {
+  color: #6f9450;
+  font-size: 10px;
+  font-weight: 800;
+}
+.jt-bike-status-points strong {
+  color: #253020;
+  font-size: 13px;
+}
+.jt-bike-status-points small {
+  color: #7c8676;
+  font-size: 10px;
+}
+.jt-bike-status-scene {
+  min-height: 640px;
+  display: grid;
+  place-items: center;
+}
+.jt-bike-status-scene .jt-screen-gallery {
+  --screen-width: 235px;
+  margin: 0 0 0 70px;
+  z-index: 3;
+}
+.jt-bike-status-scene .jt-screen-gallery:not(.has-stack) .jt-portrait-card {
+  transform: rotate(2deg);
+}
+.jt-qr-visual {
+  position: absolute;
+  left: -12px;
+  top: 68px;
+  width: 184px;
+  height: 208px;
+  padding: 27px 24px 20px;
+  border: 1px solid #d7e3ce;
+  border-radius: 28px;
+  background: #fbfcf8e6;
+  box-shadow: 0 22px 60px #2d431b12;
+  transform: rotate(-7deg);
+  z-index: 2;
+}
+.jt-qr-visual small {
+  display: block;
+  margin-top: 15px;
+  color: #63725a;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+.jt-qr-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  width: 136px;
+  height: 136px;
+  padding: 9px;
+  border-radius: 13px;
+  background: white;
+}
+.jt-qr-grid i {
+  border-radius: 2px;
+  background: transparent;
+}
+.jt-qr-grid i.is-filled {
+  background: #456f21;
+}
+.jt-qr-corner {
+  position: absolute;
+  width: 25px;
+  height: 25px;
+  border-color: #4c8a12;
+  z-index: 1;
+}
+.jt-qr-corner.corner-a {
+  left: 14px;
+  top: 15px;
+  border-left: 3px solid;
+  border-top: 3px solid;
+  border-radius: 8px 0 0;
+}
+.jt-qr-corner.corner-b {
+  right: 14px;
+  top: 15px;
+  border-right: 3px solid;
+  border-top: 3px solid;
+  border-radius: 0 8px 0 0;
+}
+.jt-qr-corner.corner-c {
+  left: 14px;
+  bottom: 40px;
+  border-left: 3px solid;
+  border-bottom: 3px solid;
+  border-radius: 0 0 0 8px;
+}
+.jt-qr-corner.corner-d {
+  right: 14px;
+  bottom: 40px;
+  border-right: 3px solid;
+  border-bottom: 3px solid;
+  border-radius: 0 0 8px;
+}
+.jt-scan-line {
+  position: absolute;
+  left: 26px;
+  top: 34px;
+  width: 132px;
+  height: 2px;
+  border-radius: 99px;
+  background: #79af3d;
+  box-shadow: 0 0 12px #78a64c;
+}
+.jt-condition-card {
+  position: absolute;
+  right: -10px;
+  bottom: 66px;
+  width: 205px;
+  padding: 20px;
+  border: 1px solid #ead7d1;
+  border-radius: 23px;
+  background: #fffdfbe8;
+  box-shadow: 0 22px 55px #4a31141a;
+  z-index: 4;
+}
+.jt-condition-card > span {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 99px;
+  background: #fff0eb;
+  color: #a8472c;
+  font-size: 10px;
+  font-weight: 800;
+}
+.jt-condition-card strong {
+  display: block;
+  margin-top: 12px;
+  color: #263122;
+  font-size: 17px;
+}
+.jt-condition-card div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 13px;
+  color: #697263;
+  font-size: 9px;
+}
+.jt-condition-card i {
+  width: 5px;
+  height: 5px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: #d95d3c;
+}
+@media (max-width: 760px) {
+  .jt-bike-status {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding: 80px 24px 65px;
+    gap: 34px;
+  }
+  .jt-bike-status::before {
+    right: -42vw;
+    top: 68%;
+    width: 145vw;
+  }
+  .jt-bike-status-copy > p:last-of-type {
+    margin-top: 20px;
+    font-size: 13px;
+  }
+  .jt-bike-status-points {
+    margin-top: 25px;
+  }
+  .jt-bike-status-points li {
+    grid-template-columns: 28px 82px 1fr;
+    min-height: 52px;
+    padding: 9px 12px;
+  }
+  .jt-bike-status-points strong {
+    font-size: 12px;
+  }
+  .jt-bike-status-points small {
+    font-size: 9px;
+  }
+  .jt-bike-status-scene {
+    min-height: 515px;
+  }
+  .jt-bike-status-scene .jt-screen-gallery {
+    --screen-width: 190px;
+    margin: 0 0 0 35px;
+  }
+  .jt-qr-visual {
+    left: -4px;
+    top: 24px;
+    width: 132px;
+    height: 153px;
+    padding: 20px 17px 15px;
+    border-radius: 20px;
+  }
+  .jt-qr-grid {
+    width: 98px;
+    height: 98px;
+    padding: 7px;
+    gap: 2px;
+  }
+  .jt-qr-visual small {
+    margin-top: 10px;
+    font-size: 8px;
+  }
+  .jt-qr-corner.corner-a,
+  .jt-qr-corner.corner-b {
+    top: 11px;
+  }
+  .jt-qr-corner.corner-c,
+  .jt-qr-corner.corner-d {
+    bottom: 29px;
+  }
+  .jt-qr-corner.corner-a,
+  .jt-qr-corner.corner-c {
+    left: 9px;
+  }
+  .jt-qr-corner.corner-b,
+  .jt-qr-corner.corner-d {
+    right: 9px;
+  }
+  .jt-scan-line {
+    left: 18px;
+    top: 25px;
+    width: 96px;
+  }
+  .jt-condition-card {
+    right: -2px;
+    bottom: 22px;
+    width: 168px;
+    padding: 15px;
+    border-radius: 19px;
+  }
+  .jt-condition-card strong {
+    font-size: 14px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jt-scan-line {
+    transform: translateY(56px);
+  }
+  .jt #bike-status .jt-bike-status-copy,
+  .jt #bike-status .jt-bike-status-scene {
+    opacity: 1 !important;
+    translate: none !important;
+  }
+}
 
 /* Scene entrance is animated once; content remains readable afterward. */
-.jt .jt-entrance-pending { opacity: 0; }
-.jt .jt-entrance-pending:focus-within { opacity: 1; }
-@media (prefers-reduced-motion: reduce) {
-  .jt .jt-entrance-pending { opacity: 1; }
+.jt .jt-entrance-pending {
+  opacity: 0;
 }
-@media (prefers-reduced-motion: reduce) { .jt #features .jt-feature-heading, .jt #features .jt-screen-gallery, .jt #features .jt-forecast-play, .jt #routes .jt-route-header, .jt #routes .jt-route-scene, .jt #map .jt-map-copy, .jt #map .jt-map-demo, .jt #navigation .jt-feature-heading, .jt #navigation .jt-voice-scene, .jt #install > *, .jt #install .jt-install-guide { opacity: 1 !important; translate: none !important; } }
+.jt .jt-entrance-pending:focus-within {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .jt .jt-entrance-pending {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jt #features .jt-feature-heading,
+  .jt #features .jt-screen-gallery,
+  .jt #features .jt-forecast-play,
+  .jt #routes .jt-route-header,
+  .jt #routes .jt-route-scene,
+  .jt #map .jt-map-copy,
+  .jt #map .jt-map-demo,
+  .jt #navigation .jt-feature-heading,
+  .jt #navigation .jt-voice-scene,
+  .jt #install > *,
+  .jt #install .jt-install-guide {
+    opacity: 1 !important;
+    translate: none !important;
+  }
+}
 
 /* Keep chapter links aligned with the real reading position. */
 .jt section[id] {
