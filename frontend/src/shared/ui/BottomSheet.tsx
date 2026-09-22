@@ -140,16 +140,24 @@ export function BottomSheet({
           open && showBackdrop ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
       />
-      {/* Sheet — 데스크톱에서도 430px 레이아웃 중앙에 맞춤 */}
+      {/*
+        Sheet — 데스크톱에서도 430px 레이아웃 중앙에 맞춤.
+        바닥을 안드로이드 내비게이션 바 위로 띄운다(`bottom`) — 안쪽 패딩으로 밀면
+        스냅 높이가 고정값(110·200…)이라 내용이 그만큼 눌린다. 바 자리는 아래 꼬리 배경이 덮어
+        시트가 화면 끝까지 이어져 보인다. 값은 Capacitor가 심어 주는 변수(웹·iOS에서는 0).
+      */}
       <div
         ref={sheetRef}
         role="dialog"
         aria-modal={showBackdrop}
         // 닫힌 시트는 DOM에 남아 있으므로(닫힘 애니메이션) 포커스·autoFocus가 새지 않게 차단
         inert={!open}
-        className={`pb-safe fixed bottom-0 left-1/2 z-40 w-full max-w-[430px] -translate-x-1/2 rounded-t-2xl bg-surface shadow-[0_-4px_20px_rgb(0_0_0/0.12)] transition-[height,translate] duration-300 ease-out ${
+        className={`fixed bottom-[var(--safe-area-inset-bottom,0px)] left-1/2 z-40 w-full max-w-[430px] -translate-x-1/2 rounded-t-2xl bg-surface shadow-[0_-4px_20px_rgb(0_0_0/0.12)] transition-[height,translate] duration-300 ease-out ${
           SNAP_HEIGHT_CLASS[snapPoint]
-        } ${open ? 'translate-y-0' : 'translate-y-full'}`}
+        } ${
+          // 닫을 때는 시트 높이 + 띄워 둔 만큼 내려야 화면 밖으로 완전히 나간다
+          open ? 'translate-y-0' : 'translate-y-[calc(100%+var(--safe-area-inset-bottom,0px))]'
+        }`}
       >
         {/* 드래그 핸들 */}
         <div
