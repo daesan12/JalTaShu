@@ -90,7 +90,9 @@ export function RouteDetailSheet({
                 aria-hidden
                 className={`h-1 w-3 rounded-full ${ROUTE_TYPE_STYLE[route.type].dotClass}`}
               />
-              {route.recommendedCourse === true ? '추천 코스' : ROUTE_TYPE_STYLE[route.type].label}
+              {route.recommendedCourse === true
+                ? '추천 코스'
+                : `${route.stationStrategy === 'BIKE_SECURE' ? '확보 우선 ' : ''}${ROUTE_TYPE_STYLE[route.type].label}`}
             </span>
             <div className="mt-1.5 flex items-baseline gap-2">
               <span className="text-2xl font-bold tabular-nums text-gray-900">

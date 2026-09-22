@@ -85,6 +85,9 @@ export interface Pos {
 /** 경로 후보 종류 — 서버 `routes[].type` 그대로. BIKE=일반, UPHILL=오르막 회피, WALK=자전거 없이 도보만 */
 export type RouteType = 'BIKE' | 'UPHILL' | 'WALK';
 
+/** 출발지에서 자전거를 빌릴 대여소 선택 기준 */
+export type StationStrategy = 'NEAREST' | 'BIKE_SECURE';
+
 /** 구간 이동 수단 — 서버 `legs[].mode` */
 export type TravelMode = 'WALK' | 'BICYCLE';
 
@@ -159,10 +162,12 @@ export interface RouteLeg {
 
 /**
  * 경로 후보 하나 — 백엔드 `GET /map/path` 응답 `routes[]`의 원소.
- * 후보는 **최대 2개**(BIKE·UPHILL)이고, 출발·도착에서 가장 가까운 대여소가 같으면 WALK 1개만 온다.
+ * 일반 대여소와 확보 우선 대여소마다 BIKE·UPHILL 후보가 생겨 최대 4개다.
+ * 확보 가능한 별도 대여소가 없으면 일반 후보 2개만 오며, 도보가 유리하면 WALK 1개만 온다.
  */
 export interface RouteCandidate {
   type: RouteType;
+  stationStrategy: StationStrategy;
   /** 대여 대여소. 자전거를 타지 않는 WALK 후보는 없다 */
   startStation: RouteStation | null;
   /** 반납 대여소. 자전거를 타지 않는 WALK 후보는 없다 */
@@ -178,9 +183,7 @@ export interface RouteCandidate {
    * 서버가 도보 구간 시간을 분으로 올려 그 지평의 예측을 읽는다. **없는 경우가 둘** 있어서
    * optional로 둔다 — 도보가 15분을 넘어 예측 지평 밖이거나, `WALK` 단독 후보라 대여소가 없거나.
    *
-   * 후보 `BIKE`·`UPHILL`은 **같은 대여소에서 빌려** 자전거 구간만 다르므로 이 값이 서로 같다.
-   * 그래서 10의 "확보 우선" 칩은 값의 유무가 아니라 **값이 서로 다른지**로 켠다
-   * (`bikesSortBlock`).
+   * 같은 stationStrategy의 `BIKE`·`UPHILL`은 같은 대여소에서 빌리므로 값이 서로 같다.
    *
    * 서버는 없을 때 필드를 빼기도 하고 `null`로 주기도 한다(실서버 실측) — 둘 다 "없음"이다.
    */

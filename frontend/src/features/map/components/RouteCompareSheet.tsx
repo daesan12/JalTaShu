@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { RouteType } from '@/shared/api/types';
+import type { RouteType, StationStrategy } from '@/shared/api/types';
 import { BottomSheet, type SnapPoint } from '@/shared/ui/BottomSheet';
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
@@ -56,6 +56,11 @@ const ROUTE_CARD_LABEL: Record<RouteType, string> = {
   WALK: '도보 경로',
 };
 
+function routeCardLabel(type: RouteType, strategy: StationStrategy): string {
+  const base = ROUTE_CARD_LABEL[type];
+  return strategy === 'BIKE_SECURE' && type !== 'WALK' ? `확보 우선 ${base}` : base;
+}
+
 interface RouteCompareSheetProps {
   open: boolean;
   snap: RouteCompareSnap;
@@ -78,8 +83,7 @@ interface RouteCompareSheetProps {
  * 10 경로 비교·선택 시트. 후보를 칩 기준으로 정렬해 카드로 보여주고, 카드를 탭하면 그 경로를 선택한다.
  * 기본은 확장 상태, 아래로 끌면 Peek. Peek 이하로는 닫히지 않고(`dismissible`) 닫기는 페이지의 뒤로가기·← 버튼.
  *
- * 후보는 서버가 종류(`type`)를 붙여 주므로 그 라벨을 그대로 쓴다 — 후보가 2개뿐이라 숫자를 비교해
- * 순위를 매기던 강점 뱃지는 없앴다(2026-09-17).
+ * 서버의 경로 종류(`type`)와 대여소 선택 기준(`stationStrategy`) 조합을 카드 라벨로 표시한다.
  */
 export function RouteCompareSheet({
   open,
@@ -221,7 +225,7 @@ function GentleSlopeIcon() {
 }
 
 /** 후보 종류 라벨 — 서버가 준 `type` 그대로 */
-function TypePill({ type }: { type: RouteType }) {
+function TypePill({ type, strategy }: { type: RouteType; strategy: StationStrategy }) {
   const { dotClass, pillClass } = ROUTE_TYPE_STYLE[type];
   const visualClass = type === 'UPHILL' ? 'bg-primary-light text-primary' : pillClass;
 
@@ -236,7 +240,7 @@ function TypePill({ type }: { type: RouteType }) {
       ) : (
         <span aria-hidden className={`h-1 w-3 rounded-full ${dotClass}`} />
       )}
-      {ROUTE_CARD_LABEL[type]}
+      {routeCardLabel(type, strategy)}
     </span>
   );
 }
@@ -272,7 +276,7 @@ function RouteCard({ summary, selected, onSelect }: RouteCardProps) {
         }`}
       >
         <div className="flex items-center justify-between gap-2">
-          <TypePill type={summary.type} />
+          <TypePill type={summary.type} strategy={summary.stationStrategy} />
           {selected ? (
             <span className="text-xs font-semibold text-primary">선택됨</span>
           ) : (
@@ -330,7 +334,8 @@ function PeekSummary({ summary, fetchedAt, onStart }: PeekSummaryProps) {
           <ExpectedBikes count={summary.expectedBikeCnt} className="text-sm" />
         </div>
         <p className="mt-0.5 truncate text-xs text-gray-500">
-          {ROUTE_TYPE_STYLE[summary.type].label} 경로 · {formatArrival(fetchedAt, summary.totalSec)}{' '}
+          {routeCardLabel(summary.type, summary.stationStrategy)} ·{' '}
+          {formatArrival(fetchedAt, summary.totalSec)}{' '}
           도착
         </p>
       </div>

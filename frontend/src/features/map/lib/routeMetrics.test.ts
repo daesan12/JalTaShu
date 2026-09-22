@@ -35,6 +35,7 @@ describe('summarizeRoute', () => {
     expect(summary).toEqual({
       index: 2,
       type: 'UPHILL',
+      stationStrategy: 'NEAREST',
       totalSec: 500, // 150 + 200 + 150
       totalDistanceM: 896,
       walkSec: 300, // 도보 두 구간
@@ -55,10 +56,10 @@ describe('summarizeRoute', () => {
 
 describe('sortSummaries', () => {
   const summaries: RouteSummary[] = [
-    { index: 0, type: 'BIKE', totalSec: 1260, walkSec: 540, ascentM: 72, expectedBikeCnt: 1 },
-    { index: 1, type: 'UPHILL', totalSec: 1380, walkSec: 540, ascentM: 45, expectedBikeCnt: 4 },
-    { index: 2, type: 'BIKE', totalSec: 1560, walkSec: 600, ascentM: 18, expectedBikeCnt: 3 },
-    { index: 3, type: 'UPHILL', totalSec: 1500, walkSec: 300, ascentM: 60, expectedBikeCnt: 4 },
+    { index: 0, type: 'BIKE', stationStrategy: 'NEAREST', totalSec: 1260, walkSec: 540, ascentM: 72, expectedBikeCnt: 1 },
+    { index: 1, type: 'UPHILL', stationStrategy: 'NEAREST', totalSec: 1380, walkSec: 540, ascentM: 45, expectedBikeCnt: 4 },
+    { index: 2, type: 'BIKE', stationStrategy: 'BIKE_SECURE', totalSec: 1560, walkSec: 600, ascentM: 18, expectedBikeCnt: 3 },
+    { index: 3, type: 'UPHILL', stationStrategy: 'BIKE_SECURE', totalSec: 1500, walkSec: 300, ascentM: 60, expectedBikeCnt: 4 },
   ];
 
   it('확보 우선: 대수 많은 순, 같으면 빠른 순. 원본은 건드리지 않는다', () => {
@@ -81,8 +82,8 @@ describe('sortSummaries', () => {
 
   it('둘 다 켜면 확보 우선으로 줄 세우고 동률은 오르막 적은 쪽이 앞', () => {
     const tieBreak: RouteSummary[] = [
-      { index: 0, type: 'BIKE', totalSec: 1000, walkSec: 100, ascentM: 80, expectedBikeCnt: 4 },
-      { index: 1, type: 'UPHILL', totalSec: 1400, walkSec: 100, ascentM: 20, expectedBikeCnt: 4 },
+      { index: 0, type: 'BIKE', stationStrategy: 'NEAREST', totalSec: 1000, walkSec: 100, ascentM: 80, expectedBikeCnt: 4 },
+      { index: 1, type: 'UPHILL', stationStrategy: 'NEAREST', totalSec: 1400, walkSec: 100, ascentM: 20, expectedBikeCnt: 4 },
     ];
     // bikes만이면 빠른 0번이 앞, flat이 동점 처리에 끼면 오르막 적은 1번이 앞
     expect(sortSummaries(tieBreak, ['bikes']).map((s) => s.index)).toEqual([0, 1]);
@@ -92,7 +93,7 @@ describe('sortSummaries', () => {
 
 describe('bikesSortBlock', () => {
   function summary(index: number, expectedBikeCnt?: number | null): RouteSummary {
-    return { index, type: 'BIKE', totalSec: 1200, walkSec: 300, ascentM: 40, expectedBikeCnt };
+    return { index, type: 'BIKE', stationStrategy: 'NEAREST', totalSec: 1200, walkSec: 300, ascentM: 40, expectedBikeCnt };
   }
 
   it('후보끼리 값이 다르면 정렬할 수 있다', () => {

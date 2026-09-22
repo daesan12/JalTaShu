@@ -278,6 +278,7 @@ export function useRouteGuide({
       endStationId: detailRoute.endStation?.stationId ?? null,
       travelStatus: toTravelStatus(guideProgress.leg, guideProgress.legIndex),
       routeType: detailRoute.type,
+      stationStrategy: detailRoute.stationStrategy,
     });
   }, [
     rerouteEnabled,

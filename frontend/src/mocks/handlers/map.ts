@@ -5,6 +5,7 @@ import type {
   Pos,
   RecentPlace,
   RouteCandidate,
+  StationStrategy,
   RouteLeg,
   RoutePoint,
   RouteStation,
@@ -432,15 +433,21 @@ function toLeg(
 }
 
 /**
- * 경로 후보 목업 — 실제 서버처럼 **2개**(일반·오르막 회피)를 만든다.
+ * 경로 후보 목업 — 실제 서버처럼 일반 2개와 확보 우선 2개를 만든다.
  * 출발·도착 대여소가 같은 경우(도보 1개만)는 지금 화면에서 재현할 일이 없어 만들지 않는다.
- * `expectedBikeCnt`는 **두 후보에 같은 값**을 준다. 백엔드가 그렇게 주기 때문이다 — 후보 둘은
- * 같은 대여소에서 빌려 자전거 구간만 다른 것이라 도보 구간도 출발 대여소도 같다.
- * 그래서 10의 "확보 우선" 칩이 막히는 상태가 로컬에서 그대로 재현된다.
+ * 같은 전략의 일반·오르막 후보에는 같은 `expectedBikeCnt`를 주고,
+ * 확보 우선 후보에는 일반 후보보다 큰 값을 주어 실제 정렬 동작도 재현한다.
  */
-const MOCK_ROUTE_VARIANTS: { type: RouteType; detour: number; hill: number }[] = [
-  { type: 'BIKE', detour: 0.06, hill: 72 },
-  { type: 'UPHILL', detour: -0.18, hill: 18 },
+const MOCK_ROUTE_VARIANTS: {
+  type: RouteType;
+  stationStrategy: StationStrategy;
+  detour: number;
+  hill: number;
+}[] = [
+  { type: 'BIKE', stationStrategy: 'NEAREST', detour: 0.06, hill: 72 },
+  { type: 'UPHILL', stationStrategy: 'NEAREST', detour: -0.18, hill: 18 },
+  { type: 'BIKE', stationStrategy: 'BIKE_SECURE', detour: 0.16, hill: 76 },
+  { type: 'UPHILL', stationStrategy: 'BIKE_SECURE', detour: -0.28, hill: 20 },
 ];
 
 /** 대여·반납 대여소가 놓이는 좌표 인덱스 — 꺾이는 지점(`POINTS_PER_RUN` 배수)에 맞춰 둔다 */
@@ -465,15 +472,15 @@ function mockExpectedBikeCnt(walkSeconds: number): number | undefined {
 }
 
 function buildMockRoutes(start: Pos, end: Pos): RouteCandidate[] {
-  const routes = MOCK_ROUTE_VARIANTS.map(({ type, detour, hill }) => {
+  const routes = MOCK_ROUTE_VARIANTS.map(({ type, stationStrategy, detour, hill }) => {
     const { points: path, corners } = gridPath(start, end, detour);
     const points: RoutePoint[] = path.map((pos, i) => ({
       location: toGeo(pos),
       // 가운데가 hill만큼 솟는 언덕 하나
       altitude: 50 + Math.round(Math.sin((Math.PI * i) / (path.length - 1)) * hill),
     }));
-    const station = (index: number, name: string): RouteStation => ({
-      stationId: `ST${String(index).padStart(4, '0')}`,
+    const station = (index: number, name: string, idOffset = 0): RouteStation => ({
+      stationId: `ST${String(index + idOffset).padStart(4, '0')}`,
       name,
       location: points[index].location,
     });
@@ -485,16 +492,28 @@ function buildMockRoutes(start: Pos, end: Pos): RouteCandidate[] {
     ];
     return {
       type,
-      startStation: station(index.rent, '목업 대여 대여소'),
+      stationStrategy,
+      startStation: station(
+        index.rent,
+        stationStrategy === 'BIKE_SECURE' ? '목업 확보 우선 대여소' : '목업 가까운 대여소',
+        stationStrategy === 'BIKE_SECURE' ? 100 : 0,
+      ),
       endStation: station(index.return, '목업 반납 대여소'),
       totalDistance: legs.reduce((sum, leg) => sum + leg.distance, 0),
       totalTime: legs.reduce((sum, leg) => sum + leg.time, 0),
       legs,
     };
   });
-  // 후보마다 따로 계산하지 않는다 — 실제로도 같은 도보 구간에서 나온 한 값이 둘에 그대로 들어간다
-  const expectedBikeCnt = mockExpectedBikeCnt(routes[0].legs[0].time);
-  return routes.map((route) => ({ ...route, expectedBikeCnt }));
+  return routes.map((route) => {
+    const predicted = mockExpectedBikeCnt(route.legs[0].time);
+    const expectedBikeCnt =
+      predicted === undefined
+        ? undefined
+        : route.stationStrategy === 'BIKE_SECURE'
+          ? Math.max(1, predicted + 3)
+          : predicted;
+    return { ...route, expectedBikeCnt };
+  });
 }
 
 /** 최근 검색 목업 저장소 — 서버 `recent_places`처럼 고를 때마다 한 줄씩 쌓인다(중복 제거 없음) */
@@ -634,7 +653,10 @@ export const mapHandlers = [
       return fail(400, '출발지와 목적지 좌표가 필요합니다.');
     }
     const routeType = q.get('routeType');
-    const routes = buildMockRoutes(start, end).filter((route) => route.type === routeType);
+    const stationStrategy = q.get('stationStrategy') ?? 'NEAREST';
+    const routes = buildMockRoutes(start, end).filter(
+      (route) => route.type === routeType && route.stationStrategy === stationStrategy,
+    );
     const body: PathResponse = { routes: routes.length > 0 ? routes : buildMockRoutes(start, end) };
     return HttpResponse.json(ok(body));
   }),

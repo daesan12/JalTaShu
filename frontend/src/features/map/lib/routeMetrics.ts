@@ -1,12 +1,11 @@
-import type { RouteCandidate, RouteType } from '@/shared/api/types';
+import type { RouteCandidate, RouteType, StationStrategy } from '@/shared/api/types';
 import { routePoints, toLegs } from '@/features/map/lib/routeSegments';
 
 /**
  * 10 경로 비교 — 서버가 정렬·필터 없이 준 후보를 프론트에서 요약·정렬한다(방법 B).
  * 순수 함수로 두어 유닛 테스트한다. 표시(칩·카드)는 컴포넌트가 이 값을 그대로 쓴다.
  *
- * **강점 뱃지 4종은 없앴다(2026-09-17).** 후보가 2개뿐이라 숫자를 비교해 순위를 매길 대상이 없고,
- * 서버가 후보마다 `type`을 붙여 주므로 그것을 그대로 라벨로 쓴다.
+ * 서버의 경로 종류와 대여소 선택 전략을 그대로 요약하고, 화면 정렬에 필요한 수치만 계산한다.
  */
 
 /** 칩 — 각각 독립 토글(0~2개 선택). 필터가 아니라 정렬 기준이다(후보를 숨기지 않는다) */
@@ -17,6 +16,8 @@ export interface RouteSummary {
   index: number;
   /** 후보 종류 — 라벨·경로선 색이 이 값으로 정해진다 */
   type: RouteType;
+  /** 대여소 선택 기준 */
+  stationStrategy: StationStrategy;
   /** 총 소요 시간(초) */
   totalSec: number;
   /** 총 이동 거리(m). 오래된 테스트·목업 요약은 없을 수 있다 */
@@ -51,6 +52,7 @@ export function summarizeRoute(route: RouteCandidate, index: number): RouteSumma
   return {
     index,
     type: route.type,
+    stationStrategy: route.stationStrategy,
     totalSec: route.totalTime,
     totalDistanceM: route.totalDistance,
     walkSec,
@@ -75,12 +77,8 @@ export type BikesSortBlock = 'no-data' | 'all-equal';
 /**
  * 확보 우선 정렬이 **실제로 순서를 바꿀 수 있는지** 판정한다.
  *
- * "값이 하나라도 있으면 켠다"로는 부족하다. 지금 후보 2개(`BIKE`·`UPHILL`)는 **같은 대여소에서
- * 빌려** 자전거 구간만 다른 것이라 서버가 둘에 같은 예상 대수를 준다 — 켜 두면 눌러도 순서가
- * 절대 안 바뀌는 버튼이 된다.
- *
- * 그래서 기준을 "값이 서로 다른가"로 둔다. 나중에 서버가 대여소 조합을 달리한 후보를 더 주면
- * 값이 갈리면서 칩이 저절로 살아나고, 이 코드를 다시 고칠 일이 없다.
+ * 같은 전략의 `BIKE`·`UPHILL`은 같은 대여소에서 빌려 예상 대수가 같다. 확보 우선 후보가 함께
+ * 내려와 실제 값 차이가 생길 때만 정렬을 활성화한다.
  */
 export function bikesSortBlock(summaries: RouteSummary[]): BikesSortBlock | null {
   // 없음을 null로 통일해서 본다 — undefined와 null이 섞여 오면 값이 다른 것으로 새어 나간다
