@@ -60,9 +60,8 @@ export function SettingsPage() {
             <Chip
               key={lang}
               selected={lang === '한국어'}
-              onClick={() => {
-                if (lang !== '한국어') setNotice('다국어 지원을 준비 중이에요.');
-              }}
+              disabled={lang !== '한국어'}
+              className="disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:active:scale-100"
             >
               {lang}
             </Chip>
