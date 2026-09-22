@@ -64,6 +64,11 @@ public interface CycleUsageRepository extends JpaRepository<CycleUsageEntity, Lo
 
     @EntityGraph(attributePaths = {"cycleEntity", "rentalStationEntity", "returnStationEntity"})
     List<CycleUsageEntity> findByUserEntity_UserIdAndReturnAtIsNotNullOrderByRentalAtDesc(Long userId);
+
+    @EntityGraph(attributePaths = {"rentalStationEntity", "returnStationEntity"})
+    Optional<CycleUsageEntity> findFirstByCycleEntity_CycleIdOrderByRentalAtDescCycleUsageIdDesc(
+            String cycleId);
+
     boolean existsByUserEntity_UserIdAndReturnAtIsNull(Long userId);
 
     Optional<CycleUsageEntity> findByUserEntityAndCycleEntityAndReturnAtIsNull(

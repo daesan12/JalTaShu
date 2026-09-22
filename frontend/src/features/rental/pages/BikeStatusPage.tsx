@@ -48,8 +48,8 @@ export function BikeStatusPage() {
                 </span>
               </div>
               <div className="mt-5 grid grid-cols-2 gap-3 border-t border-white/20 pt-4 text-sm">
-                <div><span className="block text-xs text-white/60">최근 이용</span><span className="mt-1 block font-semibold text-white/90">{formatDate(bike.lastUsedAt)}</span></div>
-                <div><span className="block text-xs text-white/60">최근 대여소</span><span className="mt-1 block truncate font-semibold text-white/90">{bike.lastStationName}</span></div>
+                <div><span className="block text-xs text-white/60">최근 이용</span><span className="mt-1 block font-semibold text-white/90">{bike.lastUsedAt ? formatDate(bike.lastUsedAt) : '이용 이력 없음'}</span></div>
+                <div><span className="block text-xs text-white/60">최근 대여소</span><span className="mt-1 block truncate font-semibold text-white/90">{bike.lastStationName ?? '대여소 정보 없음'}</span></div>
               </div>
             </section>
 

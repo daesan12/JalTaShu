@@ -77,6 +77,44 @@ class CycleServiceTest {
         return new CycleClaimRequest("C1", ClaimCategory.TIRE, "타이어 펑크", file);
     }
 
+    @Test
+    void statementReturnsLatestUsageStationAndRideableState() {
+        LocalDateTime rentalAt = LocalDateTime.of(2026, 9, 22, 10, 0);
+        StationEntity rentalStation = StationEntity.builder().stationId("S1").name("출발 대여소").build();
+        StationEntity returnStation = StationEntity.builder().stationId("S2").name("최근 대여소").build();
+        CycleEntity target = CycleEntity.builder()
+                .cycleId("C1").status(CycleStatus.READY).stationEntity(returnStation).build();
+        CycleUsageEntity latestUsage = CycleUsageEntity.builder()
+                .cycleEntity(target)
+                .rentalStationEntity(rentalStation)
+                .returnStationEntity(returnStation)
+                .rentalAt(rentalAt)
+                .build();
+        when(cycleRepository.findById("C1")).thenReturn(Optional.of(target));
+        when(cycleUsageRepository
+                .findFirstByCycleEntity_CycleIdOrderByRentalAtDescCycleUsageIdDesc("C1"))
+                .thenReturn(Optional.of(latestUsage));
+        when(cycleClaimRepository.existsByCycleEntity_CycleIdAndClaimTypeAndStatusNot(
+                "C1", ClaimType.CYCLE, ClaimStatus.COMPLETED)).thenReturn(true);
+
+        var response = cycleService.getCycleStatement("c1");
+
+        assertThat(response.cycleId()).isEqualTo("C1");
+        assertThat(response.rideable()).isFalse();
+        assertThat(response.lastUsedAt()).isEqualTo(rentalAt);
+        assertThat(response.lastStationName()).isEqualTo("최근 대여소");
+    }
+
+    @Test
+    void statementRejectsMissingCycle() {
+        when(cycleRepository.findById("C404")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> cycleService.getCycleStatement("C404"))
+                .isInstanceOfSatisfying(CycleException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(NOT_EXIST_CYCLE_ID));
+        verifyNoInteractions(cycleUsageRepository, cycleClaimRepository);
+    }
+
     private CycleRentalRequest rentalRequest(String cycleId, String stationId) {
         return new CycleRentalRequest(cycleId, stationId, LATITUDE, LONGITUDE);
     }

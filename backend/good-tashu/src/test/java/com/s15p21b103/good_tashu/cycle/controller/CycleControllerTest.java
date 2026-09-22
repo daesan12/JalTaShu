@@ -11,6 +11,7 @@ import com.s15p21b103.good_tashu.cycle.dto.res.CyclePointResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleStatisticsResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageDetailResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageListResponse;
+import com.s15p21b103.good_tashu.cycle.dto.res.CycleStatementResponse;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleRentalRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleReturnRequest;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
@@ -73,6 +74,21 @@ class CycleControllerTest {
                 .setCustomArgumentResolvers(userResolver)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void statementEndpointReturnsBikeStatusFields() throws Exception {
+        when(cycleService.getCycleStatement("C1")).thenReturn(new CycleStatementResponse(
+                "C1", true, LocalDateTime.of(2026, 9, 22, 10, 0), "시청 대여소"));
+
+        mvc.perform(get("/api/cycle/statement/C1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cycleId").value("C1"))
+                .andExpect(jsonPath("$.data.rideable").value(true))
+                .andExpect(jsonPath("$.data.lastUsedAt").exists())
+                .andExpect(jsonPath("$.data.lastStationName").value("시청 대여소"));
+
+        verify(cycleService).getCycleStatement("C1");
     }
 
     @Test

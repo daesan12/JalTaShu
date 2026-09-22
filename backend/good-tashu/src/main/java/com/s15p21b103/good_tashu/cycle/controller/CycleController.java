@@ -14,12 +14,19 @@ import java.util.List;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleStatisticsResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageListResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageDetailResponse;
+import com.s15p21b103.good_tashu.cycle.dto.res.CycleStatementResponse;
 
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/cycle")
 public class CycleController {
     private final CycleService cycleService;
+
+    @GetMapping("/statement/{cycleId}")
+    public ApiResponse<CycleStatementResponse> getCycleStatement(
+            @PathVariable(name = "cycleId") String cycleId) {
+        return ApiResponse.success(cycleService.getCycleStatement(cycleId));
+    }
 
     //대여 요청
     @PostMapping("/rental")
