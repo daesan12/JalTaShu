@@ -24,6 +24,19 @@ export function formatUserCode(userId: number): string {
 }
 
 /**
+ * 표의 "이용자"·"제보자" 칸 — 닉네임이 없을 수 있다.
+ *
+ * 두 가지 경우가 있고 뜻이 다르다.
+ * - 닉네임만 없음: 소셜 로그인만 하고 가입을 끝내지 않은 사용자 → 사용자 코드로 대신 가리킨다
+ * - 사용자 자체가 없음: 앱을 거치지 않은 이용 이력 → 가리킬 사람이 없으므로 '-'
+ */
+export function formatUserName(nickname: string | null, userId: number | null): string {
+  if (nickname) return nickname;
+  if (userId !== null && userId !== undefined) return formatUserCode(userId);
+  return '-';
+}
+
+/**
  * Date → 백엔드 LocalDateTime 문자열 "2026-09-28T14:12:33".
  * toISOString()은 UTC로 바꾸고 'Z'를 붙여 Jackson의 LocalDateTime 파싱이 깨진다.
  */

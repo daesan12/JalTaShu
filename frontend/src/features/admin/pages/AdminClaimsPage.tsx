@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/shared/api/client';
 import { formatDate } from '@/shared/lib/format';
 import { useToast } from '@/shared/lib/useToast';
+import { formatUserName } from '@/features/admin/lib/format';
 import {
   CLAIM_CATEGORY_LABEL,
   CLAIM_TYPE_LABEL,
@@ -65,7 +66,8 @@ export function AdminClaimsPage() {
       if (status !== 'all' && claim.status !== status) return false;
       if (
         keyword &&
-        !claim.nickname.toLowerCase().includes(keyword) &&
+        // 닉네임이 없는 제보자는 표에 사용자 코드(U-000007)로 뜨므로 그 표기로도 찾히게 한다
+        !formatUserName(claim.nickname, claim.userId).toLowerCase().includes(keyword) &&
         !(claim.cycleId ?? '').toLowerCase().includes(keyword)
       ) {
         return false;
@@ -169,7 +171,7 @@ export function AdminClaimsPage() {
                 <td className="tabular-nums">{claim.cycleId ?? '-'}</td>
                 <td>{claim.category === null ? '-' : CLAIM_CATEGORY_LABEL[claim.category]}</td>
                 <td className="truncate">{claim.content}</td>
-                <td className="truncate">{claim.nickname}</td>
+                <td className="truncate">{formatUserName(claim.nickname, claim.userId)}</td>
                 <td
                   className={`text-right tabular-nums ${
                     claim.cycleReportNum >= 3 ? 'font-medium text-admin-danger-text' : ''
@@ -262,7 +264,7 @@ function ClaimDetailModal({ claim, onClose, onSaved }: ClaimDetailModalProps) {
         <dl className="grid grid-cols-4 gap-x-4 gap-y-2 text-sm">
           <InfoItem label="유형" value={CLAIM_TYPE_LABEL[claim.claimType]} />
           <InfoItem label="자전거" value={claim.cycleId ?? '-'} />
-          <InfoItem label="제보자" value={claim.nickname} />
+          <InfoItem label="제보자" value={formatUserName(claim.nickname, claim.userId)} />
           <InfoItem
             label="부위"
             value={claim.category === null ? '-' : CLAIM_CATEGORY_LABEL[claim.category]}

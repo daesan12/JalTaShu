@@ -5,6 +5,7 @@ import { AdminFieldLabel } from '@/features/admin/ui/AdminField';
 import { AdminPagination } from '@/features/admin/ui/AdminPagination';
 import { AdminStatCard } from '@/features/admin/ui/AdminStatCard';
 import { AdminTableStatus } from '@/features/admin/ui/AdminTableStatus';
+import { formatUserName } from '@/features/admin/lib/format';
 
 /** 관리자 공통 컴포넌트의 분기(증감 색·표 상태·카운터·페이지 버튼)를 잠그는 렌더 테스트 */
 
@@ -43,9 +44,7 @@ describe('AdminTableStatus', () => {
   }
 
   it('로딩 > 실패 > 빈 목록 순서로 하나만 보여준다', () => {
-    renderInTable(
-      <AdminTableStatus colSpan={4} isPending isError isEmpty emptyText="없습니다" />,
-    );
+    renderInTable(<AdminTableStatus colSpan={4} isPending isError isEmpty emptyText="없습니다" />);
     expect(screen.getByText('불러오는 중…')).toBeTruthy();
     expect(screen.queryByText('없습니다')).toBeNull();
   });
@@ -77,6 +76,38 @@ describe('AdminTableStatus', () => {
     );
     expect(container.querySelectorAll('tr')).toHaveLength(0);
   });
+
+  it('보여줄 행이 남아 있으면 실패 문구가 목록이 비었다고 말하지 않는다', () => {
+    // 재조회만 실패한 경우 — 직전 데이터가 남아 있어 표에는 행이 그려진다
+    renderInTable(
+      <AdminTableStatus
+        colSpan={4}
+        isPending={false}
+        isError
+        isEmpty={false}
+        emptyText="없습니다"
+      />,
+    );
+    expect(screen.getByText(/이전 내용을 보여줍니다/)).toBeTruthy();
+    expect(screen.queryByText(/목록을 불러오지 못했습니다/)).toBeNull();
+  });
+
+  it('보여줄 행이 없으면 못 불러왔다고 말한다', () => {
+    renderInTable(
+      <AdminTableStatus colSpan={4} isPending={false} isError isEmpty emptyText="없습니다" />,
+    );
+    expect(screen.getByText(/목록을 불러오지 못했습니다/)).toBeTruthy();
+  });
+});
+
+describe('formatUserName', () => {
+  it('닉네임이 있으면 닉네임, 없으면 사용자 코드, 사용자가 없으면 -', () => {
+    expect(formatUserName('조용한산책366', 315)).toBe('조용한산책366');
+    // 소셜 로그인만 하고 가입을 끝내지 않은 사용자
+    expect(formatUserName(null, 7)).toBe('U-000007');
+    // 앱을 거치지 않은 이용 이력 — 가리킬 사람이 없다
+    expect(formatUserName(null, null)).toBe('-');
+  });
 });
 
 describe('AdminFieldLabel', () => {
@@ -102,12 +133,12 @@ describe('AdminPagination', () => {
 
   it('첫 페이지에서 이전이, 끝 페이지에서 다음이 비활성화된다', () => {
     render(<AdminPagination page={1} pageSize={12} totalCount={60} onChange={() => {}} />);
-    expect((screen.getByRole('button', { name: '이전 페이지' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
-    expect((screen.getByRole('button', { name: '다음 페이지' }) as HTMLButtonElement).disabled).toBe(
-      false,
-    );
+    expect(
+      (screen.getByRole('button', { name: '이전 페이지' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: '다음 페이지' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
   });
 
   it('0건이면 안내 문구를 보여준다', () => {

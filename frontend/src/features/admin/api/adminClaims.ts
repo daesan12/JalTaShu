@@ -45,8 +45,8 @@ export interface AdminClaim {
   content: string;
   /** 고장(CYCLE)에만 있다 — 방치·기타는 부위가 없어 null */
   category: ClaimCategory | null;
-  /** 제보자 */
-  nickname: string;
+  /** 제보자 — 가입을 끝내지 않은 사용자는 닉네임이 없다 (claims.user_id는 not null이라 userId는 항상 있다) */
+  nickname: string | null;
   userId: number;
   createdAt: string;
   /** 이 제보에 달린 허위 제보 신고 수 */
@@ -62,7 +62,8 @@ export interface AdminClaimReport {
   reportCategory: 'FALSE_INFORMATION' | 'PRANK_REPORT' | 'ABUSE' | 'ETC';
   createdAt: string;
   userId: number;
-  nickname: string;
+  /** 가입을 끝내지 않은 사용자는 닉네임이 없다 */
+  nickname: string | null;
 }
 
 /** 상세 (AdminClaimDetailResponse 실측) — 목록에 없는 처리 내용·사진·신고 내역이 온다 */
@@ -71,7 +72,8 @@ export interface AdminClaimDetail {
   claimType: ClaimType;
   cycleId: string | null;
   userId: number;
-  nickname: string;
+  /** 가입을 끝내지 않은 사용자는 닉네임이 없다 */
+  nickname: string | null;
   createdAt: string;
   content: string;
   statement: ClaimStatus;

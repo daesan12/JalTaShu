@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { formatDate } from '@/shared/lib/format';
-import { formatDateTime } from '@/features/admin/lib/format';
+import { formatDateTime, formatUserName } from '@/features/admin/lib/format';
 import { CLAIM_CATEGORY_LABEL, CLAIM_STATUS_LABEL } from '@/features/admin/api/adminClaims';
 import {
   CYCLE_STATUS_LABEL,
@@ -121,14 +121,13 @@ export function AdminBikePage() {
                 />
                 {rides.map((ride) => (
                   <tr key={ride.recordId}>
-                    <td className="tabular-nums text-admin-muted">{formatDateTime(ride.usingAt)}</td>
+                    <td className="tabular-nums text-admin-muted">
+                      {formatDateTime(ride.usingAt)}
+                    </td>
                     <td className="truncate">
                       {ride.startingPoint} → {ride.endPoint}
                     </td>
-                    <td className="truncate">
-                      {ride.nickname}
-                      <span className="text-admin-muted"> · #{ride.userId}</span>
-                    </td>
+                    <td className="truncate">{formatUserName(ride.nickname, ride.userId)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -157,7 +156,7 @@ export function AdminBikePage() {
                     <td className="tabular-nums text-admin-muted">CL-{claim.claimId}</td>
                     <td>{claim.category === null ? '-' : CLAIM_CATEGORY_LABEL[claim.category]}</td>
                     <td className="truncate">{claim.content}</td>
-                    <td className="truncate">{claim.nickname}</td>
+                    <td className="truncate">{formatUserName(claim.nickname, claim.userId)}</td>
                     <td>
                       <AdminBadge state={CLAIM_STATUS_LABEL[claim.status]} />
                     </td>
@@ -170,8 +169,11 @@ export function AdminBikePage() {
         </div>
         {tab === 'claims' && (claims.data?.length ?? 0) > 0 && (
           <p className="mt-2 text-xs text-admin-muted">
-            상태 변경은 <Link to="/admin/claims" className="underline">제보 관리</Link>에서 할 수
-            있습니다.
+            상태 변경은{' '}
+            <Link to="/admin/claims" className="underline">
+              제보 관리
+            </Link>
+            에서 할 수 있습니다.
           </p>
         )}
       </div>
