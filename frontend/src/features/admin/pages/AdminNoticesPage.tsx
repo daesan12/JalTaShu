@@ -4,14 +4,18 @@ import { ApiError } from '@/shared/api/client';
 import { formatDate } from '@/shared/lib/format';
 import { useToast } from '@/shared/lib/useToast';
 import {
+  MAX_PINNED_NOTICES,
   NOTICE_CONTENT_MAX,
   NOTICE_TITLE_MAX,
   createAdminNotice,
   deleteAdminNotice,
   getAdminNotice,
   getAdminNotices,
+  pinNotice,
+  unpinNotice,
   type AdminNoticeSummary,
 } from '@/features/admin/api/adminNotices';
+import { PinIcon } from '@/features/admin/ui/PinIcon';
 import { AdminButton } from '@/features/admin/ui/AdminButton';
 import { AdminFieldLabel, AdminInput, AdminTextarea } from '@/features/admin/ui/AdminField';
 import { AdminDateRange, AdminFilterBar, AdminSearchInput } from '@/features/admin/ui/AdminFilters';
@@ -33,6 +37,8 @@ export function AdminNoticesPage() {
   const [detail, setDetail] = useState<AdminNoticeSummary | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdminNoticeSummary | null>(null);
+  /** 핀을 켜려는 공지 — 이미지를 받아야 해서 창을 거친다 */
+  const [pinTarget, setPinTarget] = useState<AdminNoticeSummary | null>(null);
 
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['adminNotices'],
@@ -59,6 +65,43 @@ export function AdminNoticesPage() {
     enabled: detail !== null,
   });
 
+  /*
+   * 핀 상태는 공지 목록이 그대로 알려 준다 — `popupId`가 null 이면 꺼짐, 값이 있으면 켜짐이고
+   * 그 값이 해제에 쓸 id다. 팝업 목록을 따로 부르지 않아 행 수와 무관하게 요청이 하나다.
+   * 개수도 **전체 목록** 기준으로 센다(검색·기간 필터나 페이지에 걸리면 상한이 틀어진다).
+   */
+  const pinnedCount = useMemo(
+    () => (data ?? []).filter((notice) => notice.popupId !== null).length,
+    [data],
+  );
+
+  function refreshNotices() {
+    void queryClient.invalidateQueries({ queryKey: ['adminNotices'] });
+  }
+
+  const unpin = useMutation({
+    mutationFn: (popupId: number) => unpinNotice(popupId),
+    onSuccess: () => {
+      refreshNotices();
+      showToast('팝업 고정을 해제했습니다');
+    },
+    onError: (error) =>
+      showToast(error instanceof ApiError ? error.message : '고정을 해제하지 못했습니다'),
+  });
+
+  /** 핀 아이콘을 눌렀을 때 — 켜져 있으면 바로 끄고, 꺼져 있으면 이미지를 받아야 하므로 창을 연다 */
+  function togglePin(notice: AdminNoticeSummary) {
+    if (notice.popupId !== null) {
+      unpin.mutate(notice.popupId);
+      return;
+    }
+    if (pinnedCount >= MAX_PINNED_NOTICES) {
+      showToast(`팝업은 최대 ${MAX_PINNED_NOTICES}개까지 고정할 수 있습니다`);
+      return;
+    }
+    setPinTarget(notice);
+  }
+
   const remove = useMutation({
     mutationFn: (notice: AdminNoticeSummary) => deleteAdminNotice(notice.noticeId),
     onSuccess: () => {
@@ -72,7 +115,13 @@ export function AdminNoticesPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">공지사항</h2>
+        <div className="flex items-baseline gap-3">
+          <h2 className="text-xl font-semibold">공지사항</h2>
+          {/* 핀을 켜기 전에 몇 자리가 남았는지 보이게 — 6번째를 누르고 나서 알면 늦다 */}
+          <span className="text-sm text-admin-muted">
+            팝업 고정 <span className="tabular-nums">{pinnedCount}</span>/{MAX_PINNED_NOTICES}
+          </span>
+        </div>
         <AdminButton onClick={() => setComposeOpen(true)}>공지 등록</AdminButton>
       </div>
 
@@ -107,12 +156,13 @@ export function AdminNoticesPage() {
               <th className="w-20">번호</th>
               <th>제목</th>
               <th className="w-32">작성일</th>
+              <th className="w-16 text-center">팝업</th>
               <th className="w-24 text-right">관리</th>
             </tr>
           </thead>
           <tbody>
             <AdminTableStatus
-              colSpan={4}
+              colSpan={5}
               isPending={isPending}
               isError={isError}
               onRetry={() => void refetch()}
@@ -124,6 +174,28 @@ export function AdminNoticesPage() {
                 <td className="tabular-nums text-admin-muted">{notice.noticeId}</td>
                 <td className="truncate">{notice.title}</td>
                 <td className="tabular-nums text-admin-muted">{formatDate(notice.createdAt)}</td>
+                <td className="text-center">
+                  {/* 행 전체가 상세를 여는 클릭 대상이라 핀은 전파를 끊어야 한다 */}
+                  <button
+                    type="button"
+                    aria-pressed={notice.popupId !== null}
+                    aria-label={
+                      notice.popupId !== null
+                        ? `${notice.title} 팝업 고정 해제`
+                        : `${notice.title} 팝업으로 고정`
+                    }
+                    disabled={unpin.isPending}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      togglePin(notice);
+                    }}
+                    className={`inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-admin-line/60 disabled:opacity-50 ${
+                      notice.popupId !== null ? 'text-admin-accent' : 'text-admin-muted'
+                    }`}
+                  >
+                    <PinIcon filled={notice.popupId !== null} className="h-5 w-5" />
+                  </button>
+                </td>
                 <td className="text-right">
                   <AdminButton
                     variant="secondary"
@@ -197,6 +269,19 @@ export function AdminNoticesPage() {
             setPage(1);
             void queryClient.invalidateQueries({ queryKey: ['adminNotices'] });
             showToast('공지사항이 등록되었습니다');
+          }}
+        />
+      )}
+
+      {/* 팝업 고정 — 팝업은 이미지가 있어야 등록되므로 파일을 받고 나서 켠다 */}
+      {pinTarget && (
+        <PinNoticeModal
+          notice={pinTarget}
+          onClose={() => setPinTarget(null)}
+          onPinned={() => {
+            setPinTarget(null);
+            refreshNotices();
+            showToast('앱 첫 화면 팝업으로 고정했습니다');
           }}
         />
       )}
@@ -291,6 +376,102 @@ function ComposeNoticeModal({ onClose, onCreated }: ComposeNoticeModalProps) {
             {create.error instanceof ApiError
               ? create.error.message
               : '등록에 실패했습니다. 다시 시도해 주세요.'}
+          </p>
+        )}
+      </div>
+    </AdminModal>
+  );
+}
+
+interface PinNoticeModalProps {
+  notice: AdminNoticeSummary;
+  onClose: () => void;
+  onPinned: () => void;
+}
+
+/** 이미지 용량 상한 — S3에 올라가고 앱에서 바로 받으므로 너무 크면 팝업이 늦게 뜬다 */
+const PIN_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * 공지를 팝업으로 고정하는 창.
+ * 백엔드 팝업은 이미지가 필수라(`createPopup`이 사진을 S3에 올린다) 핀을 켜는 순간 파일을 받는다.
+ * 팝업 제목은 화면에 보이지 않고 이미지 대체 텍스트로만 쓰여, 기본값을 공지 제목으로 채운다.
+ */
+function PinNoticeModal({ notice, onClose, onPinned }: PinNoticeModalProps) {
+  const [title, setTitle] = useState(notice.title);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  const pin = useMutation({
+    mutationFn: () => pinNotice({ noticeId: notice.noticeId, title: title.trim(), photo: photo! }),
+    onSuccess: onPinned,
+  });
+
+  function pickPhoto(file: File | null) {
+    setFileError(null);
+    if (file && file.size > PIN_IMAGE_MAX_BYTES) {
+      setFileError('이미지는 5MB 이하만 올릴 수 있습니다.');
+      setPhoto(null);
+      return;
+    }
+    setPhoto(file);
+  }
+
+  const valid = title.trim().length > 0 && photo !== null;
+
+  return (
+    <AdminModal
+      open
+      onClose={onClose}
+      title="앱 팝업으로 고정"
+      footer={
+        <>
+          <AdminButton variant="secondary" onClick={onClose}>
+            취소
+          </AdminButton>
+          <AdminButton disabled={!valid || pin.isPending} onClick={() => pin.mutate()}>
+            {pin.isPending ? '고정 중…' : '고정'}
+          </AdminButton>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-admin-muted">
+          앱을 열면 이 이미지가 팝업으로 뜨고, 누르면 공지 본문이 열립니다.
+        </p>
+        <p className="truncate rounded-md bg-admin-line/40 px-3 py-2 text-sm">
+          공지 #{notice.noticeId} · {notice.title}
+        </p>
+
+        <div>
+          <AdminFieldLabel label="팝업 이미지" />
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)}
+            className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-admin-line/60 file:px-3 file:py-1.5 file:text-sm"
+          />
+          <p className="mt-1.5 text-xs text-admin-muted">5MB 이하 이미지 파일</p>
+          {fileError && <p className="mt-1.5 text-sm text-admin-danger-text">{fileError}</p>}
+        </div>
+
+        <div>
+          <AdminFieldLabel label="팝업 제목" count={title.length} max={NOTICE_TITLE_MAX} />
+          <AdminInput
+            value={title}
+            maxLength={NOTICE_TITLE_MAX}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <p className="mt-1.5 text-xs text-admin-muted">
+            화면에는 이미지만 보입니다. 이미지를 불러오지 못했을 때 대신 읽히는 문구입니다.
+          </p>
+        </div>
+
+        {pin.isError && (
+          <p className="text-sm text-admin-danger-text">
+            {pin.error instanceof ApiError
+              ? pin.error.message
+              : '고정에 실패했습니다. 다시 시도해 주세요.'}
           </p>
         )}
       </div>
