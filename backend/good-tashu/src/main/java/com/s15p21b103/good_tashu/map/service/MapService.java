@@ -3,6 +3,7 @@ package com.s15p21b103.good_tashu.map.service;
 import com.s15p21b103.good_tashu.map.client.NaverPlaceClient;
 import com.s15p21b103.good_tashu.map.client.dto.NaverPlaceItem;
 import com.s15p21b103.good_tashu.map.domain.RouteType;
+import com.s15p21b103.good_tashu.map.domain.StationStrategy;
 import com.s15p21b103.good_tashu.map.domain.TravelStatus;
 import com.s15p21b103.good_tashu.map.exception.MapException;
 import lombok.RequiredArgsConstructor;
@@ -127,8 +128,9 @@ public class MapService {
 
     // 재탐색 경로 반환
     public PathResponseDto getReRoutePath(Long userId, BigDecimal startLat, BigDecimal startLng, BigDecimal endLat, BigDecimal endLng,
-                                          String startStationId, String endStationId, TravelStatus travelStatus, RouteType routeType) {
+                                          String startStationId, String endStationId, TravelStatus travelStatus,
+                                          RouteType routeType, StationStrategy stationStrategy) {
         return pathService.buildReRouteResponse(startLat, startLng, endLat, endLng,
-                startStationId, endStationId, travelStatus, routeType);
+                startStationId, endStationId, travelStatus, routeType, stationStrategy);
     }
 }

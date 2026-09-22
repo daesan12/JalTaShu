@@ -2,6 +2,7 @@ package com.s15p21b103.good_tashu.map.controller;
 
 import com.s15p21b103.good_tashu._util.response.ApiResponse;
 import com.s15p21b103.good_tashu.map.domain.RouteType;
+import com.s15p21b103.good_tashu.map.domain.StationStrategy;
 import com.s15p21b103.good_tashu.map.domain.TravelStatus;
 import com.s15p21b103.good_tashu.map.dto.res.PathResponseDto;
 import com.s15p21b103.good_tashu.map.dto.res.PlaceSearchRecentListResponse;
@@ -101,10 +102,11 @@ public class MapController {
             @RequestParam(value = "startStationId", required = false) String startStationId,
             @RequestParam(value = "endStationId", required = false) String endStationId,
             @RequestParam("travelStatus") TravelStatus travelStatus,
-            @RequestParam("routeType") RouteType routeType
+            @RequestParam("routeType") RouteType routeType,
+            @RequestParam(value = "stationStrategy", defaultValue = "NEAREST") StationStrategy stationStrategy
             ) {
         PathResponseDto responseDto = mapService.getReRoutePath(userId, startLat, startLng, endLat, endLng,
-                startStationId, endStationId, travelStatus, routeType);
+                startStationId, endStationId, travelStatus, routeType, stationStrategy);
         return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
 }
