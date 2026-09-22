@@ -28,6 +28,10 @@ interface StationSheetProps {
   snap: StationSnap;
   onSnapChange: (snap: StationSnap) => void;
   onClose: () => void;
+  /** 지금 빌린 자전거가 있으면 버튼이 "반납하기"가 된다 */
+  rented: boolean;
+  /** "대여하기" — QR 스캔으로 보낸다(스캔이 대여인지 반납인지 스스로 가른다) */
+  onRent: () => void;
   /** "반납하기" — 지금 이 대여소를 반납 대여소로 삼아 번호 입력 시트를 연다 */
   onReturn: () => void;
 }
@@ -42,6 +46,8 @@ export function StationSheet({
   snap,
   onSnapChange,
   onClose,
+  rented,
+  onRent,
   onReturn,
 }: StationSheetProps) {
   // 닫히는 300ms 동안 내용이 먼저 사라지지 않도록 마지막 대여소를 들고 있는다
@@ -149,8 +155,13 @@ export function StationSheet({
           */}
           {showDetail ? (
             <section>
-              <Button full variant="line" onClick={onReturn}>
-                반납하기
+              {/*
+                빌리기 전에 "반납하기"를 보여 주면 빌리지도 않은 사람에게 반납을 권하는 셈이다.
+                반납은 번호 입력 시트로 보낸다 — 앱 데이터가 지워져 QR 반납이 막혔을 때
+                돌아갈 길이 이것뿐이다(`rentalSession.ts`).
+              */}
+              <Button full variant="line" onClick={rented ? onReturn : onRent}>
+                {rented ? '반납하기' : '대여하기'}
               </Button>
 
               <h2 className="mt-4 text-[15px] font-semibold text-gray-900">예상 자전거 수</h2>

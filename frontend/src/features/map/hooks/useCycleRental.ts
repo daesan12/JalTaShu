@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { BikeStation, Pos } from '@/shared/api/types';
 import { ApiError } from '@/shared/api/client';
@@ -6,6 +6,7 @@ import {
   clearRentalSession,
   readRentalSession,
   writeRentalSession,
+  type RentalSession,
 } from '@/features/rental/lib/rentalSession';
 import { rentCycle, returnCycle } from '@/features/map/api/cycle';
 import {
@@ -39,10 +40,19 @@ interface UseCycleRentalOptions {
 export function useCycleRental({ stations, position, showToast }: UseCycleRentalOptions) {
   const queryClient = useQueryClient();
 
+  /*
+   * 지금 빌린 자전거를 화면도 알아야 한다 — "대여하기"와 "반납하기" 라벨이 이 값으로 갈린다.
+   * 진짜 저장소는 localStorage(`rentalSession`)지만 리액트가 그 변화를 알 수 없으므로,
+   * 대여·반납이 성공한 자리에서 state를 함께 갱신한다. 처음 값은 저장소에서 읽어
+   * 앱을 껐다 켜도 빌린 상태가 유지된다.
+   */
+  const [session, setSession] = useState<RentalSession | null>(readRentalSession);
+
   const rent = useMutation({
     mutationFn: rentCycle,
     onSuccess: (rentedAt, { cycleId }) => {
       writeRentalSession({ cycleId, rentedAt });
+      setSession({ cycleId, rentedAt });
       showToast(`${cycleId} 자전거를 대여했습니다.`);
     },
     onError: (error) => {
@@ -56,6 +66,7 @@ export function useCycleRental({ stations, position, showToast }: UseCycleRental
       returnCycle({ cycleId, stationId, latitude, longitude }),
     onSuccess: (_returnedAt, { cycleId, stationName }) => {
       clearRentalSession();
+      setSession(null);
       showToast(`${cycleId} 자전거를 ${stationName}에 반납했습니다.`);
       // 반납으로 이용 기록 한 건이 생긴다 — 나의 경로가 열릴 때 새로 받게 한다
       void queryClient.invalidateQueries({ queryKey: ['usageList'] });
@@ -104,7 +115,13 @@ export function useCycleRental({ stations, position, showToast }: UseCycleRental
     });
   }
 
-  return { handleCode };
+  return {
+    handleCode,
+    /** 지금 빌린 자전거. 없으면 null — 화면은 이걸로 대여/반납을 가른다 */
+    session,
+    /** 번호 입력 시트처럼 이 훅을 거치지 않고 반납했을 때 상태를 맞춘다 */
+    syncSession: () => setSession(readRentalSession()),
+  };
 }
 
 /**
