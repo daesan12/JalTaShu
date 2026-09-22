@@ -397,7 +397,8 @@ class CycleServiceTest {
         CycleUsageEntity usage = CycleUsageEntity.builder().cycleUsageId(100L)
                 .userEntity(user).cycleEntity(cycle).build();
         ClaimEntity claim = ClaimEntity.builder().claimId(10L).cycleEntity(cycle).userEntity(user)
-                .claimCategory(ClaimCategory.TIRE).content("타이어 펑크").createdAt(createdAt).build();
+                .claimType(ClaimType.CYCLE).claimCategory(ClaimCategory.TIRE)
+                .content("타이어 펑크").status(ClaimStatus.READY).createdAt(createdAt).build();
         when(cycleRepository.existsById("C1")).thenReturn(true);
         when(cycleClaimRepository.findAllByCycleEntity_CycleIdOrderByCreatedAtDescClaimIdDesc("C1"))
                 .thenReturn(List.of(claim));
@@ -408,6 +409,27 @@ class CycleServiceTest {
             assertThat(response.claimCategory()).isEqualTo(ClaimCategory.TIRE);
             assertThat(response.content()).isEqualTo("타이어 펑크");
             assertThat(response.createdAt()).isEqualTo(createdAt);
+            assertThat(response.status()).isEqualTo(ClaimStatus.READY);
+            assertThat(response.cycleId()).isEqualTo("C1");
+        });
+    }
+
+    @Test
+    void myClaimListReturnsStatusAndNullCycleIdForEtcClaim() {
+        ClaimEntity claim = ClaimEntity.builder()
+                .claimId(11L)
+                .claimType(ClaimType.ETC)
+                .userEntity(user)
+                .content("기타 문의")
+                .status(ClaimStatus.IN_PROGRESS)
+                .createdAt(LocalDateTime.of(2026, 9, 11, 10, 0))
+                .build();
+        when(cycleClaimRepository.findByUserEntity_UserIdOrderByCreatedAtDescClaimIdDesc(1L))
+                .thenReturn(List.of(claim));
+
+        assertThat(claimService.getMyCycleClaims(1L)).singleElement().satisfies(response -> {
+            assertThat(response.status()).isEqualTo(ClaimStatus.IN_PROGRESS);
+            assertThat(response.cycleId()).isNull();
         });
     }
 

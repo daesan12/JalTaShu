@@ -3,6 +3,7 @@ package com.s15p21b103.good_tashu.cycle.controller;
 import com.s15p21b103.good_tashu._util.exception.GlobalExceptionHandler;
 import com.s15p21b103.good_tashu.claim.domain.ClaimCategory;
 import com.s15p21b103.good_tashu.claim.domain.ClaimReportCategory;
+import com.s15p21b103.good_tashu.claim.domain.ClaimStatus;
 import com.s15p21b103.good_tashu.claim.domain.ClaimType;
 import com.s15p21b103.good_tashu.claim.dto.req.CycleClaimRequest;
 import com.s15p21b103.good_tashu.claim.dto.res.ClaimListResponse;
@@ -200,14 +201,31 @@ class CycleControllerTest {
     @Test
     void listBindsCycleIdAndReturnsSpecifiedFields() throws Exception {
         when(claimService.getCycleClaims("C1")).thenReturn(List.of(new ClaimListResponse(
-                10L, ClaimType.CYCLE, "타슈이용자", ClaimCategory.TIRE, "타이어 펑크", LocalDateTime.of(2026, 9, 10, 10, 0))));
+                10L, ClaimType.CYCLE, "타슈이용자", ClaimCategory.TIRE, "타이어 펑크",
+                LocalDateTime.of(2026, 9, 10, 10, 0), ClaimStatus.READY, "C1")));
         mvc.perform(get("/api/claim/list").param("cycleId", "C1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].claimId").value(10))
                 .andExpect(jsonPath("$.data[0].nickname").value("타슈이용자"))
                 .andExpect(jsonPath("$.data[0].claimCategory").value("TIRE"))
                 .andExpect(jsonPath("$.data[0].content").value("타이어 펑크"))
-                .andExpect(jsonPath("$.data[0].createdAt").exists());
+                .andExpect(jsonPath("$.data[0].createdAt").exists())
+                .andExpect(jsonPath("$.data[0].status").value("READY"))
+                .andExpect(jsonPath("$.data[0].cycleId").value("C1"));
+    }
+
+    @Test
+    void myClaimListReturnsStatusAndNullableCycleId() throws Exception {
+        when(claimService.getMyCycleClaims(1L)).thenReturn(List.of(new ClaimListResponse(
+                11L, ClaimType.ETC, "타슈이용자", null, "기타 문의",
+                LocalDateTime.of(2026, 9, 11, 10, 0), ClaimStatus.IN_PROGRESS, null)));
+
+        mvc.perform(get("/api/claim/list/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.data[0].cycleId").isEmpty());
+
+        verify(claimService).getMyCycleClaims(1L);
     }
 
     @Test

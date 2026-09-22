@@ -110,7 +110,9 @@ public class ClaimService {
                         claim.getUserEntity().getNickname(),
                         claim.getClaimCategory(),
                         claim.getContent(),
-                        claim.getCreatedAt()))
+                        claim.getCreatedAt(),
+                        claim.getStatus(),
+                        claim.getCycleEntity() == null ? null : claim.getCycleEntity().getCycleId()))
                 .toList();
     }
 
@@ -147,7 +149,9 @@ public class ClaimService {
                         claim.getUserEntity().getNickname(),
                         claim.getClaimCategory(),
                         claim.getContent(),
-                        claim.getCreatedAt()))
+                        claim.getCreatedAt(),
+                        claim.getStatus(),
+                        claim.getCycleEntity() == null ? null : claim.getCycleEntity().getCycleId()))
                 .toList();
     }
 }
