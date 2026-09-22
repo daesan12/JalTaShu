@@ -6,6 +6,7 @@ import com.s15p21b103.good_tashu.admin.domain.PopupEntity;
 import com.s15p21b103.good_tashu.admin.dto.req.AdminNoticeCreateRequest;
 import com.s15p21b103.good_tashu.admin.dto.req.AdminNoticeUpdateRequest;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminNoticeCreateResponse;
+import com.s15p21b103.good_tashu.admin.dto.res.AdminNoticeListResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminPopupCreateResponse;
 import com.s15p21b103.good_tashu.admin.exception.AdminException;
 import com.s15p21b103.good_tashu.admin.repository.AdminRepository;
@@ -21,6 +22,8 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 import static com.s15p21b103.good_tashu.admin.exception.AdminErrorCode.NOT_EXISTS_ADMIN;
 import static com.s15p21b103.good_tashu.admin.exception.AdminErrorCode.NOT_EXISTS_POPUP;
 import static com.s15p21b103.good_tashu.notice.exception.NoticeErrorCode.NOT_EXIST_NOTICE_ID;
@@ -34,6 +37,11 @@ public class AdminNoticeService {
     private final NoticeRepository noticeRepository;
     private final PopupRepository popupRepository;
     private final S3Service s3Service;
+
+    @Transactional(readOnly = true)
+    public List<AdminNoticeListResponse> getNoticeList() {
+        return popupRepository.findAdminNoticeList();
+    }
 
     @Transactional
     public AdminNoticeCreateResponse createNotice(Long adminId, AdminNoticeCreateRequest request) {

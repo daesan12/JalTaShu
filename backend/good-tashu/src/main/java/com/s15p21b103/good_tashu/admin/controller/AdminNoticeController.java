@@ -5,10 +5,10 @@ import com.s15p21b103.good_tashu.admin.annotation.CurrentAdminId;
 import com.s15p21b103.good_tashu.admin.dto.req.AdminNoticeCreateRequest;
 import com.s15p21b103.good_tashu.admin.dto.req.AdminNoticeUpdateRequest;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminNoticeCreateResponse;
+import com.s15p21b103.good_tashu.admin.dto.res.AdminNoticeListResponse;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminPopupCreateResponse;
 import com.s15p21b103.good_tashu.admin.service.AdminNoticeService;
 import com.s15p21b103.good_tashu.notice.dto.res.NoticeDetailResponse;
-import com.s15p21b103.good_tashu.notice.dto.res.NoticeListResponse;
 import com.s15p21b103.good_tashu.notice.dto.res.PopupListResponse;
 import com.s15p21b103.good_tashu.notice.service.NoticeService;
 import jakarta.validation.Valid;
@@ -35,9 +35,9 @@ public class AdminNoticeController {
     private final NoticeService noticeService;
 
     @GetMapping("/notice/list")
-    public ApiResponse<List<NoticeListResponse>> getNoticeList(
+    public ApiResponse<List<AdminNoticeListResponse>> getNoticeList(
             @CurrentAdminId Long adminId) {
-        return ApiResponse.success(noticeService.getNoticeList());
+        return ApiResponse.success(adminNoticeService.getNoticeList());
     }
 
     @GetMapping("/notice/{noticeId}")
