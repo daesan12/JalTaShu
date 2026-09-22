@@ -521,42 +521,47 @@ function BikeStatusFeature() {
         </ul>
       </Reveal>
       <Reveal className="jt-bike-status-scene">
-        <div className="jt-qr-visual" aria-hidden="true">
-          <span className="jt-qr-corner corner-a" />
-          <span className="jt-qr-corner corner-b" />
-          <span className="jt-qr-corner corner-c" />
-          <span className="jt-qr-corner corner-d" />
-          <div className="jt-qr-grid">
-            {Array.from({ length: 49 }, (_, index) => (
-              <i key={index} className={(index * 7 + index * index) % 5 < 2 ? 'is-filled' : ''} />
-            ))}
+        <div className="jt-bike-status-aside">
+          <div className="jt-qr-visual" aria-hidden="true">
+            <svg className="jt-qr-symbol" viewBox="0 0 120 120">
+              <g fill="currentColor">
+                <path d="M13 39V13h26v8H21v18H13Zm68-26h26v26h-8V21H81v-8ZM13 81h8v18h18v8H13V81Zm86 0h8v26H81v-8h18V81Z" />
+                <path
+                  fillRule="evenodd"
+                  d="M29 29h28v28H29V29Zm9 9v10h10V38H38Zm25-9h28v28H63V29Zm9 9v10h10V38H72ZM29 63h28v28H29V63Zm9 9v10h10V72H38Z"
+                />
+                <path d="M64 64h11v11H64V64Zm14 0h13v27H78V78h-8V64h8Zm-14 14h11v13H64V78Z" />
+              </g>
+            </svg>
+            <motion.span
+              className="jt-scan-line"
+              animate={reduced ? undefined : { y: [0, 91, 0] }}
+              transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <small>
+              <i /> 자전거 QR 스캔
+            </small>
           </div>
-          <motion.span
-            className="jt-scan-line"
-            animate={reduced ? undefined : { y: [0, 114, 0] }}
-            transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <small>자전거 QR</small>
+          <motion.div
+            className="jt-condition-card"
+            initial={false}
+            whileInView={reduced ? undefined : { y: [8, 0], opacity: [0, 1] }}
+            viewport={{ once: false, amount: 0.6 }}
+            transition={{ duration: 0.45 }}
+          >
+            <div className="jt-condition-heading">
+              <span>점검 필요</span>
+              <b>3</b>
+            </div>
+            <strong>최근 제보</strong>
+            <div className="jt-condition-tags">
+              <span>브레이크</span>
+              <span>타이어</span>
+              <span>안장</span>
+            </div>
+          </motion.div>
         </div>
         <MediaSlot name="bikeStatus" label="QR 자전거 상태 확인 앱 화면" />
-        <motion.div
-          className="jt-condition-card"
-          initial={false}
-          whileInView={reduced ? undefined : { y: [8, 0], opacity: [0, 1] }}
-          viewport={{ once: false, amount: 0.6 }}
-          transition={{ duration: 0.45 }}
-        >
-          <span>점검 필요</span>
-          <strong>최근 제보 3건</strong>
-          <div>
-            <i />
-            브레이크
-            <i />
-            타이어
-            <i />
-            안장
-          </div>
-        </motion.div>
       </Reveal>
     </section>
   );

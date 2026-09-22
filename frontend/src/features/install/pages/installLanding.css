@@ -3667,113 +3667,87 @@
 .jt-bike-status-scene {
   min-height: 640px;
   display: grid;
-  place-items: center;
+  grid-template-columns: minmax(170px, 205px) 235px;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+}
+.jt-bike-status-aside {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 18px;
 }
 .jt-bike-status-scene .jt-screen-gallery {
   --screen-width: 235px;
-  margin: 0 0 0 70px;
+  margin: 0;
   z-index: 3;
 }
 .jt-bike-status-scene .jt-screen-gallery:not(.has-stack) .jt-portrait-card {
-  transform: rotate(2deg);
+  transform: rotate(1.5deg);
 }
 .jt-qr-visual {
-  position: absolute;
-  left: -12px;
-  top: 68px;
-  width: 184px;
-  height: 208px;
-  padding: 27px 24px 20px;
+  position: relative;
+  width: 100%;
+  padding: 22px 22px 18px;
   border: 1px solid #d7e3ce;
   border-radius: 28px;
-  background: #fbfcf8e6;
+  background: #fffefaf2;
   box-shadow: 0 22px 60px #2d431b12;
-  transform: rotate(-7deg);
+  transform: rotate(-3deg);
   z-index: 2;
 }
-.jt-qr-visual small {
+.jt-qr-symbol {
   display: block;
-  margin-top: 15px;
+  width: 100%;
+  aspect-ratio: 1;
+  color: #2d332b;
+}
+.jt-qr-visual small {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 10px;
   color: #63725a;
   font-size: 10px;
   font-weight: 700;
   text-align: center;
 }
-.jt-qr-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
-  width: 136px;
-  height: 136px;
-  padding: 9px;
-  border-radius: 13px;
-  background: white;
-}
-.jt-qr-grid i {
-  border-radius: 2px;
-  background: transparent;
-}
-.jt-qr-grid i.is-filled {
-  background: #456f21;
-}
-.jt-qr-corner {
-  position: absolute;
-  width: 25px;
-  height: 25px;
-  border-color: #4c8a12;
-  z-index: 1;
-}
-.jt-qr-corner.corner-a {
-  left: 14px;
-  top: 15px;
-  border-left: 3px solid;
-  border-top: 3px solid;
-  border-radius: 8px 0 0;
-}
-.jt-qr-corner.corner-b {
-  right: 14px;
-  top: 15px;
-  border-right: 3px solid;
-  border-top: 3px solid;
-  border-radius: 0 8px 0 0;
-}
-.jt-qr-corner.corner-c {
-  left: 14px;
-  bottom: 40px;
-  border-left: 3px solid;
-  border-bottom: 3px solid;
-  border-radius: 0 0 0 8px;
-}
-.jt-qr-corner.corner-d {
-  right: 14px;
-  bottom: 40px;
-  border-right: 3px solid;
-  border-bottom: 3px solid;
-  border-radius: 0 0 8px;
+.jt-qr-visual small i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5b8d31;
+  box-shadow: 0 0 0 4px #eaf3e1;
 }
 .jt-scan-line {
   position: absolute;
   left: 26px;
-  top: 34px;
-  width: 132px;
+  right: 26px;
+  top: 29px;
   height: 2px;
   border-radius: 99px;
-  background: #79af3d;
-  box-shadow: 0 0 12px #78a64c;
+  background: linear-gradient(90deg, transparent, #6c9d41 14% 86%, transparent);
+  box-shadow: 0 4px 14px #5f8b3d80;
 }
 .jt-condition-card {
-  position: absolute;
-  right: -10px;
-  bottom: 66px;
-  width: 205px;
-  padding: 20px;
-  border: 1px solid #ead7d1;
-  border-radius: 23px;
-  background: #fffdfbe8;
-  box-shadow: 0 22px 55px #4a31141a;
-  z-index: 4;
+  position: relative;
+  width: 100%;
+  padding: 17px 18px 18px;
+  border: 1px solid #dce5d5;
+  border-radius: 22px;
+  background: #fffffff0;
+  box-shadow: 0 18px 46px #33452310;
+  z-index: 2;
 }
-.jt-condition-card > span {
+.jt-condition-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.jt-condition-heading > span {
   display: inline-flex;
   padding: 6px 10px;
   border-radius: 99px;
@@ -3782,27 +3756,36 @@
   font-size: 10px;
   font-weight: 800;
 }
+.jt-condition-heading b {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf4e7;
+  color: #4f7f28;
+  font-size: 13px;
+}
 .jt-condition-card strong {
   display: block;
-  margin-top: 12px;
+  margin-top: 10px;
   color: #263122;
-  font-size: 17px;
+  font-size: 16px;
 }
-.jt-condition-card div {
+.jt-condition-tags {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  margin-top: 13px;
-  color: #697263;
-  font-size: 9px;
+  margin-top: 11px;
 }
-.jt-condition-card i {
-  width: 5px;
-  height: 5px;
-  margin-left: 2px;
-  border-radius: 50%;
-  background: #d95d3c;
+.jt-condition-tags span {
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: #f3f6f0;
+  color: #687163;
+  font-size: 9px;
+  font-weight: 700;
 }
 @media (max-width: 760px) {
   .jt-bike-status {
@@ -3835,65 +3818,65 @@
     font-size: 9px;
   }
   .jt-bike-status-scene {
-    min-height: 515px;
+    grid-template-columns: minmax(112px, 132px) minmax(178px, 190px);
+    min-height: 440px;
+    align-items: start;
+    gap: 14px;
+  }
+  .jt-bike-status-aside {
+    gap: 13px;
+    margin-top: 30px;
   }
   .jt-bike-status-scene .jt-screen-gallery {
     --screen-width: 190px;
-    margin: 0 0 0 35px;
+    margin: 0;
   }
   .jt-qr-visual {
-    left: -4px;
-    top: 24px;
-    width: 132px;
-    height: 153px;
-    padding: 20px 17px 15px;
+    width: 100%;
+    padding: 14px 14px 12px;
     border-radius: 20px;
   }
-  .jt-qr-grid {
-    width: 98px;
-    height: 98px;
-    padding: 7px;
-    gap: 2px;
-  }
   .jt-qr-visual small {
-    margin-top: 10px;
-    font-size: 8px;
-  }
-  .jt-qr-corner.corner-a,
-  .jt-qr-corner.corner-b {
-    top: 11px;
-  }
-  .jt-qr-corner.corner-c,
-  .jt-qr-corner.corner-d {
-    bottom: 29px;
-  }
-  .jt-qr-corner.corner-a,
-  .jt-qr-corner.corner-c {
-    left: 9px;
-  }
-  .jt-qr-corner.corner-b,
-  .jt-qr-corner.corner-d {
-    right: 9px;
+    gap: 5px;
+    margin-top: 7px;
+    font-size: 7px;
   }
   .jt-scan-line {
-    left: 18px;
-    top: 25px;
-    width: 96px;
+    left: 16px;
+    right: 16px;
+    top: 20px;
   }
   .jt-condition-card {
-    right: -2px;
-    bottom: 22px;
-    width: 168px;
-    padding: 15px;
-    border-radius: 19px;
+    width: 100%;
+    padding: 12px;
+    border-radius: 17px;
+  }
+  .jt-condition-heading > span {
+    padding: 5px 7px;
+    font-size: 8px;
+  }
+  .jt-condition-heading b {
+    width: 25px;
+    height: 25px;
+    font-size: 11px;
   }
   .jt-condition-card strong {
-    font-size: 14px;
+    margin-top: 8px;
+    font-size: 13px;
+  }
+  .jt-condition-tags {
+    display: grid;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .jt-condition-tags span {
+    padding: 4px 6px;
+    font-size: 8px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .jt-scan-line {
-    transform: translateY(56px);
+    transform: translateY(45px);
   }
   .jt #bike-status .jt-bike-status-copy,
   .jt #bike-status .jt-bike-status-scene {
