@@ -33,6 +33,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -59,7 +60,11 @@ class CycleServiceTest {
     @InjectMocks ClaimService claimService;
 
     private final UserEntity user = UserEntity.builder().nickname("타슈이용자").build();
-    private final StationEntity station = StationEntity.builder().stationId("S1").build();
+    private static final BigDecimal LATITUDE = new BigDecimal("36.350400");
+    private static final BigDecimal LONGITUDE = new BigDecimal("127.384500");
+
+    private final StationEntity station = StationEntity.builder().stationId("S1")
+            .latitude(LATITUDE).longitude(LONGITUDE).build();
     private final CycleEntity cycle = CycleEntity.builder()
             .cycleId("C1").status(CycleStatus.READY).stationEntity(station).build();
 
@@ -72,11 +77,20 @@ class CycleServiceTest {
         return new CycleClaimRequest("C1", ClaimCategory.TIRE, "타이어 펑크", file);
     }
 
+    private CycleRentalRequest rentalRequest(String cycleId, String stationId) {
+        return new CycleRentalRequest(cycleId, stationId, LATITUDE, LONGITUDE);
+    }
+
+    private CycleReturnRequest returnRequest(String cycleId, String stationId) {
+        return new CycleReturnRequest(cycleId, stationId, LATITUDE, LONGITUDE);
+    }
+
     @Test
     void rentalPreservesDepartureStationInUsageHistory() {
         existingUserAndCycle();
 
-        LocalDateTime rentalAt = cycleService.rentalCycle(1L, new CycleRentalRequest("C1", null));
+        when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
+        LocalDateTime rentalAt = cycleService.rentalCycle(1L, rentalRequest("C1", "S1"));
 
         ArgumentCaptor<CycleUsageEntity> usageCaptor = ArgumentCaptor.forClass(CycleUsageEntity.class);
         verify(cycleUsageRepository).save(usageCaptor.capture());
@@ -93,7 +107,7 @@ class CycleServiceTest {
     @Test
     void rentalRejectsMissingUserWithoutWritingAnything() {
         when(userRepository.findById(1L)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> cycleService.rentalCycle(1L, new CycleRentalRequest("C1", null)))
+        assertThatThrownBy(() -> cycleService.rentalCycle(1L, rentalRequest("C1", "S1")))
                 .isInstanceOfSatisfying(UserException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(NOT_EXISTS_USER));
         verifyNoInteractions(cycleRepository, cycleUsageRepository, eventPublisher);
@@ -108,7 +122,7 @@ class CycleServiceTest {
         when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
         when(cycleRepository.save(any(CycleEntity.class))).thenAnswer(call -> call.getArgument(0));
 
-        LocalDateTime rentalAt = cycleService.rentalCycle(1L, new CycleRentalRequest("C2", "S1"));
+        LocalDateTime rentalAt = cycleService.rentalCycle(1L, rentalRequest("C2", "S1"));
 
         ArgumentCaptor<CycleEntity> cycleCaptor = ArgumentCaptor.forClass(CycleEntity.class);
         verify(cycleRepository).save(cycleCaptor.capture());
@@ -123,32 +137,38 @@ class CycleServiceTest {
         verify(eventPublisher).publishEvent(new CycleRentalStartedEvent(1L, rentalAt));
     }
 
-    // 위치 권한을 거부해도 자전거는 빌릴 수 있어야 한다 — 출발 대여소만 비게 된다.
     @Test
-    void rentalRegistersUnknownCycleWithoutStationWhenLocationIsUnknown() {
+    void rentalRejectsWhenLocationIsUnknown() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(cycleRepository.findById("C2")).thenReturn(Optional.empty());
-        when(cycleRepository.save(any(CycleEntity.class))).thenAnswer(call -> call.getArgument(0));
-
-        cycleService.rentalCycle(1L, new CycleRentalRequest("C2", null));
-
-        ArgumentCaptor<CycleUsageEntity> usageCaptor = ArgumentCaptor.forClass(CycleUsageEntity.class);
-        verify(cycleUsageRepository).save(usageCaptor.capture());
-        assertThat(usageCaptor.getValue().getRentalStationEntity()).isNull();
-        verifyNoInteractions(stationRepository);
+        assertThatThrownBy(() -> cycleService.rentalCycle(1L,
+                new CycleRentalRequest("C2", "S1", null, null)))
+                .isInstanceOfSatisfying(CycleException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(CURRENT_LOCATION_REQUIRED));
+        verifyNoInteractions(stationRepository, cycleRepository, cycleUsageRepository, eventPublisher);
     }
 
     @Test
     void rentalRejectsUnknownStationWithoutRegisteringCycle() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(cycleRepository.findById("C2")).thenReturn(Optional.empty());
         when(stationRepository.findById("S404")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> cycleService.rentalCycle(1L, new CycleRentalRequest("C2", "S404")))
+        assertThatThrownBy(() -> cycleService.rentalCycle(1L, rentalRequest("C2", "S404")))
                 .isInstanceOfSatisfying(CycleException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(NOT_EXIST_STATION_ID));
         verify(cycleRepository, never()).save(any());
         verifyNoInteractions(cycleUsageRepository, eventPublisher);
+    }
+
+    @Test
+    void rentalRejectsStationMoreThan300MetersAway() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
+
+        assertThatThrownBy(() -> cycleService.rentalCycle(1L,
+                new CycleRentalRequest("C2", "S1", new BigDecimal("36.354000"), LONGITUDE)))
+                .isInstanceOfSatisfying(CycleException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(STATION_TOO_FAR));
+        verifyNoInteractions(cycleRepository, cycleUsageRepository, eventPublisher);
     }
 
     // 소문자로 입력해도 같은 자전거다 — 대소문자만 다른 행이 따로 생기면 이력이 갈린다.
@@ -156,7 +176,8 @@ class CycleServiceTest {
     void rentalLooksUpCycleIdInUpperCase() {
         existingUserAndCycle();
 
-        cycleService.rentalCycle(1L, new CycleRentalRequest("c1", null));
+        when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
+        cycleService.rentalCycle(1L, rentalRequest("c1", "S1"));
 
         verify(cycleRepository).findById("C1");
         verify(cycleRepository, never()).save(any());
@@ -167,7 +188,8 @@ class CycleServiceTest {
     void rentalRejectsUnavailableCycle() {
         existingUserAndCycle();
         cycle.setStatus(CycleStatus.RENTING);
-        assertThatThrownBy(() -> cycleService.rentalCycle(1L, new CycleRentalRequest("C1", null)))
+        when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
+        assertThatThrownBy(() -> cycleService.rentalCycle(1L, rentalRequest("C1", "S1")))
                 .isInstanceOfSatisfying(CycleException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(CYCLE_NOT_READY));
         verifyNoInteractions(cycleUsageRepository, eventPublisher);
@@ -177,7 +199,8 @@ class CycleServiceTest {
     void rentalRejectsUserAlreadyRentingWithoutChangingCycle() {
         existingUserAndCycle();
         when(cycleUsageRepository.existsByUserEntity_UserIdAndReturnAtIsNull(1L)).thenReturn(true);
-        assertThatThrownBy(() -> cycleService.rentalCycle(1L, new CycleRentalRequest("C1", null)))
+        when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
+        assertThatThrownBy(() -> cycleService.rentalCycle(1L, rentalRequest("C1", "S1")))
                 .isInstanceOfSatisfying(CycleException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(ALREADY_RENTING));
         assertThat(cycle.getStatus()).isEqualTo(CycleStatus.READY);
@@ -194,7 +217,7 @@ class CycleServiceTest {
         when(cycleUsageRepository.findByUserEntityAndCycleEntityAndReturnAtIsNull(user, cycle))
                 .thenReturn(Optional.of(usage));
 
-        LocalDateTime returnedAt = cycleService.returnCycle(1L, new CycleReturnRequest("C1", "S1"));
+        LocalDateTime returnedAt = cycleService.returnCycle(1L, returnRequest("C1", "S1"));
 
         assertThat(cycle.getStatus()).isEqualTo(CycleStatus.READY);
         assertThat(cycle.getStationEntity()).isSameAs(station);
@@ -207,7 +230,7 @@ class CycleServiceTest {
     void returnRejectsMissingStation() {
         existingUserAndCycle();
         when(stationRepository.findById("S1")).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> cycleService.returnCycle(1L, new CycleReturnRequest("C1", "S1")))
+        assertThatThrownBy(() -> cycleService.returnCycle(1L, returnRequest("C1", "S1")))
                 .isInstanceOfSatisfying(CycleException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(NOT_EXIST_STATION_ID));
         verifyNoInteractions(cycleUsageRepository, eventPublisher);
@@ -217,7 +240,7 @@ class CycleServiceTest {
     void returnRejectsCycleNotBeingRented() {
         existingUserAndCycle();
         when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
-        assertThatThrownBy(() -> cycleService.returnCycle(1L, new CycleReturnRequest("C1", "S1")))
+        assertThatThrownBy(() -> cycleService.returnCycle(1L, returnRequest("C1", "S1")))
                 .isInstanceOfSatisfying(CycleException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(CYCLE_NOT_RENTING));
         verifyNoInteractions(cycleUsageRepository, eventPublisher);
@@ -230,11 +253,24 @@ class CycleServiceTest {
         when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
         when(cycleUsageRepository.findByUserEntityAndCycleEntityAndReturnAtIsNull(user, cycle))
                 .thenReturn(Optional.empty());
-        assertThatThrownBy(() -> cycleService.returnCycle(1L, new CycleReturnRequest("C1", "S1")))
+        assertThatThrownBy(() -> cycleService.returnCycle(1L, returnRequest("C1", "S1")))
                 .isInstanceOfSatisfying(CycleException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(CYCLE_NOT_RENTING));
         assertThat(cycle.getStatus()).isEqualTo(CycleStatus.RENTING);
         verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void returnRejectsStationMoreThan300MetersAway() {
+        existingUserAndCycle();
+        cycle.setStatus(CycleStatus.RENTING);
+        when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
+
+        assertThatThrownBy(() -> cycleService.returnCycle(1L,
+                new CycleReturnRequest("C1", "S1", new BigDecimal("36.354000"), LONGITUDE)))
+                .isInstanceOfSatisfying(CycleException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(STATION_TOO_FAR));
+        verifyNoInteractions(cycleUsageRepository, eventPublisher);
     }
 
     @Test
