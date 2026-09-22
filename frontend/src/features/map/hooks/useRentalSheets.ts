@@ -11,9 +11,6 @@ export function useRentalSheets(stations: BikeStation[] | undefined) {
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [stationSnap, setStationSnap] = useState<StationSnap>('peek');
   const [returnSheetOpen, setReturnSheetOpen] = useState(false);
-  // 대여소 시트를 닫은 뒤에도 반납 시트가 어느 대여소인지 알아야 해서 따로 기억해 둔다
-  const [returnStationId, setReturnStationId] = useState<string | null>(null);
-
   // 목록이 갱신돼 선택한 대여소가 사라지면 시트도 닫힌다
   const selectedStation = stations?.find((s) => s.stationId === selectedStationId) ?? null;
 
@@ -30,14 +27,9 @@ export function useRentalSheets(stations: BikeStation[] | undefined) {
     setSelectedStationId(null);
   }
 
-  /**
-   * 대여소 시트의 "반납하기" — 지금 열려 있는 대여소를 반납 대여소로 삼는다.
-   * 대여소 시트를 닫으면서 그 대여소 id는 따로 기억해 둔다 — 시트를 닫은 뒤에도
-   * 반납 번호 입력 시트가 "어느 대여소인지"를 알아야 하기 때문이다.
-   */
+  /** 대여소 시트의 "반납하기" — 실제 반납 대여소는 제출할 때 현재 위치로 다시 정한다. */
   function openReturnSheet() {
     if (selectedStation === null) return;
-    setReturnStationId(selectedStation.stationId);
     setSelectedStationId(null);
     setReturnSheetOpen(true);
   }
@@ -52,6 +44,5 @@ export function useRentalSheets(stations: BikeStation[] | undefined) {
     returnSheetOpen,
     openReturnSheet,
     closeReturnSheet: () => setReturnSheetOpen(false),
-    returnStationId,
   };
 }

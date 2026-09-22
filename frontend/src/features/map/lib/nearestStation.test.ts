@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BikeStation } from '@/shared/api/types';
 import {
-  RETURN_RADIUS_M,
+  CYCLE_STATION_RADIUS_M,
   nearestStation,
   nearestStationId,
 } from '@/features/map/lib/nearestStation';
@@ -50,12 +50,12 @@ describe('반납 대여소 고르기', () => {
   });
 
   it('모든 대여소가 반경 밖이면 null을 반환한다', () => {
-    const far = [station('ST003', BASE.lat + latOffset(RETURN_RADIUS_M + 50), BASE.lng)];
+    const far = [station('ST003', BASE.lat + latOffset(CYCLE_STATION_RADIUS_M + 50), BASE.lng)];
     expect(nearestStation(far, here)).toBeNull();
   });
 
   it('반경 경계 안의 대여소는 반납을 허용한다', () => {
-    const edge = [station('ST004', BASE.lat + latOffset(RETURN_RADIUS_M - 1), BASE.lng)];
+    const edge = [station('ST004', BASE.lat + latOffset(CYCLE_STATION_RADIUS_M - 1), BASE.lng)];
     expect(nearestStation(edge, here)?.stationId).toBe('ST004');
   });
 

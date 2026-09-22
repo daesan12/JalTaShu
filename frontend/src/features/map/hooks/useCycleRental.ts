@@ -9,15 +9,16 @@ import {
 } from '@/features/rental/lib/rentalSession';
 import { rentCycle, returnCycle } from '@/features/map/api/cycle';
 import {
-  RETURN_RADIUS_M,
+  CYCLE_STATION_RADIUS_M,
   nearestStation,
-  nearestStationId,
 } from '@/features/map/lib/nearestStation';
 
 interface ReturnInput {
   cycleId: string;
   stationId: string;
   stationName: string;
+  latitude: number;
+  longitude: number;
 }
 
 interface UseCycleRentalOptions {
@@ -51,7 +52,8 @@ export function useCycleRental({ stations, position, showToast }: UseCycleRental
 
   const giveBack = useMutation({
     // 대여소 이름은 서버에 보내지 않는다 — 토스트에 쓰려고 함께 들고 다닐 뿐이다
-    mutationFn: ({ cycleId, stationId }: ReturnInput) => returnCycle({ cycleId, stationId }),
+    mutationFn: ({ cycleId, stationId, latitude, longitude }: ReturnInput) =>
+      returnCycle({ cycleId, stationId, latitude, longitude }),
     onSuccess: (_returnedAt, { cycleId, stationName }) => {
       clearRentalSession();
       showToast(`${cycleId} 자전거를 ${stationName}에 반납했습니다.`);
@@ -69,8 +71,17 @@ export function useCycleRental({ stations, position, showToast }: UseCycleRental
     const session = readRentalSession();
 
     if (session === null) {
-      const stationId = position === null ? undefined : nearestStationId(stations, position) ?? undefined;
-      rent.mutate({ cycleId: code, stationId });
+      const station = nearestStation(stations, position);
+      if (station === null || position === null) {
+        showToast(`대여소에서 ${CYCLE_STATION_RADIUS_M}m 안으로 이동한 뒤 대여해 주세요.`);
+        return;
+      }
+      rent.mutate({
+        cycleId: code,
+        stationId: station.stationId,
+        latitude: position.yPos,
+        longitude: position.xPos,
+      });
       return;
     }
 
@@ -80,11 +91,17 @@ export function useCycleRental({ stations, position, showToast }: UseCycleRental
     }
 
     const station = nearestStation(stations, position);
-    if (station === null) {
-      showToast(`대여소에서 ${RETURN_RADIUS_M}m 안으로 이동한 뒤 반납해 주세요.`);
+    if (station === null || position === null) {
+      showToast(`대여소에서 ${CYCLE_STATION_RADIUS_M}m 안으로 이동한 뒤 반납해 주세요.`);
       return;
     }
-    giveBack.mutate({ cycleId: code, stationId: station.stationId, stationName: station.name });
+    giveBack.mutate({
+      cycleId: code,
+      stationId: station.stationId,
+      stationName: station.name,
+      latitude: position.yPos,
+      longitude: position.xPos,
+    });
   }
 
   return { handleCode };

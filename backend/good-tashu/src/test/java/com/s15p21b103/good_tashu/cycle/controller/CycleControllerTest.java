@@ -11,6 +11,8 @@ import com.s15p21b103.good_tashu.cycle.dto.res.CyclePointResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleStatisticsResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageDetailResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageListResponse;
+import com.s15p21b103.good_tashu.cycle.dto.req.CycleRentalRequest;
+import com.s15p21b103.good_tashu.cycle.dto.req.CycleReturnRequest;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
 import com.s15p21b103.good_tashu.claim.exception.ClaimException;
 import static com.s15p21b103.good_tashu.claim.exception.ClaimErrorCode.*;
@@ -71,6 +73,56 @@ class CycleControllerTest {
                 .setCustomArgumentResolvers(userResolver)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void rentalEndpointBindsStationAndCurrentLocation() throws Exception {
+        when(cycleService.rentalCycle(eq(1L), any()))
+                .thenReturn(LocalDateTime.of(2026, 9, 22, 10, 0));
+
+        mvc.perform(post("/api/cycle/rental")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"cycleId":"DJ99999","stationId":"ST0001",
+                                 "latitude":36.3504,"longitude":127.3845}
+                                """))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<CycleRentalRequest> captor = ArgumentCaptor.forClass(CycleRentalRequest.class);
+        verify(cycleService).rentalCycle(eq(1L), captor.capture());
+        assertThat(captor.getValue().stationId()).isEqualTo("ST0001");
+        assertThat(captor.getValue().latitude()).isEqualByComparingTo("36.3504");
+        assertThat(captor.getValue().longitude()).isEqualByComparingTo("127.3845");
+    }
+
+    @Test
+    void rentalEndpointRejectsMissingCurrentLocation() throws Exception {
+        mvc.perform(post("/api/cycle/rental")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cycleId\":\"DJ99999\",\"stationId\":\"ST0001\"}"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(cycleService, claimService);
+    }
+
+    @Test
+    void returnEndpointBindsStationAndCurrentLocation() throws Exception {
+        when(cycleService.returnCycle(eq(1L), any()))
+                .thenReturn(LocalDateTime.of(2026, 9, 22, 10, 30));
+
+        mvc.perform(post("/api/cycle/return")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"cycleId":"DJ99999","stationId":"ST0001",
+                                 "latitude":36.3504,"longitude":127.3845}
+                                """))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<CycleReturnRequest> captor = ArgumentCaptor.forClass(CycleReturnRequest.class);
+        verify(cycleService).returnCycle(eq(1L), captor.capture());
+        assertThat(captor.getValue().stationId()).isEqualTo("ST0001");
+        assertThat(captor.getValue().latitude()).isEqualByComparingTo("36.3504");
+        assertThat(captor.getValue().longitude()).isEqualByComparingTo("127.3845");
     }
 
     @Test
