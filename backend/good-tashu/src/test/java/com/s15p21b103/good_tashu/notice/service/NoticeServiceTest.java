@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -45,6 +46,7 @@ class NoticeServiceTest {
     void popupListReturnsSignedPhotoUrlsAndLinkedNoticeIds() {
         PopupEntity popup = new PopupEntity("팝업 제목", "images/photo-key", notice(7L),
                 AdminEntity.builder().id("admin01").build());
+        ReflectionTestUtils.setField(popup, "popUpId", 3L);
         when(popupRepository.findAllByOrderByCreatedAtDescPopUpIdDesc()).thenReturn(List.of(popup));
         when(s3Service.createDownloadUrl("images/photo-key"))
                 .thenReturn("https://example.com/signed-photo");
@@ -52,6 +54,7 @@ class NoticeServiceTest {
         var result = noticeService.getPopupList();
 
         assertThat(result).hasSize(1);
+        assertThat(result.getFirst().popupId()).isEqualTo(3L);
         assertThat(result.getFirst().title()).isEqualTo("팝업 제목");
         assertThat(result.getFirst().photoUrl()).isEqualTo("https://example.com/signed-photo");
         assertThat(result.getFirst().noticeId()).isEqualTo(7L);
