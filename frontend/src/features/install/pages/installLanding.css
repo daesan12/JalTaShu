@@ -3494,7 +3494,7 @@
   }
 }
 
-/* Compact instructions: three short steps, one menu crop. */
+/* Compact text-only installation instructions. */
 .jt-install-guide {
   max-width: 760px;
   margin-left: auto;
@@ -3516,138 +3516,46 @@
 .jt-install-toggle {
   display: none;
 }
-.jt-install-compact-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 190px;
-  gap: 34px;
-  align-items: center;
-}
 .jt-install-guide .jt-install-step-list {
   display: grid;
-  gap: 5px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
   list-style: none;
   padding: 0;
   margin: 0;
 }
 .jt-install-guide .jt-install-step-list li {
-  display: block;
-  margin: 0;
-}
-.jt-install-step-list button {
   display: flex;
-  gap: 13px;
+  gap: 12px;
+  margin: 0;
   text-align: left;
-  width: 100%;
-  padding: 13px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  color: #7d8971;
-  font: inherit;
-  cursor: pointer;
+  padding: 15px 14px;
+  background: #ffffffa8;
+  border: 1px solid #dce5d4;
+  border-radius: 14px;
+  color: #56634f;
 }
-.jt-install-step-list button[aria-pressed='true'] {
-  background: #ffffffb8;
-  border-color: #d8e4cc;
-  color: #416b20;
-}
-.jt-install-step-list button > span {
+.jt-install-step-list li > span {
   font-size: 10px;
-  padding-top: 3px;
+  padding-top: 2px;
+  color: #4c8a12;
+  font-weight: 700;
 }
 .jt-install-step-list strong {
   font-size: 14px;
   font-weight: 600;
+  color: #263122;
 }
 .jt-install-guide .jt-install-step-list p {
   font-size: 11px;
   line-height: 1.6;
   margin: 5px 0 0;
 }
-.jt-install-preview {
-  width: 190px;
-  margin: 0;
-}
-.jt-install-preview-image {
-  width: 100%;
-  aspect-ratio: 1;
-  background: #e5e8e1;
-  border: 4px solid white;
-  border-radius: 16px;
-  overflow: hidden;
-}
-.jt-install-placeholder {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  color: #8d9883;
-}
-.jt-install-placeholder > span {
-  font-size: 30px;
-}
-.jt-install-placeholder strong {
-  font-size: 12px;
-  font-weight: 500;
-}
-.jt-install-placeholder small {
-  font-size: 9px;
-}
-.jt-install-preview figcaption {
-  font-size: 9px;
-  text-align: center;
-  margin-top: 10px;
-  color: #8a9480;
-}
 .jt-install-guide .jt-install-note {
   font-size: 10px;
   margin-top: 16px;
 }
-.jt-enlarge-shot {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  cursor: zoom-in;
-}
-.jt-enlarge-shot img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-}
-.jt-shot-dialog {
-  border: 0;
-  border-radius: 18px;
-  padding: 18px;
-  width: min(90vw, 560px);
-  max-height: 90svh;
-  background: white;
-}
-.jt-shot-dialog::backdrop {
-  background: #18201399;
-}
-.jt-shot-dialog img {
-  display: block;
-  max-width: 100%;
-  max-height: 75svh;
-  object-fit: contain;
-  margin: auto;
-}
-.jt-shot-close {
-  display: block;
-  margin: 0 0 15px auto;
-  background: transparent;
-  border: 0;
-  padding: 8px;
-  cursor: pointer;
-}
-.jt-install-step-list button:focus-visible,
-.jt-install-toggle:focus-visible,
-.jt-enlarge-shot:focus-visible {
+.jt-install-toggle:focus-visible {
   outline: 2px solid #4c8a12;
   outline-offset: 3px;
 }
@@ -3679,15 +3587,12 @@
     display: block;
     margin-top: 15px;
   }
-  .jt-install-compact-grid {
-    grid-template-columns: minmax(0, 1fr) 115px;
-    gap: 10px;
+  .jt-install-guide .jt-install-step-list {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
-  .jt-install-preview {
-    width: 115px;
-  }
-  .jt-install-step-list button {
-    padding: 10px 5px;
+  .jt-install-guide .jt-install-step-list li {
+    padding: 12px;
     gap: 8px;
   }
   .jt-install-step-list strong {
@@ -3696,31 +3601,330 @@
   .jt-install-guide .jt-install-step-list p {
     font-size: 10px;
   }
-  .jt-install-placeholder strong {
-    font-size: 10px;
+}
+
+/* QR 상태 확인: 실제 앱 화면과 스캔 과정을 한 장면으로 연결한다. */
+.jt-bike-status {
+  position: relative;
+  grid-template-columns: minmax(0, 0.9fr) minmax(440px, 1.1fr);
+  gap: clamp(50px, 7vw, 110px);
+  min-height: 820px;
+}
+.jt-bike-status::before {
+  content: '';
+  position: absolute;
+  right: -6vw;
+  top: 50%;
+  width: min(56vw, 690px);
+  aspect-ratio: 1;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #e5efda 0 38%, #edf4e680 58%, transparent 72%);
+  pointer-events: none;
+}
+.jt-bike-status-copy,
+.jt-bike-status-scene {
+  position: relative;
+  z-index: 1;
+}
+.jt-bike-status-copy > p:last-of-type {
+  margin-top: 25px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.9;
+}
+.jt-bike-status-points {
+  display: grid;
+  gap: 9px;
+  margin: 34px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.jt-bike-status-points li {
+  display: grid;
+  grid-template-columns: 32px 92px 1fr;
+  align-items: center;
+  min-height: 58px;
+  padding: 10px 16px;
+  border: 1px solid #dae5d1;
+  border-radius: 18px;
+  background: #ffffffa3;
+  box-shadow: 0 10px 30px #3449250a;
+}
+.jt-bike-status-points span {
+  color: #6f9450;
+  font-size: 10px;
+  font-weight: 800;
+}
+.jt-bike-status-points strong {
+  color: #253020;
+  font-size: 13px;
+}
+.jt-bike-status-points small {
+  color: #7c8676;
+  font-size: 10px;
+}
+.jt-bike-status-scene {
+  min-height: 640px;
+  display: grid;
+  grid-template-columns: minmax(170px, 205px) 235px;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+}
+.jt-bike-status-aside {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 18px;
+}
+.jt-bike-status-phone-motion {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform;
+}
+.jt-qr-visual,
+.jt-condition-card {
+  will-change: transform;
+}
+.jt-bike-status-scene .jt-screen-gallery {
+  --screen-width: 235px;
+  margin: 0;
+  z-index: 3;
+}
+.jt-bike-status-scene .jt-screen-gallery:not(.has-stack) .jt-portrait-card {
+  transform: rotate(1.5deg);
+}
+.jt-qr-visual {
+  position: relative;
+  width: 100%;
+  padding: 22px 22px 18px;
+  border: 1px solid #d7e3ce;
+  border-radius: 28px;
+  background: #fffefaf2;
+  box-shadow: 0 22px 60px #2d431b12;
+  transform: rotate(-3deg);
+  z-index: 2;
+}
+.jt-qr-symbol {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  color: #2d332b;
+}
+.jt-qr-visual small {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 10px;
+  color: #63725a;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+.jt-qr-visual small i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5b8d31;
+  box-shadow: 0 0 0 4px #eaf3e1;
+}
+.jt-scan-line {
+  position: absolute;
+  left: 26px;
+  right: 26px;
+  top: 29px;
+  height: 2px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, #6c9d41 14% 86%, transparent);
+  box-shadow: 0 4px 14px #5f8b3d80;
+}
+.jt-condition-card {
+  position: relative;
+  width: 100%;
+  padding: 17px 18px 18px;
+  border: 1px solid #dce5d5;
+  border-radius: 22px;
+  background: #fffffff0;
+  box-shadow: 0 18px 46px #33452310;
+  z-index: 2;
+}
+.jt-condition-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.jt-condition-heading > span {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 99px;
+  background: #fff0eb;
+  color: #a8472c;
+  font-size: 10px;
+  font-weight: 800;
+}
+.jt-condition-heading b {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf4e7;
+  color: #4f7f28;
+  font-size: 13px;
+}
+.jt-condition-card strong {
+  display: block;
+  margin-top: 10px;
+  color: #263122;
+  font-size: 16px;
+}
+.jt-condition-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 11px;
+}
+.jt-condition-tags span {
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: #f3f6f0;
+  color: #687163;
+  font-size: 9px;
+  font-weight: 700;
+}
+@media (max-width: 760px) {
+  .jt-bike-status {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding: 80px 24px 65px;
+    gap: 34px;
   }
-  .jt-install-placeholder small {
+  .jt-bike-status::before {
+    right: -42vw;
+    top: 68%;
+    width: 145vw;
+  }
+  .jt-bike-status-copy > p:last-of-type {
+    margin-top: 20px;
+    font-size: 13px;
+  }
+  .jt-bike-status-points {
+    margin-top: 25px;
+  }
+  .jt-bike-status-points li {
+    grid-template-columns: 28px 82px 1fr;
+    min-height: 52px;
+    padding: 9px 12px;
+  }
+  .jt-bike-status-points strong {
+    font-size: 12px;
+  }
+  .jt-bike-status-points small {
+    font-size: 9px;
+  }
+  .jt-bike-status-scene {
+    grid-template-columns: minmax(112px, 132px) minmax(178px, 190px);
+    min-height: 440px;
+    align-items: start;
+    gap: 14px;
+  }
+  .jt-bike-status-aside {
+    gap: 13px;
+    margin-top: 30px;
+  }
+  .jt-bike-status-scene .jt-screen-gallery {
+    --screen-width: 190px;
+    margin: 0;
+  }
+  .jt-qr-visual {
+    width: 100%;
+    padding: 14px 14px 12px;
+    border-radius: 20px;
+  }
+  .jt-qr-visual small {
+    gap: 5px;
+    margin-top: 7px;
     font-size: 7px;
   }
-  .jt-install-placeholder > span {
-    font-size: 22px;
+  .jt-scan-line {
+    left: 16px;
+    right: 16px;
+    top: 20px;
   }
-  .jt-install-placeholder {
-    gap: 7px;
+  .jt-condition-card {
+    width: 100%;
+    padding: 12px;
+    border-radius: 17px;
   }
-  .jt-install-preview figcaption {
+  .jt-condition-heading > span {
+    padding: 5px 7px;
+    font-size: 8px;
+  }
+  .jt-condition-heading b {
+    width: 25px;
+    height: 25px;
+    font-size: 11px;
+  }
+  .jt-condition-card strong {
+    margin-top: 8px;
+    font-size: 13px;
+  }
+  .jt-condition-tags {
+    display: grid;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .jt-condition-tags span {
+    padding: 4px 6px;
     font-size: 8px;
   }
 }
-
+@media (prefers-reduced-motion: reduce) {
+  .jt-scan-line {
+    transform: translateY(45px);
+  }
+  .jt #bike-status .jt-bike-status-copy,
+  .jt #bike-status .jt-bike-status-scene {
+    opacity: 1 !important;
+    translate: none !important;
+  }
+}
 
 /* Scene entrance is animated once; content remains readable afterward. */
-.jt .jt-entrance-pending { opacity: 0; }
-.jt .jt-entrance-pending:focus-within { opacity: 1; }
-@media (prefers-reduced-motion: reduce) {
-  .jt .jt-entrance-pending { opacity: 1; }
+.jt .jt-entrance-pending {
+  opacity: 0;
 }
-@media (prefers-reduced-motion: reduce) { .jt #features .jt-feature-heading, .jt #features .jt-screen-gallery, .jt #features .jt-forecast-play, .jt #routes .jt-route-header, .jt #routes .jt-route-scene, .jt #map .jt-map-copy, .jt #map .jt-map-demo, .jt #navigation .jt-feature-heading, .jt #navigation .jt-voice-scene, .jt #install > *, .jt #install .jt-install-guide { opacity: 1 !important; translate: none !important; } }
+.jt .jt-entrance-pending:focus-within {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .jt .jt-entrance-pending {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jt #features .jt-feature-heading,
+  .jt #features .jt-screen-gallery,
+  .jt #features .jt-forecast-play,
+  .jt #routes .jt-route-header,
+  .jt #routes .jt-route-scene,
+  .jt #map .jt-map-copy,
+  .jt #map .jt-map-demo,
+  .jt #navigation .jt-feature-heading,
+  .jt #navigation .jt-voice-scene,
+  .jt #install > *,
+  .jt #install .jt-install-guide {
+    opacity: 1 !important;
+    translate: none !important;
+  }
+}
 
 /* Keep chapter links aligned with the real reading position. */
 .jt section[id] {

@@ -9,8 +9,11 @@ import {
   AnimatePresence,
 } from 'framer-motion';
 import './installLanding.css';
-// Replace these empty strings with actual app screenshots/GIFs, relative to Vite's base.
-const media = { hero: '', forecast: '', route: '', map: '', navigation: '' };
+
+const installScreen = (filename: string) =>
+  `${import.meta.env.BASE_URL}install/screens/${filename}`;
+
+const media = { hero: installScreen('home-map.jpg') };
 
 const appHref = import.meta.env.BASE_URL;
 const times = ['현재', '5분 뒤', '10분 뒤', '15분 뒤'];
@@ -87,19 +90,19 @@ function Arrow() {
 function Reveal({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={className}>{children}</div>;
 }
-// Add screen-only portrait screenshots/GIFs to src. Empty entries stay gray.
 const featureScreens = {
-  forecast: [{ title: '대여소 예측', src: '' }],
+  forecast: [{ title: '시간별 예상 자전거 수', src: installScreen('station-forecast.jpg') }],
   route: [
-    { title: '경로 후보 비교', src: '' },
-    { title: '선택한 경로 상세', src: '' },
+    { title: '경로 후보 비교', src: installScreen('route-compare.jpg') },
+    { title: '경사도와 경로 상세', src: installScreen('route-elevation.jpg') },
+    { title: '도보·자전거 구간 안내', src: installScreen('route-segments.jpg') },
   ],
   map: [
-    { title: '장소 검색', src: '' },
-    { title: '출발·도착 선택', src: '' },
-    { title: '주변 대여소', src: '' },
+    { title: '주변 대여소 확인', src: installScreen('home-map.jpg') },
+    { title: '장소 선택과 경로 찾기', src: installScreen('place-selected.jpg') },
   ],
-  navigation: [{ title: '주행 중 음성 안내', src: '' }],
+  bikeStatus: [{ title: 'QR로 확인한 자전거 상태', src: installScreen('bike-status.jpg') }],
+  navigation: [{ title: '주행 중 음성 길 안내', src: installScreen('voice-navigation.jpg') }],
 };
 function MediaSlot({ name, label }: { name: keyof typeof featureScreens; label: string }) {
   const [active, setActive] = useState(0);
@@ -427,7 +430,23 @@ function ScrollForecast() {
   );
 }
 
-const trailPoint = (t: number) => ({ x: 26 + 12 * Math.cos(t * Math.PI * 5), y: 22 + t * 220 });
+const chapters = [
+  { id: 'top', label: '서비스 소개' },
+  { id: 'features', label: '자전거 수 예측' },
+  { id: 'routes', label: '경로 비교' },
+  { id: 'map', label: '장소·대여소' },
+  { id: 'bike-status', label: '자전거 상태' },
+  { id: 'navigation', label: '음성 길 안내' },
+  { id: 'install', label: '이용·설치' },
+];
+const chapterRowHeight = 44;
+const chapterTrailInset = chapterRowHeight / 2;
+const chapterTrailLength = chapterRowHeight * (chapters.length - 1);
+const chapterRailHeight = chapterTrailLength + chapterTrailInset * 2;
+const trailPoint = (t: number) => ({
+  x: 26 + 12 * Math.cos(t * Math.PI * 5),
+  y: chapterTrailInset + t * chapterTrailLength,
+});
 const journeyPath = Array.from({ length: 101 }, (_, i) => {
   const p = trailPoint(i / 100);
   return (i === 0 ? 'M' : 'L') + p.x + ' ' + p.y;
@@ -438,13 +457,18 @@ function JourneyProgress({ percent }: { percent: number }) {
   return (
     <div
       className="jt-journey-progress"
+      style={{ height: chapterRailHeight }}
       role="progressbar"
       aria-label="자전거 여정 진행률"
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={percent}
     >
-      <svg viewBox="0 0 140 264" aria-hidden="true">
+      <svg
+        viewBox={`0 0 140 ${chapterRailHeight}`}
+        style={{ height: chapterRailHeight }}
+        aria-hidden="true"
+      >
         <path d={journeyPath} fill="none" stroke="#dce6d2" strokeWidth="8" strokeLinecap="round" />
         <path d={journeyPath} fill="none" stroke="#a9bd95" strokeWidth="1" strokeDasharray="2 5" />
         <motion.path
@@ -483,12 +507,112 @@ function JourneyProgress({ percent }: { percent: number }) {
     </div>
   );
 }
+function BikeStatusFeature() {
+  const reduced = useReducedMotion();
+  const section = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: section,
+    offset: ['start end', 'end start'],
+  });
+  const qrY = useTransform(scrollYProgress, [0, 0.48, 1], [72, 0, -36]);
+  const qrRotate = useTransform(scrollYProgress, [0, 0.48, 1], [-7, -3, 1]);
+  const phoneY = useTransform(scrollYProgress, [0, 0.48, 1], [112, 0, -72]);
+  const phoneRotate = useTransform(scrollYProgress, [0, 0.48, 1], [3.5, 1.5, -1]);
+  const reportY = useTransform(scrollYProgress, [0, 0.48, 1], [132, 0, -44]);
+  return (
+    <section ref={section} className="jt-bike-status jt-section" id="bike-status">
+      <Reveal className="jt-bike-status-copy">
+        <p className="jt-eyebrow">04 — 대여하기 전에</p>
+        <h2>
+          QR을 찍고,
+          <br />
+          <em>자전거 상태부터.</em>
+        </h2>
+        <p>
+          타기 전에 QR을 찍으면 점검이 필요한지,
+          <br />
+          최근 어떤 부위에 제보가 있었는지 확인할 수 있어요.
+        </p>
+        <ul className="jt-bike-status-points">
+          <li>
+            <span>01</span>
+            <strong>QR 스캔</strong>
+            <small>자전거 번호를 바로 확인</small>
+          </li>
+          <li>
+            <span>02</span>
+            <strong>하자 부위</strong>
+            <small>브레이크·타이어·안장 표시</small>
+          </li>
+          <li>
+            <span>03</span>
+            <strong>최근 제보</strong>
+            <small>이용자 제보 내용과 시각 확인</small>
+          </li>
+        </ul>
+      </Reveal>
+      <Reveal className="jt-bike-status-scene">
+        <div className="jt-bike-status-aside">
+          <motion.div
+            className="jt-qr-visual"
+            style={{ y: reduced ? 0 : qrY, rotate: reduced ? -3 : qrRotate }}
+            aria-hidden="true"
+          >
+            <svg className="jt-qr-symbol" viewBox="0 0 120 120">
+              <g fill="currentColor">
+                <path d="M13 39V13h26v8H21v18H13Zm68-26h26v26h-8V21H81v-8ZM13 81h8v18h18v8H13V81Zm86 0h8v26H81v-8h18V81Z" />
+                <path
+                  fillRule="evenodd"
+                  d="M29 29h28v28H29V29Zm9 9v10h10V38H38Zm25-9h28v28H63V29Zm9 9v10h10V38H72ZM29 63h28v28H29V63Zm9 9v10h10V72H38Z"
+                />
+                <path d="M64 64h11v11H64V64Zm14 0h13v27H78V78h-8V64h8Zm-14 14h11v13H64V78Z" />
+              </g>
+            </svg>
+            <motion.span
+              className="jt-scan-line"
+              animate={reduced ? undefined : { y: [0, 91, 0] }}
+              transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <small>
+              <i /> 자전거 QR 스캔
+            </small>
+          </motion.div>
+          <motion.div
+            className="jt-condition-card"
+            style={{ y: reduced ? 0 : reportY }}
+            initial={false}
+            whileInView={reduced ? undefined : { opacity: [0, 1] }}
+            viewport={{ once: false, amount: 0.6 }}
+            transition={{ duration: 0.45 }}
+          >
+            <div className="jt-condition-heading">
+              <span>점검 필요</span>
+              <b>3</b>
+            </div>
+            <strong>최근 제보</strong>
+            <div className="jt-condition-tags">
+              <span>브레이크</span>
+              <span>타이어</span>
+              <span>안장</span>
+            </div>
+          </motion.div>
+        </div>
+        <motion.div
+          className="jt-bike-status-phone-motion"
+          style={{ y: reduced ? 0 : phoneY, rotate: reduced ? 0 : phoneRotate }}
+        >
+          <MediaSlot name="bikeStatus" label="QR 자전거 상태 확인 앱 화면" />
+        </motion.div>
+      </Reveal>
+    </section>
+  );
+}
 function VoiceFeature() {
   const reduced = useReducedMotion();
   return (
     <section className="jt-voice jt-section" id="navigation">
       <Reveal className="jt-feature-heading">
-        <p className="jt-eyebrow">04 — 달리는 동안에도</p>
+        <p className="jt-eyebrow">05 — 달리는 동안에도</p>
         <h2>
           시선은 앞에,
           <br />
@@ -550,25 +674,21 @@ function VoiceFeature() {
   );
 }
 
-// Browser screenshots only: no phone frame, no secrets, replace src with a public asset URL.
-const installScreens = {
+const installSteps = {
   android: [
-    { title: 'Chrome에서 열기', detail: '잘타슈 웹 주소를 Chrome에서 열어요.', src: '' },
-    { title: '메뉴 열기', detail: '오른쪽 위 ⋮ 메뉴를 눌러요.', src: '' },
-    { title: '홈 화면에 추가', detail: '홈 화면에 추가 또는 앱 설치 항목을 선택해요.', src: '' },
+    { title: 'Chrome에서 열기', detail: '잘타슈 웹 주소를 Chrome에서 열어요.' },
+    { title: '브라우저 메뉴 열기', detail: '오른쪽 위의 ⋮ 버튼을 눌러 메뉴를 열어요.' },
+    { title: '홈 화면에 추가', detail: '홈 화면에 추가 또는 앱 설치를 선택하고 확인해요.' },
   ],
   iphone: [
-    { title: 'Safari에서 열기', detail: '잘타슈 웹 주소를 Safari에서 열어요.', src: '' },
-    { title: '공유 메뉴 열기', detail: '브라우저의 공유 버튼을 눌러요.', src: '' },
-    { title: '홈 화면에 추가', detail: '홈 화면에 추가를 선택하고 확인해요.', src: '' },
+    { title: 'Safari에서 열기', detail: '잘타슈 웹 주소를 Safari에서 열어요.' },
+    { title: '공유 메뉴 열기', detail: '화면 아래의 공유 버튼을 눌러 메뉴를 열어요.' },
+    { title: '홈 화면에 추가', detail: '홈 화면에 추가를 선택하고 이름을 확인해요.' },
   ],
 };
-function InstallSteps({ platform }: { platform: keyof typeof installScreens }) {
-  const [active, setActive] = useState(0);
+function InstallSteps({ platform }: { platform: keyof typeof installSteps }) {
   const [expanded, setExpanded] = useState(false);
-  const dialog = useRef<HTMLDialogElement>(null);
-  const steps = installScreens[platform];
-  const step = steps[active];
+  const steps = installSteps[platform];
   return (
     <div className="jt-compact-install">
       <button
@@ -583,68 +703,26 @@ function InstallSteps({ platform }: { platform: keyof typeof installScreens }) {
         id="install-instructions"
         className={'jt-install-instructions' + (expanded ? ' is-expanded' : '')}
       >
-        <div className="jt-install-compact-grid">
-          <ol
-            className="jt-install-step-list"
-            aria-label={(platform === 'android' ? 'Android' : 'iPhone') + ' 홈 화면 추가 단계'}
-          >
-            {steps.map((item, index) => (
-              <li key={item.title}>
-                <button onClick={() => setActive(index)} aria-pressed={active === index}>
-                  <span>0{index + 1}</span>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <p>{item.detail}</p>
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ol>
-          <figure className="jt-install-preview">
-            <div className="jt-install-preview-image">
-              {step.src ? (
-                <button
-                  className="jt-enlarge-shot"
-                  onClick={() => dialog.current?.showModal()}
-                  aria-label={step.title + ' 사진 크게 보기'}
-                >
-                  <img src={step.src} alt={step.title + ' 설정 화면'} loading="lazy" />
-                </button>
-              ) : (
-                <div className="jt-install-placeholder">
-                  <span aria-hidden="true">
-                    {active === 0 ? '↗' : active === 1 ? (platform === 'android' ? '⋮' : '↑') : '+'}
-                  </span>
-                  <strong>{step.title}</strong>
-                  <small>메뉴 부분 캡처 준비 중</small>
-                </div>
-              )}
-            </div>
-            <figcaption>
-              0{active + 1} / 03 · {step.title}
-            </figcaption>
-          </figure>
-        </div>
+        <ol
+          className="jt-install-step-list"
+          aria-label={(platform === 'android' ? 'Android' : 'iPhone') + ' 홈 화면 추가 단계'}
+        >
+          {steps.map((item, index) => (
+            <li key={item.title}>
+              <span aria-hidden="true">0{index + 1}</span>
+              <div>
+                <strong>{item.title}</strong>
+                <p>{item.detail}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
         <p className="jt-install-note">기기·브라우저에 따라 메뉴 이름과 위치가 다를 수 있어요.</p>
       </div>
-      <dialog className="jt-shot-dialog" ref={dialog}>
-        <button className="jt-shot-close" onClick={() => dialog.current?.close()}>
-          닫기 ×
-        </button>
-        {step.src && <img src={step.src} alt={step.title + ' 설정 화면 확대'} />}
-      </dialog>
     </div>
   );
 }
 
-const chapters = [
-  { id: 'top', label: '서비스 소개' },
-  { id: 'features', label: '자전거 수 예측' },
-  { id: 'routes', label: '경로 비교' },
-  { id: 'map', label: '장소·대여소' },
-  { id: 'navigation', label: '음성 길 안내' },
-  { id: 'install', label: '이용·설치' },
-];
 function ChapterNavigation() {
   const [position, setPosition] = useState({ active: 0, percent: 0 });
   useEffect(() => {
@@ -758,6 +836,7 @@ function useChapterEntrance() {
       '#features .jt-feature-heading', '#features .jt-screen-gallery', '#features .jt-forecast-play',
       '#routes .jt-route-header', '#routes .jt-route-scene',
       '#map .jt-map-copy', '#map .jt-map-demo',
+      '#bike-status .jt-bike-status-copy', '#bike-status .jt-bike-status-scene',
       '#navigation .jt-feature-heading', '#navigation .jt-voice-scene',
       '#install .jt-finish', '#install > .jt-eyebrow', '#install > h2',
       '#install > .jt-actions', '#install .jt-install-guide',
@@ -1039,6 +1118,7 @@ export function InstallLandingPage() {
           </div>
         </Reveal>
       </section>
+      <BikeStatusFeature />
       <VoiceFeature />
       <section className="jt-install" id="install">
         <div className="jt-finish">

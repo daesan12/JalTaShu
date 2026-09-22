@@ -72,16 +72,6 @@ function writeRentedCycles(rented: RentedCycles) {
   }
 }
 
-/** 저장된 enum을 18 화면의 부위 태그로 되돌린다 */
-const CATEGORY_TO_TAG: Record<string, string> = {
-  BREAK: '브레이크',
-  TIRE: '타이어',
-  SADDLE: '안장',
-  CHAIN: '체인',
-  FRAME: '프레임',
-  ETC: '기타',
-};
-
 /** 접수 한 건을 저장하고 claimId를 돌려준다 (세 유형 공용) */
 function addClaim(
   claimType: MockReport['claimType'],
@@ -105,6 +95,40 @@ function addClaim(
 }
 
 const CLAIM_CATEGORIES = ['BREAK', 'TIRE', 'SADDLE', 'CHAIN', 'FRAME', 'ETC'];
+
+/** 소개 페이지 캡처와 QR 상태 확인 흐름에서 쓰는 로컬 전용 데모 자전거 */
+const BIKE_STATUS_DEMO_CODE = '22B01260';
+
+function bikeStatusDemoClaims(cycleId: string) {
+  if (cycleId.toUpperCase() !== BIKE_STATUS_DEMO_CODE) return [];
+  const hourMs = 60 * 60 * 1000;
+  return [
+    {
+      claimId: 9903,
+      claimType: 'CYCLE' as const,
+      nickname: '출근라이더',
+      claimCategory: 'BREAK',
+      content: '오른쪽 브레이크가 밀려서 점검이 필요해요.',
+      createdAt: new Date(Date.now() - 2 * hourMs).toISOString(),
+    },
+    {
+      claimId: 9902,
+      claimType: 'CYCLE' as const,
+      nickname: '바퀴요정',
+      claimCategory: 'TIRE',
+      content: '앞바퀴 공기압이 낮아요.',
+      createdAt: new Date(Date.now() - 7 * hourMs).toISOString(),
+    },
+    {
+      claimId: 9901,
+      claimType: 'CYCLE' as const,
+      nickname: '대전라이더',
+      claimCategory: 'SADDLE',
+      content: '안장 높이 조절 레버가 잘 고정되지 않아요.',
+      createdAt: new Date(Date.now() - 26 * hourMs).toISOString(),
+    },
+  ];
+}
 
 /** 민원 접수(17-x)·자전거 상태(18)·대여/반납 */
 export const reportHandlers = [
@@ -164,60 +188,12 @@ export const reportHandlers = [
     const code = String(params.cycleId);
     const dayMs = 24 * 60 * 60 * 1000;
 
-    // 내가 접수한 고장신고 중 이 자전거에 달린 것 = 제보로 노출
-    // claimId는 허위 제보 신고에 쓰인다 — 민원 id와 겹치지 않게 큰 수를 얹는다
-    const myReports = getMockReports()
-      .filter((r) => r.claimType === 'CYCLE' && r.cycleId === code)
-      .map((r) => ({
-        claimId: r.claimId,
-        claimType: 'CYCLE' as const,
-        tag: CATEGORY_TO_TAG[r.claimCategory ?? 'ETC'] ?? '기타',
-        tagDetail: null,
-        content: r.content,
-        nickname: r.nickname,
-        createdAt: r.createdAt,
-      }));
-
-    // 데모용 씨앗 제보 (1로 끝나는 코드는 깨끗한 자전거 — 다이어그램 기본 상태 확인용)
-    const seedReports = code.endsWith('1')
-      ? []
-      : [
-          {
-            claimId: 9001,
-            claimType: 'CYCLE' as const,
-            tag: '브레이크',
-            tagDetail: null,
-            content: '브레이크가 잘 안 잡혀요',
-            nickname: '달리는거북',
-            createdAt: new Date(Date.now() - 3 * dayMs).toISOString(),
-          },
-          {
-            claimId: 9002,
-            claimType: 'CYCLE' as const,
-            tag: '타이어',
-            tagDetail: null,
-            content: '앞바퀴 공기압이 낮아요',
-            nickname: '바퀴요정',
-            createdAt: new Date(Date.now() - 5 * dayMs).toISOString(),
-          },
-          {
-            claimId: 9003,
-            claimType: 'CYCLE' as const,
-            tag: '안장',
-            tagDetail: null,
-            content: '안장 높이가 고정되지 않아요',
-            nickname: '둔산라이더',
-            createdAt: new Date(Date.now() - 8 * dayMs).toISOString(),
-          },
-        ];
-
     return HttpResponse.json(
       ok({
         cycleId: code,
         rideable: !code.endsWith('0'), // 0으로 끝나는 코드는 점검 필요 상태 (상태 배지 확인용)
         lastUsedAt: new Date(Date.now() - 2 * dayMs).toISOString(),
         lastStationName: '유성구청역 대여소',
-        reports: [...myReports, ...seedReports],
       }),
     );
   }),
@@ -230,15 +206,36 @@ export const reportHandlers = [
     if (authFail) return authFail;
     const cycleId = new URL(request.url).searchParams.get('cycleId') ?? '';
     if (!cycleId) return fail(400, '자전거 번호가 필요합니다.');
-    const claims = getMockClaims()
-      // 기타 문의는 자전거가 없다(null) — 자전거 기준 목록에서는 빠진다
-      .filter((c) => c.cycleId?.toUpperCase() === cycleId.toUpperCase())
+    const claims = [
+      ...bikeStatusDemoClaims(cycleId),
+      ...getMockClaims()
+        // 기타 문의는 자전거가 없다(null) — 자전거 기준 목록에서는 빠진다
+        .filter((c) => c.cycleId?.toUpperCase() === cycleId.toUpperCase())
+        .map((c) => ({
+          claimId: c.claimId,
+          claimType: c.claimType,
+          nickname: c.nickname,
+          claimCategory: c.category,
+          content: c.content,
+          createdAt: c.createdAt,
+        })),
+      ...getMockReports()
+        .filter((c) => c.cycleId?.toUpperCase() === cycleId.toUpperCase())
+        .map((c) => ({
+          claimId: c.claimId,
+          claimType: c.claimType,
+          nickname: c.nickname,
+          claimCategory: c.claimCategory,
+          content: c.content,
+          createdAt: c.createdAt,
+        })),
+    ]
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((c) => ({
         claimId: c.claimId,
         claimType: c.claimType,
         nickname: c.nickname,
-        claimCategory: c.category,
+        claimCategory: c.claimCategory,
         content: c.content,
         createdAt: c.createdAt,
       }));
@@ -247,7 +244,7 @@ export const reportHandlers = [
 
   /**
    * 허위 제보 신고 (18·20) — 실서버 POST /claim/{claimId}/report.
-   * 실서버는 없는 claimId에 404를 주지만, 18 자전거 상태가 아직 목업 시드(9001~)를 쓰므로
+   * 실서버는 없는 claimId에 404를 주지만, 18 자전거 상태가 로컬 데모 제보(9901~)를 쓰므로
    * 여기서는 형식만 확인하고 받아 준다. 횟수 제한은 서버에 없다 — 화면 쪽 가드가 맡는다.
    */
   http.post('/api/claim/:claimId/report', async ({ params, request }) => {
