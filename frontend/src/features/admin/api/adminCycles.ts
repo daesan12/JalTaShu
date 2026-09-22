@@ -40,8 +40,13 @@ export interface AdminCycleHistory {
   usingAt: string;
   startingPoint: string;
   endPoint: string;
-  userId: number;
-  nickname: string;
+  /**
+   * 이용자 — 둘 다 null일 수 있다. 쿼리가 users를 LEFT JOIN하고
+   * `cycle_usages.user_id`에 not null 제약이 없어 사용자 없는 이력이 존재한다.
+   */
+  userId: number | null;
+  /** 가입을 끝내지 않은 사용자는 닉네임이 없다 (userId는 있다) */
+  nickname: string | null;
 }
 
 /** GET /admin/cycle/{cycleId}/statics (AdminCycleDetailStatisticsResponse 실측) */
