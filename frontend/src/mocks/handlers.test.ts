@@ -180,11 +180,11 @@ describe('관리자 핸들러 등록 순서', () => {
     const { data } = await res.json();
     expect(data).toHaveLength(5);
     expect(data.map((popup: { photoUrl: string }) => popup.photoUrl)).toEqual([
-      '/mock/notices/notice-01-temporary-closure.jpg',
-      '/mock/notices/notice-02-public-data-survey.jpg',
-      '/mock/notices/notice-03-terms-update.jpg',
-      '/mock/notices/notice-04-safety-check.jpg',
-      '/mock/notices/notice-05-return-check.jpg',
+      '/notices/notice-01-temporary-closure.jpg',
+      '/notices/notice-02-public-data-survey.jpg',
+      '/notices/notice-03-terms-update.jpg',
+      '/notices/notice-04-safety-check.jpg',
+      '/notices/notice-05-return-check.jpg',
     ]);
     expect(data[0]).toHaveProperty('noticeId');
     // 팝업은 항상 공지에 연결된다(백엔드 not null)

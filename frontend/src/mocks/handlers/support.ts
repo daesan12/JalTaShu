@@ -73,11 +73,11 @@ export const supportHandlers = [
     if (authFail) return authFail;
     return HttpResponse.json(
       ok([
-        { title: '임시 폐쇄 대여소 안내', photoUrl: '/mock/notices/notice-01-temporary-closure.jpg', noticeId: 5 },
-        { title: '공공 데이터 활용 설문조사', photoUrl: '/mock/notices/notice-02-public-data-survey.jpg', noticeId: 4 },
-        { title: '이용약관 개정 알림', photoUrl: '/mock/notices/notice-03-terms-update.jpg', noticeId: 3 },
-        { title: '안전수칙 확인 절차 개선', photoUrl: '/mock/notices/notice-04-safety-check.jpg', noticeId: 2 },
-        { title: '대여소 반납 안내', photoUrl: '/mock/notices/notice-05-return-check.jpg', noticeId: 1 },
+        { title: '임시 폐쇄 대여소 안내', photoUrl: '/notices/notice-01-temporary-closure.jpg', noticeId: 5 },
+        { title: '공공 데이터 활용 설문조사', photoUrl: '/notices/notice-02-public-data-survey.jpg', noticeId: 4 },
+        { title: '이용약관 개정 알림', photoUrl: '/notices/notice-03-terms-update.jpg', noticeId: 3 },
+        { title: '안전수칙 확인 절차 개선', photoUrl: '/notices/notice-04-safety-check.jpg', noticeId: 2 },
+        { title: '대여소 반납 안내', photoUrl: '/notices/notice-05-return-check.jpg', noticeId: 1 },
       ]),
     );
   }),
