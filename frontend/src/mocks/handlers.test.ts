@@ -150,6 +150,8 @@ describe('관리자 핸들러 등록 순서', () => {
     expect(data).toHaveLength(17);
     expect(data[0]).toHaveProperty('noticeId');
     expect(data[0]).toHaveProperty('author');
+    expect(data[0]).toHaveProperty('popupId');
+    expect(data.some((notice: { popupId: number | null }) => notice.popupId === null)).toBe(true);
     expect(data[0]).not.toHaveProperty('content');
   });
 
@@ -187,6 +189,7 @@ describe('관리자 핸들러 등록 순서', () => {
       '/notices/notice-05-return-check.jpg',
     ]);
     expect(data[0]).toHaveProperty('noticeId');
+    expect(data[0]).toHaveProperty('popupId');
     // 팝업은 항상 공지에 연결된다(백엔드 not null)
     expect(data.every((p: { noticeId: number | null }) => p.noticeId !== null)).toBe(true);
   });

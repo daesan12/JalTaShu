@@ -15,6 +15,7 @@ export interface AdminNoticeSummary {
   title: string;
   author: string;
   createdAt: string;
+  popupId: number | null;
 }
 
 /** 상세 (NoticeDetailResponse 실측) */

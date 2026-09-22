@@ -73,6 +73,14 @@ function noticeList() {
     .map(({ noticeId, title, author, createdAt }) => ({ noticeId, title, author, createdAt }));
 }
 
+/** AdminNoticeListResponse — 관리자 목록에만 연결된 팝업 ID를 포함한다. */
+function adminNoticeList() {
+  return noticeList().map((notice) => ({
+    ...notice,
+    popupId: notice.noticeId <= 5 ? notice.noticeId : null,
+  }));
+}
+
 /** NoticeDetailResponse — noticeId 없이 온다 */
 function noticeDetail({ title, author, createdAt, content }: MockNotice) {
   return { title, author, createdAt, content };
@@ -84,7 +92,7 @@ export const adminNoticeHandlers = [
   http.get('/api/admin/notice/list', async () => {
     await delay(300);
     if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
-    return HttpResponse.json(ok(noticeList()));
+    return HttpResponse.json(ok(adminNoticeList()));
   }),
 
   // 관리자 상세 (AdminNoticeController) — :noticeId 핸들러라 반드시 /list 뒤에 온다
