@@ -552,25 +552,21 @@ function VoiceFeature() {
   );
 }
 
-// Browser screenshots only: no phone frame, no secrets, replace src with a public asset URL.
-const installScreens = {
+const installSteps = {
   android: [
-    { title: 'Chrome에서 열기', detail: '잘타슈 웹 주소를 Chrome에서 열어요.', src: '' },
-    { title: '메뉴 열기', detail: '오른쪽 위 ⋮ 메뉴를 눌러요.', src: '' },
-    { title: '홈 화면에 추가', detail: '홈 화면에 추가 또는 앱 설치 항목을 선택해요.', src: '' },
+    { title: 'Chrome에서 열기', detail: '잘타슈 웹 주소를 Chrome에서 열어요.' },
+    { title: '브라우저 메뉴 열기', detail: '오른쪽 위의 ⋮ 버튼을 눌러 메뉴를 열어요.' },
+    { title: '홈 화면에 추가', detail: '홈 화면에 추가 또는 앱 설치를 선택하고 확인해요.' },
   ],
   iphone: [
-    { title: 'Safari에서 열기', detail: '잘타슈 웹 주소를 Safari에서 열어요.', src: '' },
-    { title: '공유 메뉴 열기', detail: '브라우저의 공유 버튼을 눌러요.', src: '' },
-    { title: '홈 화면에 추가', detail: '홈 화면에 추가를 선택하고 확인해요.', src: '' },
+    { title: 'Safari에서 열기', detail: '잘타슈 웹 주소를 Safari에서 열어요.' },
+    { title: '공유 메뉴 열기', detail: '화면 아래의 공유 버튼을 눌러 메뉴를 열어요.' },
+    { title: '홈 화면에 추가', detail: '홈 화면에 추가를 선택하고 이름을 확인해요.' },
   ],
 };
-function InstallSteps({ platform }: { platform: keyof typeof installScreens }) {
-  const [active, setActive] = useState(0);
+function InstallSteps({ platform }: { platform: keyof typeof installSteps }) {
   const [expanded, setExpanded] = useState(false);
-  const dialog = useRef<HTMLDialogElement>(null);
-  const steps = installScreens[platform];
-  const step = steps[active];
+  const steps = installSteps[platform];
   return (
     <div className="jt-compact-install">
       <button
@@ -585,56 +581,22 @@ function InstallSteps({ platform }: { platform: keyof typeof installScreens }) {
         id="install-instructions"
         className={'jt-install-instructions' + (expanded ? ' is-expanded' : '')}
       >
-        <div className="jt-install-compact-grid">
-          <ol
-            className="jt-install-step-list"
-            aria-label={(platform === 'android' ? 'Android' : 'iPhone') + ' 홈 화면 추가 단계'}
-          >
-            {steps.map((item, index) => (
-              <li key={item.title}>
-                <button onClick={() => setActive(index)} aria-pressed={active === index}>
-                  <span>0{index + 1}</span>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <p>{item.detail}</p>
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ol>
-          <figure className="jt-install-preview">
-            <div className="jt-install-preview-image">
-              {step.src ? (
-                <button
-                  className="jt-enlarge-shot"
-                  onClick={() => dialog.current?.showModal()}
-                  aria-label={step.title + ' 사진 크게 보기'}
-                >
-                  <img src={step.src} alt={step.title + ' 설정 화면'} loading="lazy" />
-                </button>
-              ) : (
-                <div className="jt-install-placeholder">
-                  <span aria-hidden="true">
-                    {active === 0 ? '↗' : active === 1 ? (platform === 'android' ? '⋮' : '↑') : '+'}
-                  </span>
-                  <strong>{step.title}</strong>
-                  <small>메뉴 부분 캡처 준비 중</small>
-                </div>
-              )}
-            </div>
-            <figcaption>
-              0{active + 1} / 03 · {step.title}
-            </figcaption>
-          </figure>
-        </div>
+        <ol
+          className="jt-install-step-list"
+          aria-label={(platform === 'android' ? 'Android' : 'iPhone') + ' 홈 화면 추가 단계'}
+        >
+          {steps.map((item, index) => (
+            <li key={item.title}>
+              <span aria-hidden="true">0{index + 1}</span>
+              <div>
+                <strong>{item.title}</strong>
+                <p>{item.detail}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
         <p className="jt-install-note">기기·브라우저에 따라 메뉴 이름과 위치가 다를 수 있어요.</p>
       </div>
-      <dialog className="jt-shot-dialog" ref={dialog}>
-        <button className="jt-shot-close" onClick={() => dialog.current?.close()}>
-          닫기 ×
-        </button>
-        {step.src && <img src={step.src} alt={step.title + ' 설정 화면 확대'} />}
-      </dialog>
     </div>
   );
 }
