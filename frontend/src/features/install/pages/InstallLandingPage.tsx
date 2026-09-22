@@ -430,7 +430,23 @@ function ScrollForecast() {
   );
 }
 
-const trailPoint = (t: number) => ({ x: 26 + 12 * Math.cos(t * Math.PI * 5), y: 22 + t * 220 });
+const chapters = [
+  { id: 'top', label: '서비스 소개' },
+  { id: 'features', label: '자전거 수 예측' },
+  { id: 'routes', label: '경로 비교' },
+  { id: 'map', label: '장소·대여소' },
+  { id: 'bike-status', label: '자전거 상태' },
+  { id: 'navigation', label: '음성 길 안내' },
+  { id: 'install', label: '이용·설치' },
+];
+const chapterRowHeight = 44;
+const chapterTrailInset = chapterRowHeight / 2;
+const chapterTrailLength = chapterRowHeight * (chapters.length - 1);
+const chapterRailHeight = chapterTrailLength + chapterTrailInset * 2;
+const trailPoint = (t: number) => ({
+  x: 26 + 12 * Math.cos(t * Math.PI * 5),
+  y: chapterTrailInset + t * chapterTrailLength,
+});
 const journeyPath = Array.from({ length: 101 }, (_, i) => {
   const p = trailPoint(i / 100);
   return (i === 0 ? 'M' : 'L') + p.x + ' ' + p.y;
@@ -441,13 +457,18 @@ function JourneyProgress({ percent }: { percent: number }) {
   return (
     <div
       className="jt-journey-progress"
+      style={{ height: chapterRailHeight }}
       role="progressbar"
       aria-label="자전거 여정 진행률"
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={percent}
     >
-      <svg viewBox="0 0 140 264" aria-hidden="true">
+      <svg
+        viewBox={`0 0 140 ${chapterRailHeight}`}
+        style={{ height: chapterRailHeight }}
+        aria-hidden="true"
+      >
         <path d={journeyPath} fill="none" stroke="#dce6d2" strokeWidth="8" strokeLinecap="round" />
         <path d={journeyPath} fill="none" stroke="#a9bd95" strokeWidth="1" strokeDasharray="2 5" />
         <motion.path
@@ -682,15 +703,6 @@ function InstallSteps({ platform }: { platform: keyof typeof installSteps }) {
   );
 }
 
-const chapters = [
-  { id: 'top', label: '서비스 소개' },
-  { id: 'features', label: '자전거 수 예측' },
-  { id: 'routes', label: '경로 비교' },
-  { id: 'map', label: '장소·대여소' },
-  { id: 'bike-status', label: '자전거 상태' },
-  { id: 'navigation', label: '음성 길 안내' },
-  { id: 'install', label: '이용·설치' },
-];
 function ChapterNavigation() {
   const [position, setPosition] = useState({ active: 0, percent: 0 });
   useEffect(() => {
