@@ -157,11 +157,11 @@ export const reportHandlers = [
   }),
 
   // ── 자전거 (18 자전거 상태 — 백엔드 API 미정, 임시 스키마) ──────────
-  http.get('/api/bikes/:code', async ({ params }) => {
+  http.get('/api/cycle/statement/:cycleId', async ({ params }) => {
     await delay(300);
     const authFail = requireAuth();
     if (authFail) return authFail;
-    const code = String(params.code);
+    const code = String(params.cycleId);
     const dayMs = 24 * 60 * 60 * 1000;
 
     // 내가 접수한 고장신고 중 이 자전거에 달린 것 = 제보로 노출
@@ -213,7 +213,7 @@ export const reportHandlers = [
 
     return HttpResponse.json(
       ok({
-        code,
+        cycleId: code,
         rideable: !code.endsWith('0'), // 0으로 끝나는 코드는 점검 필요 상태 (상태 배지 확인용)
         lastUsedAt: new Date(Date.now() - 2 * dayMs).toISOString(),
         lastStationName: '유성구청역 대여소',

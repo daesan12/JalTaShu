@@ -36,14 +36,31 @@ export interface BikeStatus {
   code: string;
   rideable: boolean;
   /** 최근 이용 시각 (ISO 8601) */
-  lastUsedAt: string;
+  lastUsedAt: string | null;
   /** 최근 반납 대여소 이름 */
-  lastStationName: string;
+  lastStationName: string | null;
   reports: BikeReport[];
 }
 
-export function getBikeStatus(code: string): Promise<BikeStatus> {
-  return apiGet<BikeStatus>(`/bikes/${encodeURIComponent(code)}`);
+interface CycleStatementResponse {
+  cycleId: string;
+  rideable: boolean;
+  lastUsedAt: string | null;
+  lastStationName: string | null;
+}
+
+export async function getBikeStatus(code: string): Promise<BikeStatus> {
+  const [statement, reports] = await Promise.all([
+    apiGet<CycleStatementResponse>(`/cycle/statement/${encodeURIComponent(code)}`),
+    getCycleClaims(code),
+  ]);
+  return {
+    code: statement.cycleId,
+    rideable: statement.rideable,
+    lastUsedAt: statement.lastUsedAt,
+    lastStationName: statement.lastStationName,
+    reports,
+  };
 }
 
 /** 서버 enum(ClaimCategory 실측) → 화면 태그(한글) */
