@@ -11,12 +11,17 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!--
+            세로 고정 — 지도·경로 안내·바텀시트가 모두 세로 기준으로 짜여 있어
+            가로로 돌아가면 시트가 화면을 거의 덮는다. 기기 회전 잠금과 무관하게 세로로 둔다.
+        -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:screenOrientation="portrait"
             android:exported="true">
 
             <intent-filter>

@@ -28,13 +28,23 @@ const OVERLAY_OPTIONS: WebViewOptions = {
 };
 
 /**
- * OAuth가 아직 진행 중인 주소인지 — 카카오 화면이거나 백엔드 OAuth 경로면 계속.
- * 둘 다 아니면 성공/실패 URL(프론트 웹)에 도착한 것이므로 창을 닫을 시점이다.
+ * 창을 닫아야 할 시점인지 판정한다.
+ *
+ * **콜백에 도착하면 바로 끝낸다.** 그 응답이 refresh 쿠키를 심으므로 더 볼 것이 없고,
+ * 여기서 안 닫으면 백엔드가 성공 URL(= 스테이징 **웹앱**)로 보내 웹앱이 창 안에서 부팅한다.
+ * 그러면 웹앱과 네이티브 앱이 **같은 쿠키로 동시에 재발급을 친다**. 서버는 재발급 때마다
+ * 토큰을 교체하고 이미 쓴 토큰이 다시 오면 **로그인 전체를 폐기**하므로(재사용 탐지),
+ * 로그인에 성공하자마자 로그아웃되는 일이 벌어진다. 실측: 첫 재발급 200, 다음 401·401.
+ *
+ * 콜백이 아니면 카카오 화면·백엔드 OAuth 경로인 동안만 기다린다.
  * (성공/실패 URL은 백엔드 env로 주입돼 프론트가 값을 모른다 — 소거법으로 판정)
  */
-function isOAuthInProgress(url: string): boolean {
+export function isOAuthInProgress(url: string): boolean {
   try {
-    const { hostname, pathname } = new URL(url);
+    const { protocol, hostname, pathname } = new URL(url);
+    // about:blank나 앱 스킴(kakaotalk:// 등 카카오톡 앱으로 넘기는 링크)에서는 닫지 않는다
+    if (protocol !== 'http:' && protocol !== 'https:') return true;
+    if (pathname.includes('/oauth/callback')) return false;
     return hostname.endsWith('kakao.com') || pathname.includes('/oauth');
   } catch {
     return true; // 해석할 수 없는 주소는 계속 지켜본다
