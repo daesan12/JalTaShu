@@ -168,6 +168,8 @@ export function MapHomePage() {
    * 돌아올 때 붙는 `?code=`를 한 번 처리한 뒤 지운다.
    */
   const cycleRental = useCycleRental({ stations, position: location.position, showToast });
+  /** 빌린 자전거가 있으면 하단 버튼과 대여소 시트가 "반납하기"로 바뀐다 */
+  const hasRentedCycle = cycleRental.session !== null;
   useScannedCode(searchParams.get(CODE_PARAM), cycleRental.handleCode, () => {
     setSearchParams(
       (params) => {
@@ -178,7 +180,10 @@ export function MapHomePage() {
     );
   });
 
-  /** "대여하기" — QR로 자전거를 확인한다. 카메라를 못 쓰면 그 화면의 번호 직접 입력으로 넘어간다 */
+  /**
+   * 하단 버튼 — QR로 자전거를 확인한다. 카메라를 못 쓰면 그 화면의 번호 직접 입력으로 넘어간다.
+   * 대여인지 반납인지는 스캔 결과를 받은 `useCycleRental`이 가르므로 여기서는 나누지 않는다.
+   */
   function openScanner() {
     navigate(`/report/scan?next=${encodeURIComponent('/')}`);
   }
@@ -543,9 +548,13 @@ export function MapHomePage() {
                 </svg>
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-bold text-ink">타슈 대여하기</span>
+                <span className="block text-[15px] font-bold text-ink">
+                  {hasRentedCycle ? '타슈 반납하기' : '타슈 대여하기'}
+                </span>
                 <span className="mt-0.5 block text-xs font-medium text-muted">
-                  자전거 번호를 입력해요
+                  {hasRentedCycle
+                    ? `${cycleRental.session?.cycleId ?? ''} 자전거를 반납해요`
+                    : '자전거 번호를 입력해요'}
                 </span>
               </span>
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-light text-primary">
@@ -570,6 +579,8 @@ export function MapHomePage() {
         snap={rental.stationSnap}
         onSnapChange={rental.setStationSnap}
         onClose={() => rental.selectStation(null)}
+        rented={hasRentedCycle}
+        onRent={openScanner}
         onReturn={rental.openReturnSheet}
       />
 
@@ -581,6 +592,8 @@ export function MapHomePage() {
         onReturned={() => {
           // 번호를 직접 입력해 반납해도 "빌린 자전거" 기억은 지워야 다음 QR이 대여로 잡힌다
           clearRentalSession();
+          // 저장소만 지우면 화면은 모른다 — 버튼이 "대여하기"로 돌아가도록 함께 알린다
+          cycleRental.syncSession();
           showToast('반납이 완료됐습니다.');
         }}
       />
