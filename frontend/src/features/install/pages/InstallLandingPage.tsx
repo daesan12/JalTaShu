@@ -509,8 +509,18 @@ function JourneyProgress({ percent }: { percent: number }) {
 }
 function BikeStatusFeature() {
   const reduced = useReducedMotion();
+  const section = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: section,
+    offset: ['start end', 'end start'],
+  });
+  const qrY = useTransform(scrollYProgress, [0, 0.48, 1], [72, 0, -36]);
+  const qrRotate = useTransform(scrollYProgress, [0, 0.48, 1], [-7, -3, 1]);
+  const phoneY = useTransform(scrollYProgress, [0, 0.48, 1], [112, 0, -72]);
+  const phoneRotate = useTransform(scrollYProgress, [0, 0.48, 1], [3.5, 1.5, -1]);
+  const reportY = useTransform(scrollYProgress, [0, 0.48, 1], [132, 0, -44]);
   return (
-    <section className="jt-bike-status jt-section" id="bike-status">
+    <section ref={section} className="jt-bike-status jt-section" id="bike-status">
       <Reveal className="jt-bike-status-copy">
         <p className="jt-eyebrow">04 — 대여하기 전에</p>
         <h2>
@@ -543,7 +553,11 @@ function BikeStatusFeature() {
       </Reveal>
       <Reveal className="jt-bike-status-scene">
         <div className="jt-bike-status-aside">
-          <div className="jt-qr-visual" aria-hidden="true">
+          <motion.div
+            className="jt-qr-visual"
+            style={{ y: reduced ? 0 : qrY, rotate: reduced ? -3 : qrRotate }}
+            aria-hidden="true"
+          >
             <svg className="jt-qr-symbol" viewBox="0 0 120 120">
               <g fill="currentColor">
                 <path d="M13 39V13h26v8H21v18H13Zm68-26h26v26h-8V21H81v-8ZM13 81h8v18h18v8H13V81Zm86 0h8v26H81v-8h18V81Z" />
@@ -562,11 +576,12 @@ function BikeStatusFeature() {
             <small>
               <i /> 자전거 QR 스캔
             </small>
-          </div>
+          </motion.div>
           <motion.div
             className="jt-condition-card"
+            style={{ y: reduced ? 0 : reportY }}
             initial={false}
-            whileInView={reduced ? undefined : { y: [8, 0], opacity: [0, 1] }}
+            whileInView={reduced ? undefined : { opacity: [0, 1] }}
             viewport={{ once: false, amount: 0.6 }}
             transition={{ duration: 0.45 }}
           >
@@ -582,7 +597,12 @@ function BikeStatusFeature() {
             </div>
           </motion.div>
         </div>
-        <MediaSlot name="bikeStatus" label="QR 자전거 상태 확인 앱 화면" />
+        <motion.div
+          className="jt-bike-status-phone-motion"
+          style={{ y: reduced ? 0 : phoneY, rotate: reduced ? 0 : phoneRotate }}
+        >
+          <MediaSlot name="bikeStatus" label="QR 자전거 상태 확인 앱 화면" />
+        </motion.div>
       </Reveal>
     </section>
   );

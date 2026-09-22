@@ -3679,6 +3679,18 @@
   align-items: stretch;
   gap: 18px;
 }
+.jt-bike-status-phone-motion {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform;
+}
+.jt-qr-visual,
+.jt-condition-card {
+  will-change: transform;
+}
 .jt-bike-status-scene .jt-screen-gallery {
   --screen-width: 235px;
   margin: 0;
