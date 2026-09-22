@@ -1,6 +1,8 @@
 package com.s15p21b103.good_tashu.cycle.service;
 
 import com.s15p21b103.good_tashu._util.service.S3Service;
+import com.s15p21b103.good_tashu.claim.domain.ClaimStatus;
+import com.s15p21b103.good_tashu.claim.domain.ClaimType;
 import com.s15p21b103.good_tashu.cycle.domain.*;
 import com.s15p21b103.good_tashu.cycle.dto.req.CyclePathRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleRentalRequest;
@@ -47,6 +49,38 @@ public class CycleService {
     private final ApplicationEventPublisher eventPublisher;
     private final StationRepository stationRepository;
     private final PathRepository pathRepository;
+    private final ClaimRepository claimRepository;
+
+    @Transactional(readOnly = true)
+    public CycleStatementResponse getCycleStatement(String cycleId) {
+        if (cycleId == null || cycleId.isBlank()) {
+            throw new CycleException(CYCLE_ID_REQUIRED);
+        }
+
+        String normalizedCycleId = cycleId.toUpperCase();
+        CycleEntity cycle = cycleRepository.findById(normalizedCycleId)
+                .orElseThrow(() -> new CycleException(NOT_EXIST_CYCLE_ID));
+        CycleUsageEntity latestUsage = cycleUsageRepository
+                .findFirstByCycleEntity_CycleIdOrderByRentalAtDescCycleUsageIdDesc(normalizedCycleId)
+                .orElse(null);
+
+        boolean hasUnresolvedCycleClaim = claimRepository
+                .existsByCycleEntity_CycleIdAndClaimTypeAndStatusNot(
+                        normalizedCycleId, ClaimType.CYCLE, ClaimStatus.COMPLETED);
+
+        LocalDateTime lastUsedAt = latestUsage == null ? null : latestUsage.getRentalAt();
+        StationEntity lastStation = latestUsage == null
+                ? cycle.getStationEntity()
+                : latestUsage.getReturnStationEntity() != null
+                    ? latestUsage.getReturnStationEntity()
+                    : latestUsage.getRentalStationEntity();
+
+        return new CycleStatementResponse(
+                normalizedCycleId,
+                !hasUnresolvedCycleClaim,
+                lastUsedAt,
+                lastStation == null ? null : lastStation.getName());
+    }
 
     @Transactional(readOnly = true)
     public CycleStatisticsResponse getStatistics(Long userId) {

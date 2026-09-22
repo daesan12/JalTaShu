@@ -2,6 +2,7 @@ package com.s15p21b103.good_tashu.claim.repository;
 
 import com.s15p21b103.good_tashu.claim.domain.ClaimEntity;
 import com.s15p21b103.good_tashu.claim.domain.ClaimStatus;
+import com.s15p21b103.good_tashu.claim.domain.ClaimType;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,6 +25,9 @@ public interface ClaimRepository extends JpaRepository<ClaimEntity, Long> {
             "cycleEntity", "userEntity"
     })
     List<ClaimEntity> findAllByCycleEntity_CycleIdOrderByCreatedAtDescClaimIdDesc(String cycleId);
+
+    boolean existsByCycleEntity_CycleIdAndClaimTypeAndStatusNot(
+            String cycleId, ClaimType claimType, ClaimStatus status);
 
     // 기타 제보도 포함하도록 자전거는 LEFT JOIN으로 조회한다.
     @Query("""
