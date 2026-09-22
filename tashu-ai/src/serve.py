@@ -348,7 +348,9 @@ def run_once(art: Artifacts, conn, redis_client, now: pd.Timestamp | None = None
     preds = compute_predictions(now, rates, current_bikes(snapshots, now))
     written = write_redis(redis_client, preds, now)
     elapsed = time.monotonic() - t0
-    stations = len(rows) // 2
+    # 대여소당 행이 N_FEATURE_BUCKETS개다(build_feature_rows). 지평이 늘면 이 값도 늘어나므로
+    # 상수를 그대로 쓴다 — 15분 시절의 2를 박아 두는 바람에 대여소 수가 2.5배로 찍혔다.
+    stations = len(rows) // config.N_FEATURE_BUCKETS
     log.info("적재 %d키 (%d대여소 × %d지평) %.2fs", written, stations, len(config.HORIZONS_MIN), elapsed)
     if elapsed > config.SERVE_TIME_BUDGET_SECONDS:
         log.warning("소요 %.2fs > 완료 기준 %ds", elapsed, config.SERVE_TIME_BUDGET_SECONDS)
