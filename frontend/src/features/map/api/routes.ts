@@ -3,6 +3,7 @@ import type {
   PathResponse,
   Pos,
   RouteCandidate,
+  StationStrategy,
   RouteType,
   TravelStatus,
 } from '@/shared/api/types';
@@ -44,6 +45,7 @@ export interface ReRoutePathRequest extends RoutePathRequest {
   endStationId: string | null;
   travelStatus: TravelStatus;
   routeType: RouteType;
+  stationStrategy: StationStrategy;
 }
 
 export async function getReRoutePaths({
@@ -53,6 +55,7 @@ export async function getReRoutePaths({
   endStationId,
   travelStatus,
   routeType,
+  stationStrategy,
 }: ReRoutePathRequest): Promise<RouteCandidate[]> {
   const res = await apiGet<PathResponse>('/map/re-route', {
     params: {
@@ -65,6 +68,7 @@ export async function getReRoutePaths({
       ...(endStationId === null ? {} : { endStationId }),
       travelStatus,
       routeType,
+      stationStrategy,
     },
   });
   return res.routes;

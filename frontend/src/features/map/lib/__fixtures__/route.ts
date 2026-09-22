@@ -4,6 +4,7 @@ import type {
   RouteManeuver,
   RoutePoint,
   RouteStep,
+  StationStrategy,
   RouteType,
   TravelMode,
 } from '@/shared/api/types';
@@ -61,6 +62,7 @@ export function makeLeg(
 
 export interface RouteOptions {
   type?: RouteType;
+  stationStrategy?: StationStrategy;
   /** 좌표별 고도 — 인덱스가 좌표 번호 */
   altitudes?: number[];
   expectedBikeCnt?: number;
@@ -82,6 +84,7 @@ export function makeRoute(options: RouteOptions = {}): RouteCandidate {
   ];
   return {
     type: options.type ?? 'BIKE',
+    stationStrategy: options.stationStrategy ?? 'NEAREST',
     startStation: { stationId: 'ST0001', name: '대여 대여소', location: pointAt(2).location },
     endStation: { stationId: 'ST0002', name: '반납 대여소', location: pointAt(8).location },
     totalDistance: legs.reduce((sum, leg) => sum + leg.distance, 0),
