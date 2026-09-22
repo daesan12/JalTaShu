@@ -88,6 +88,12 @@ export function MapView({
   // 회전 지점을 찍을 경로 — 11·12에서는 고른 경로, 10에서는 지금 선택된 후보
   const shownRoute =
     detailRoute ?? (selectedRouteIndex === null ? null : (routes?.[selectedRouteIndex] ?? null));
+  /**
+   * 경로를 띄운 동안에는 대여소 마커를 전부 감춘다(10·11·12).
+   * 대전 전역 마커가 경로선을 덮어 어디로 가는지 안 보인다 — 이때 필요한 대여소는
+   * 빌릴 곳과 반납할 곳뿐이고, 그 둘은 `RouteLandmarkMarkers`가 따로 그린다.
+   */
+  const showStations = routes === null && detailRoute === null;
 
   useEffect(() => {
     let map: naver.maps.Map | null = null;
@@ -131,7 +137,7 @@ export function MapView({
       {/* 실패해도 컨테이너는 유지한다 — ref가 사라지면 지도를 붙일 곳이 없어진다 */}
       <div ref={containerRef} className="size-full" />
 
-      {map !== null && stations !== undefined ? (
+      {map !== null && stations !== undefined && showStations ? (
         <StationMarkers
           map={map}
           stations={stations}

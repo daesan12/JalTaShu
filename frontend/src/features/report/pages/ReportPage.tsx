@@ -6,12 +6,7 @@ import type { ReportType } from '@/features/report/api/reports';
 
 const REPORT_TYPES: ReportType[] = ['broken', 'abandoned', 'inquiry'];
 
-/**
- * 17-0 ~ 17-3 자전거·민원 — 한 화면의 연속 흐름.
- * 상단(고객센터 배너·자전거 상태 확인·카테고리)은 항상 유지되고,
- * 카테고리를 선택하면 아래에 폼이 열리며 그 위치로 스크롤된다 (위로 올리면 QR 카드가 그대로 보임).
- * 스캔 복귀는 `?type=...&code=...` 쿼리로 받는다.
- */
+/** 자전거 확인과 공식 민원을 한 화면에서 이어 주는 사용자 지원 허브 */
 export function ReportPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -21,89 +16,101 @@ export function ReportPage() {
   const type = REPORT_TYPES.includes(typeParam as ReportType) ? (typeParam as ReportType) : null;
   const code = searchParams.get('code') ?? '';
 
-  // 카테고리 선택(또는 스캔 복귀) 시 폼 위치로 스크롤
   useEffect(() => {
     if (type) formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [type]);
 
-  const selectType = (next: ReportType) => {
-    setSearchParams({ type: next }, { replace: true }); // 카테고리 전환 시 code는 초기화
-  };
-
+  const selectType = (next: ReportType) => setSearchParams({ type: next }, { replace: true });
   const goScan = () => {
-    if (!type) return;
-    navigate(`/report/scan?next=${encodeURIComponent(`/report?type=${type}`)}`);
+    if (type) navigate(`/report/scan?next=${encodeURIComponent(`/report?type=${type}`)}`);
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="border-b border-gray-100 px-5 pt-5 pb-4">
-        <h1 className="text-[22px] font-bold text-gray-900">자전거 · 민원</h1>
+    <div className="flex h-full flex-col bg-[radial-gradient(circle_at_92%_4%,rgba(124,173,69,0.12),transparent_30%),var(--color-canvas)]">
+      <header className="relative overflow-hidden px-5 pt-5 pb-3">
+        <p className="text-xs font-semibold tracking-[0.12em] text-primary">HELP CENTER</p>
+        <h1 className="mt-1 text-[24px] leading-tight font-extrabold text-ink">
+          무엇을 도와드릴까요?
+        </h1>
+        <p className="mt-1.5 text-sm text-muted">
+          자전거 상태를 확인하거나 필요한 민원을 접수하세요.
+        </p>
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-6">
-        {/* 고객센터 배너 */}
-        <div className="flex items-center gap-3 bg-background px-5 py-4">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-surface text-lg font-bold text-gray-300">
-            ?
+      <div className="flex-1 overflow-y-auto px-5 pb-8">
+        <button
+          type="button"
+          onClick={() => navigate('/report/scan')}
+          className="group relative mt-3 flex w-full items-center gap-4 overflow-hidden rounded-[26px] border border-line/80 bg-[radial-gradient(circle_at_94%_16%,rgba(124,173,69,0.24),transparent_34%),linear-gradient(135deg,#ffffff,#fbfdf8)] p-5 text-left text-ink shadow-[0_14px_32px_rgba(42,60,34,0.11)] transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_18px_38px_rgba(42,60,34,0.14)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-none"
+        >
+          <span
+            aria-hidden
+            className="absolute -right-8 -bottom-14 h-36 w-36 rounded-full border-[24px] border-primary/6"
+          />
+          <span className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-primary/10 bg-primary-light text-lg font-extrabold text-primary shadow-sm transition-transform duration-200 group-hover:-rotate-3 group-hover:scale-105 motion-reduce:transform-none motion-reduce:transition-none">
+            QR
           </span>
-          <p className="text-sm leading-snug text-gray-700">
-            <span className="block font-semibold text-gray-900">문제가 생기셨나요?</span>
-            <button
-              type="button"
-              onClick={() => navigate('/mypage/support')}
-              className="font-medium text-blue-500"
-            >
-              고객센터
-            </button>
-            에서 언제든 도와드릴게요.
-          </p>
-        </div>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[17px] font-bold">자전거 상태 확인</span>
+            <span className="mt-1 block text-sm leading-snug text-muted">
+              QR을 스캔해 상태와 이용자 제보를 확인해요
+            </span>
+          </span>
+          <svg
+            viewBox="0 0 24 24"
+            className="h-5 w-5 shrink-0 text-primary/55"
+            fill="none"
+            aria-hidden
+          >
+            <path
+              d="m9 5 7 7-7 7"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
 
-        <div className="px-5">
-          {/* 자전거 상태 확인 → QR 스캔 → 18 자전거 상태 */}
+        <div className="mt-6 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-primary">민원 접수</p>
+            <h2 className="mt-1 text-[19px] font-extrabold text-ink">어떤 도움이 필요한가요?</h2>
+          </div>
           <button
             type="button"
-            onClick={() => navigate('/report/scan')}
-            className="mt-5 flex w-full items-center gap-4 rounded-2xl border-2 border-primary bg-primary-light p-4 text-left active:scale-[0.99]"
+            onClick={() => navigate('/mypage/support')}
+            className="min-h-10 shrink-0 rounded-full bg-surface-soft px-3.5 text-sm font-semibold text-primary active:bg-primary-light"
           >
-            <span className="flex h-13 w-13 shrink-0 items-center justify-center rounded-xl bg-surface text-lg font-extrabold text-primary shadow-sm">
-              QR
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[17px] font-bold text-gray-900">자전거 상태 확인</span>
-              <span className="mt-0.5 block text-sm text-gray-600">
-                QR 스캔으로 자전거 상태와 이용자 제보를 확인해요
-              </span>
-            </span>
-            <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-gray-400" fill="none">
-              <path d="m9 5 7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            고객센터
           </button>
-
-          <h2 className="mt-6 text-[17px] font-bold text-gray-900">민원 내용을 선택해주세요</h2>
-          <div className="mt-4">
-            <CategoryGrid
-              selected={type}
-              onSelect={selectType}
-              onMyReports={() => navigate('/report/my')}
-            />
-          </div>
-
-          {!type && (
-            <p className="mt-5 text-sm leading-relaxed text-gray-400">
-              고장·방치·기타 민원은 타슈 공식 민원으로 전달돼요. 자전거 상태·제보는 잘타슈 커뮤니티
-              기능입니다.
-            </p>
-          )}
-
-          {/* key=type: 카테고리 전환 시 폼 입력값 초기화. scroll-mt로 스크롤 시 제목이 가려지지 않게 */}
-          {type && (
-            <div ref={formRef} className="scroll-mt-4">
-              <ReportForm key={type} type={type} initialCode={code} onScan={goScan} />
-            </div>
-          )}
         </div>
+
+        <div className="mt-4">
+          <CategoryGrid
+            selected={type}
+            onSelect={selectType}
+            onMyReports={() => navigate('/report/my')}
+          />
+        </div>
+
+        {!type && (
+          <div className="mt-5 flex gap-2.5 rounded-2xl border border-line bg-surface/80 p-4 text-sm leading-relaxed text-muted">
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-soft text-xs font-bold text-primary">
+              i
+            </span>
+            <p>
+              고장·방치·기타 민원은 타슈 공식 민원으로 전달되며, 자전거 상태 제보는 잘타슈에서 함께
+              확인할 수 있어요.
+            </p>
+          </div>
+        )}
+
+        {type && (
+          <div ref={formRef} className="scroll-mt-4">
+            <ReportForm key={type} type={type} initialCode={code} onScan={goScan} />
+          </div>
+        )}
       </div>
     </div>
   );

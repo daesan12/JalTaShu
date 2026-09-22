@@ -52,9 +52,15 @@ export function RouteDetailSheet({
   onStart,
   onBack,
 }: RouteDetailSheetProps) {
-  const profile = useMemo(() => (route === null ? null : buildElevationProfile(route)), [route]);
+  const profile = useMemo(
+    () =>
+      route === null || route.elevationAvailable === false ? null : buildElevationProfile(route),
+    [route],
+  );
   const legs = useMemo(() => (route === null ? [] : toLegs(route)), [route]);
   const ascentM = useMemo(() => (route === null ? 0 : totalAscent(route)), [route]);
+  const hasWalk = legs.some((leg) => leg.mode === 'WALK');
+  const hasBike = legs.some((leg) => leg.mode === 'BICYCLE');
 
   /** 구간이 어디로 가는 길인지 — 대여소 이름은 응답에서 온다 */
   function legPlace(index: number): string {
@@ -84,23 +90,24 @@ export function RouteDetailSheet({
                 aria-hidden
                 className={`h-1 w-3 rounded-full ${ROUTE_TYPE_STYLE[route.type].dotClass}`}
               />
-              {ROUTE_TYPE_STYLE[route.type].label}
+              {route.recommendedCourse === true ? '추천 코스' : ROUTE_TYPE_STYLE[route.type].label}
             </span>
             <div className="mt-1.5 flex items-baseline gap-2">
               <span className="text-2xl font-bold tabular-nums text-gray-900">
                 {formatSecondsAsMinutes(summary.totalSec)}
               </span>
-              {summary.expectedBikeCnt === undefined ? null : (
+              {summary.expectedBikeCnt == null ? null : (
                 <span
                   className={`text-sm font-semibold ${BIKES_TEXT_CLASS[toStationStatus(summary.expectedBikeCnt)]}`}
                 >
-                  도착 시 <span className="tabular-nums">{formatBikes(summary.expectedBikeCnt)}</span>대
+                  도착 시{' '}
+                  <span className="tabular-nums">{formatBikes(summary.expectedBikeCnt)}</span>대
                 </span>
               )}
             </div>
             <p className="mt-0.5 text-sm text-gray-500 tabular-nums">
-              {formatArrival(fetchedAt, summary.totalSec)} 도착 예정 · 도보{' '}
-              {formatSecondsAsMinutes(summary.walkSec)}
+              {formatArrival(fetchedAt, summary.totalSec)} 도착 예정
+              {summary.walkSec > 0 ? ` · 도보 ${formatSecondsAsMinutes(summary.walkSec)}` : ''}
             </p>
             {/* 어느 대여소를 쓰는지는 응답이 알려준다(startStation·endStation) — 도보 전용 경로면 없다 */}
             {route.startStation === null || route.endStation === null ? null : (
@@ -109,6 +116,27 @@ export function RouteDetailSheet({
                 <span className="font-semibold">{route.endStation.name}</span>에 반납해요
               </p>
             )}
+            <div
+              className="mt-2.5 flex items-center gap-3 text-xs font-medium text-muted"
+              aria-label="경로선 색상"
+            >
+              {hasWalk ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className="h-1 w-4 rounded-full"
+                    style={{ backgroundColor: WALK_COLOR }}
+                    aria-hidden
+                  />
+                  도보
+                </span>
+              ) : null}
+              {hasBike ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-1 w-4 rounded-full bg-primary" aria-hidden />
+                  자전거
+                </span>
+              ) : null}
+            </div>
           </div>
 
           {/* 고도 그래프 */}

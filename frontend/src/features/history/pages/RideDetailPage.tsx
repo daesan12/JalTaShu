@@ -54,13 +54,13 @@ export function RideDetailPage() {
   const durationMin = ride ? Math.max(1, Math.round(ride.totalDuration / 60)) : 0;
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto">
+    <div className="flex h-full flex-col overflow-y-auto bg-canvas">
       {/* 경로 그림 + 플로팅 헤더 */}
       <div className="relative shrink-0">
         {derived ? (
           <RouteSketch path={derived.sketch} />
         ) : (
-          <div className="aspect-100/64 w-full bg-background" />
+          <div className="aspect-100/64 w-full bg-surface-soft" />
         )}
         <div className="absolute top-4 right-5 left-5 flex items-center gap-3">
           <button
@@ -91,12 +91,12 @@ export function RideDetailPage() {
       {error && <p className="px-5 pt-4 text-sm text-status-low">에러: {error.message}</p>}
 
       {ride && (
-        <div className="px-5 pb-8">
+        <div className="relative -mt-4 rounded-t-[30px] bg-canvas px-5 pt-1 pb-8">
           {/* 요약 */}
           <p className="tabular-nums mt-4 text-sm text-gray-500">
             {formatDate(ride.startingDate)} · {ride.cycleId}
           </p>
-          <div className="mt-3 grid grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-3 gap-2 rounded-[22px] border border-line bg-surface p-4 shadow-[0_7px_22px_rgba(42,60,34,0.045)]">
             {[
               { label: '이동 시간', value: `${durationMin}분` },
               {
@@ -114,9 +114,9 @@ export function RideDetailPage() {
                     : '–',
               },
             ].map((item) => (
-              <div key={item.label}>
-                <p className="text-sm text-gray-500">{item.label}</p>
-                <p className="tabular-nums mt-0.5 text-xl font-bold text-gray-900">{item.value}</p>
+              <div key={item.label} className="min-w-0 text-center">
+                <p className="text-xs text-muted">{item.label}</p>
+                <p className="tabular-nums mt-1 text-[17px] font-extrabold text-ink">{item.value}</p>
               </div>
             ))}
           </div>
@@ -125,7 +125,7 @@ export function RideDetailPage() {
             <>
               {/* 고도 그래프 */}
               <div className="mt-8 flex items-baseline justify-between">
-                <h2 className="text-[19px] font-bold text-gray-900">고도 그래프</h2>
+                <h2 className="text-[19px] font-extrabold text-ink">고도 그래프</h2>
                 <p className="tabular-nums text-sm text-gray-500">
                   누적 상승 {derived.ascentM}m · 최대 경사 {derived.maxGrade}%
                 </p>
@@ -135,7 +135,7 @@ export function RideDetailPage() {
               </div>
 
               {/* 구간 안내 */}
-              <h2 className="mt-8 text-[19px] font-bold text-gray-900">구간 안내</h2>
+              <h2 className="mt-8 text-[19px] font-extrabold text-ink">구간 안내</h2>
               <ul className="mt-4 space-y-5">
                 {derived.segments.map((segment, i) => {
                   const isWalk = segment.type === 'walk';

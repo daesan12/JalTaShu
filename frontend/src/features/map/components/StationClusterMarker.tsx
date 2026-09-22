@@ -25,7 +25,7 @@ interface StationClusterMarkerProps {
 export function StationClusterMarker({ totalBikes }: StationClusterMarkerProps) {
   return (
     <div
-      className={`tabular-nums flex items-center justify-center rounded-full bg-gray-700 font-bold text-white ring-2 ring-white shadow-md ${stationMarkerSizeClass(totalBikes)}`}
+      className={`tabular-nums flex items-center justify-center rounded-full bg-gray-700/78 font-bold text-white ring-1 ring-white/90 shadow-sm backdrop-blur-[1px] ${stationMarkerSizeClass(totalBikes)}`}
     >
       {totalBikes ?? '-'}
     </div>

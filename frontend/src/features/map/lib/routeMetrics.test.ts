@@ -36,6 +36,7 @@ describe('summarizeRoute', () => {
       index: 2,
       type: 'UPHILL',
       totalSec: 500, // 150 + 200 + 150
+      totalDistanceM: 896,
       walkSec: 300, // 도보 두 구간
       ascentM: 0, // 기본 고정 데이터는 평지
       expectedBikeCnt: undefined,
@@ -90,7 +91,7 @@ describe('sortSummaries', () => {
 });
 
 describe('bikesSortBlock', () => {
-  function summary(index: number, expectedBikeCnt?: number): RouteSummary {
+  function summary(index: number, expectedBikeCnt?: number | null): RouteSummary {
     return { index, type: 'BIKE', totalSec: 1200, walkSec: 300, ascentM: 40, expectedBikeCnt };
   }
 
@@ -113,6 +114,19 @@ describe('bikesSortBlock', () => {
   it('후보가 하나뿐이면 줄 세울 대상이 없다', () => {
     expect(bikesSortBlock([summary(0, 3.2)])).toBe('all-equal');
     expect(bikesSortBlock([])).toBe('no-data');
+  });
+
+  // 실서버는 예측이 없을 때 필드를 빼지 않고 null을 준다(실측) — undefined와 같게 다뤄야 한다
+  it('null도 값 없음으로 본다', () => {
+    expect(bikesSortBlock([summary(0, null), summary(1, null)])).toBe('no-data');
+  });
+
+  it('한쪽은 null, 한쪽은 필드 자체가 없어도 둘 다 없음이라 동률이다', () => {
+    expect(bikesSortBlock([summary(0, null), summary(1)])).toBe('no-data');
+  });
+
+  it('null과 값이 섞이면 정렬이 순서를 바꾸므로 막지 않는다', () => {
+    expect(bikesSortBlock([summary(0, null), summary(1, 3.2)])).toBeNull();
   });
 });
 

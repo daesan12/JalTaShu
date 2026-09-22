@@ -3,6 +3,7 @@ import { formatDistance } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/Button';
 import { RouteSketch } from '@/shared/ui/RouteSketch';
 import { toSketchPath } from '@/features/history/lib/usageDisplay';
+import { RouteResultMap } from '@/features/map/components/RouteResultMap';
 import { formatSecondsAsMinutes } from '@/features/map/lib/routeMetrics';
 import { toUsagePath } from '@/features/map/lib/usagePath';
 
@@ -33,7 +34,7 @@ export function ArrivalSummaryScreen({
   route,
   onClose,
 }: ArrivalSummaryScreenProps) {
-  // 23 기록 상세와 같은 그림을 쓴다 — 방금 온 길을 나중에 기록에서 다시 봐도 같은 모양이다
+  // 지도를 못 띄울 때만 쓰는 대비책 — 23 기록 상세와 같은 추상 경로 그림
   const sketch = toSketchPath(toUsagePath(route));
 
   return (
@@ -61,11 +62,12 @@ export function ArrivalSummaryScreen({
           {destinationTitle}까지 {formatSecondsAsMinutes(elapsedSec)} 만에 도착했어요
         </p>
 
-        {sketch.length > 0 && (
-          <div className="mt-8 overflow-hidden rounded-2xl">
-            <RouteSketch path={sketch} />
-          </div>
-        )}
+        <div className="mt-8 overflow-hidden rounded-2xl">
+          <RouteResultMap
+            route={route}
+            fallback={sketch.length > 0 ? <RouteSketch path={sketch} /> : null}
+          />
+        </div>
 
         <div className="mt-4 flex gap-3">
           <div className="flex flex-1 flex-col items-center justify-center rounded-2xl bg-gray-50 p-4">

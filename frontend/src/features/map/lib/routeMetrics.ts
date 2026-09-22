@@ -19,12 +19,17 @@ export interface RouteSummary {
   type: RouteType;
   /** 총 소요 시간(초) */
   totalSec: number;
+  /** 총 이동 거리(m). 오래된 테스트·목업 요약은 없을 수 있다 */
+  totalDistanceM?: number;
   /** 도보 구간 합(초) */
   walkSec: number;
   /** 누적 상승(m) — 좌표를 따라가며 올라가는 구간만 더한 값 */
   ascentM: number;
-  /** 대여 대여소 도착 시 확보 가능 대수. **아직 응답에 없어 undefined다**(AI 예측 대기) */
-  expectedBikeCnt?: number;
+  /**
+   * 대여 대여소 도착 시 확보 가능 대수.
+   * 서버가 필드를 빼거나 `null`로 주면 "없음"이다 — 아래 판정은 둘을 구분하지 않는다.
+   */
+  expectedBikeCnt?: number | null;
 }
 
 /** 경로의 누적 상승(m). 내려가는 구간은 세지 않는다 */
@@ -47,6 +52,7 @@ export function summarizeRoute(route: RouteCandidate, index: number): RouteSumma
     index,
     type: route.type,
     totalSec: route.totalTime,
+    totalDistanceM: route.totalDistance,
     walkSec,
     ascentM: totalAscent(route),
     expectedBikeCnt: route.expectedBikeCnt,
@@ -77,9 +83,11 @@ export type BikesSortBlock = 'no-data' | 'all-equal';
  * 값이 갈리면서 칩이 저절로 살아나고, 이 코드를 다시 고칠 일이 없다.
  */
 export function bikesSortBlock(summaries: RouteSummary[]): BikesSortBlock | null {
-  if (summaries.every((s) => s.expectedBikeCnt === undefined)) return 'no-data';
+  // 없음을 null로 통일해서 본다 — undefined와 null이 섞여 오면 값이 다른 것으로 새어 나간다
+  const counts = summaries.map((s) => s.expectedBikeCnt ?? null);
+  if (counts.every((c) => c === null)) return 'no-data';
   // 후보가 하나뿐이면 비교 대상이 없어 여기서 'all-equal'로 떨어진다 — 정렬할 게 없는 건 같다
-  if (summaries.some((s) => s.expectedBikeCnt !== summaries[0].expectedBikeCnt)) return null;
+  if (counts.some((c) => c !== counts[0])) return null;
   return 'all-equal';
 }
 

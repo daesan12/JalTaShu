@@ -10,10 +10,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-white active:bg-primary-dark',
-  line: 'border border-primary text-primary bg-surface active:bg-primary-light',
-  text: 'text-primary active:bg-primary-light',
-  kakao: 'bg-kakao text-black/85 active:brightness-95',
+  primary:
+    'bg-primary text-white shadow-[0_6px_16px_rgba(76,138,18,0.18)] hover:bg-primary-dark active:bg-primary-dark',
+  line: 'border border-primary bg-surface text-primary hover:bg-primary-light active:bg-primary-light',
+  text: 'text-primary hover:bg-primary-light active:bg-primary-light',
+  kakao: 'bg-kakao text-black/85 hover:brightness-[0.98] active:brightness-95',
 };
 
 export function Button({
@@ -27,7 +28,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={`inline-flex min-h-12 items-center justify-center rounded-xl px-5 font-semibold transition-[scale,background-color] duration-75 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 ${VARIANT_CLASS[variant]} ${full ? 'w-full' : ''} ${className}`}
+      className={`inline-flex min-h-12 items-center justify-center rounded-xl px-5 font-semibold transition-[transform,background-color,box-shadow,filter] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 active:translate-y-px active:scale-[0.985] disabled:pointer-events-none disabled:opacity-40 motion-reduce:transform-none motion-reduce:transition-none ${VARIANT_CLASS[variant]} ${full ? 'w-full' : ''} ${className}`}
       {...props}
     >
       {children}

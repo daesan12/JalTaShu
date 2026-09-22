@@ -68,7 +68,7 @@ export function NoticePopup({ notices, onClose, onHideForWeek, onOpenNotice }: N
           )}
 
           <div
-            className="relative w-full overflow-hidden rounded-2xl bg-surface"
+            className="relative w-full overflow-hidden rounded-2xl bg-[#fefdf8]"
             style={{ maxWidth: IMAGE_WIDTH }}
           >
             <ul
@@ -86,7 +86,7 @@ export function NoticePopup({ notices, onClose, onHideForWeek, onOpenNotice }: N
                 팝업은 항상 공지에 연결돼 있어 언제나 누를 수 있다.
               */}
               {notices.map((notice, index) => (
-                <li key={index} className="h-full w-full shrink-0 snap-center bg-background">
+                <li key={index} className="h-full w-full shrink-0 snap-center bg-[#fefdf8]">
                   <button
                     type="button"
                     onClick={() => onOpenNotice(notice.noticeId)}

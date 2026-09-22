@@ -11,19 +11,32 @@ export function NoticeBanner({ onClick }: NoticeBannerProps) {
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-primary bg-surface px-4 transition-[scale] duration-75 active:scale-[0.99]"
+      className="inline-flex min-h-9 items-center gap-2 rounded-full border border-line bg-surface/95 px-3.5 text-gray-700 shadow-sm backdrop-blur-md transition-[scale,background-color] duration-75 active:scale-[0.98] active:bg-surface-soft"
     >
-      {/* 오른쪽 화살표와 같은 폭을 왼쪽에 둬서 문구가 정확히 가운데 오게 한다 */}
-      <span aria-hidden="true" className="w-4 shrink-0" />
-      <span className="flex-1 text-center text-sm font-medium text-gray-800">
-        공지사항 확인하기
-      </span>
-      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400">
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 shrink-0 text-primary">
+        <path
+          d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 8.5h18C21 15 18 15 18 8Z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M10 20h4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.8}
+          strokeLinecap="round"
+        />
+      </svg>
+      <span className="text-[13px] font-semibold">공지사항</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-gray-400">
         <path
           d="m9 5 7 7-7 7"
           fill="none"
           stroke="currentColor"
-          strokeWidth={2}
+          strokeWidth={2.2}
           strokeLinecap="round"
           strokeLinejoin="round"
         />

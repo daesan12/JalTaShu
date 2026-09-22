@@ -1,13 +1,11 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import type { Pos } from '@/shared/api/types';
 import { latLngToPos } from '@/shared/lib/coords';
-import { Button } from '@/shared/ui/Button';
 import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/stations';
 import { ArrivalSummaryScreen } from '@/features/map/components/ArrivalSummaryScreen';
 import { CurrentLocationButton } from '@/features/map/components/CurrentLocationButton';
-import { CycleRentSheet } from '@/features/map/components/CycleRentSheet';
 import { CycleReturnSheet } from '@/features/map/components/CycleReturnSheet';
 import { DestinationSheet } from '@/features/map/components/DestinationSheet';
 import { MapPickLayer } from '@/features/map/components/MapPickLayer';
@@ -21,9 +19,11 @@ import { RouteDetailControls } from '@/features/map/components/RouteDetailContro
 import { RouteDetailSheet } from '@/features/map/components/RouteDetailSheet';
 import { RouteGuideCard } from '@/features/map/components/RouteGuideCard';
 import { RouteGuideSheet } from '@/features/map/components/RouteGuideSheet';
+import { RouteStartChoiceSheet } from '@/features/map/components/RouteStartChoiceSheet';
 import { SearchBar } from '@/features/map/components/SearchBar';
 import { StationRefreshButton } from '@/features/map/components/StationRefreshButton';
 import { StationSheet } from '@/features/map/components/StationSheet';
+import { StationVisibilityToggle } from '@/features/map/components/StationVisibilityToggle';
 import { Toast } from '@/features/map/components/Toast';
 import { UpdatedBadge } from '@/features/map/components/UpdatedBadge';
 import { WeatherButton } from '@/features/map/components/WeatherButton';
@@ -36,7 +36,19 @@ import { useRouteGuide } from '@/features/map/hooks/useRouteGuide';
 import { useToast } from '@/shared/lib/useToast';
 import { START_POS_FALLBACK } from '@/features/map/lib/mapDefaults';
 import { NOTICES_PATH } from '@/features/map/lib/noticeLink';
+import { clearRentalSession } from '@/features/rental/lib/rentalSession';
+import { useCycleRental, useScannedCode } from '@/features/map/hooks/useCycleRental';
+import { readRecommendedRouteIntent } from '@/features/map/lib/recommendedRouteIntent';
 import {
+  distanceToRouteStart,
+  needsRouteStartChoice,
+} from '@/features/map/lib/routeStartGuard';
+import {
+  getRecommendedCourseRoute,
+  waypointToPlace,
+} from '@/features/mypage/api/recommendedCourseRoutes';
+import {
+  CODE_PARAM,
   DETAIL_PARAM,
   FIELD_PARAM,
   GUIDE_PARAM,
@@ -72,6 +84,7 @@ const STATIONS_REFETCH_INTERVAL_MS = 45 * 1000;
 export function MapHomePage() {
   const { message, showToast } = useToast();
   const navigate = useNavigate();
+  const routeLocation = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchInUrl = searchParams.get(SEARCH_PARAM) === '1';
   const compareInUrl = searchParams.get(ROUTES_PARAM) === '1';
@@ -84,6 +97,14 @@ export function MapHomePage() {
 
   // 현재위치 버튼을 누른 횟수 — 같은 자리에서 다시 눌러도 지도가 그 위치로 돌아오게 하는 신호
   const [locationFocusToken, setLocationFocusToken] = useState(0);
+  const [stationMarkersVisible, setStationMarkersVisible] = useState(true);
+  const [routeStartChoice, setRouteStartChoice] = useState<{
+    current: Pos;
+    distanceM: number;
+  } | null>(null);
+  const [routeStartPending, setRouteStartPending] = useState<
+    'to-start' | 'from-current' | null
+  >(null);
   const location = useCurrentLocation();
 
   // 읽기만 하므로 state가 아니라 ref에 둔다(지도를 옮길 때마다 화면을 다시 그릴 이유가 없다)
@@ -141,8 +162,59 @@ export function MapHomePage() {
 
   const popup = useNoticePopup();
   const rental = useRentalSheets(stations);
+
+  /**
+   * QR 대여·반납. 스캔 화면은 민원·상태확인이 쓰던 것을 그대로 쓰고(`?next=/`),
+   * 돌아올 때 붙는 `?code=`를 한 번 처리한 뒤 지운다.
+   */
+  const cycleRental = useCycleRental({ stations, position: location.position, showToast });
+  useScannedCode(searchParams.get(CODE_PARAM), cycleRental.handleCode, () => {
+    setSearchParams(
+      (params) => {
+        params.delete(CODE_PARAM);
+        return params;
+      },
+      { replace: true },
+    );
+  });
+
+  /** "대여하기" — QR로 자전거를 확인한다. 카메라를 못 쓰면 그 화면의 번호 직접 입력으로 넘어간다 */
+  function openScanner() {
+    navigate(`/report/scan?next=${encodeURIComponent('/')}`);
+  }
+
+  function toggleStationMarkers() {
+    if (stationMarkersVisible) rental.selectStation(null);
+    setStationMarkersVisible((visible) => !visible);
+  }
   const journey = useJourneyPlanner({ location, showToast, viewedCenterAsStart });
   const { destination, routeResult, routeSummaries, selectedRouteIndex } = journey;
+  const consumedRecommendedRouteRef = useRef(false);
+
+  useEffect(() => {
+    if (consumedRecommendedRouteRef.current) return;
+    const intent = readRecommendedRouteIntent(routeLocation.state);
+    if (intent === null) return;
+    consumedRecommendedRouteRef.current = true;
+    // 일회성 state를 먼저 지워 새로고침·뒤로가기로 같은 코스가 반복해서 열리지 않게 한다.
+    navigate(`${routeLocation.pathname}${routeLocation.search}`, { replace: true, state: null });
+    void getRecommendedCourseRoute(intent.courseId)
+      .then((course) => {
+        const start = course.waypoints[0];
+        const end = course.waypoints.at(-1);
+        if (start === undefined || end === undefined)
+          throw new Error('추천 코스 경유지가 없습니다.');
+        journey.openRecommendedRoute(waypointToPlace(start), waypointToPlace(end), course.route);
+      })
+      .catch(() => showToast('추천 코스를 불러오지 못했습니다. 다시 시도해 주세요.'));
+  }, [
+    journey,
+    navigate,
+    routeLocation.pathname,
+    routeLocation.search,
+    routeLocation.state,
+    showToast,
+  ]);
 
   // 시트는 한 번에 하나만: 대여소를 탭하면 대여소 시트가 우선하고, 검색 중에는 전부 숨긴다.
   // 경로 후보가 있고 URL이 비교 중이면 목적지 확인 시트 대신 비교 시트·경로선·범례가 뜬다
@@ -177,6 +249,9 @@ export function MapHomePage() {
     location,
     clearJourney: journey.clearDestination,
     replaceRoutes: journey.replaceRoutes,
+    rerouteEnabled: !journey.staticRouteActive,
+    intermediateArrival: journey.guidingToCustomStart,
+    onIntermediateArrival: journey.continueAfterReachingStart,
     showToast,
   });
 
@@ -282,8 +357,8 @@ export function MapHomePage() {
     navigate(-1);
   }
 
-  // 11의 "안내 시작" → 12 안내 진행
-  function startGuide() {
+  /** 상세 화면에서 실제 안내 화면으로 들어가는 공통 처리. */
+  function activateGuide() {
     // 브라우저는 사용자가 누르지 않은 상태의 첫 소리를 막는다 — 이 클릭 안에서 권한을 받아 둔다
     guide.primeVoice();
     // 경로 전체를 보던 축척 그대로면 길이 안 보인다 — 안내를 시작할 때 현재 위치로 확대한다
@@ -291,25 +366,72 @@ export function MapHomePage() {
     setSearchParams({ [ROUTES_PARAM]: '1', [DETAIL_PARAM]: '1', [GUIDE_PARAM]: '1' });
   }
 
+  // 11의 "안내 시작" → 선택 출발지와 실제 GPS가 다르면 먼저 시작 방식을 묻는다.
+  async function startGuide() {
+    if (detailRoute === null) return;
+    if (journey.customStart === null) {
+      activateGuide();
+      return;
+    }
+    const result = await location.request();
+    if (!result.ok) {
+      showToast(`${LOCATION_ERROR_TEXT[result.error]} 출발 위치를 확인한 뒤 다시 시도해 주세요.`);
+      return;
+    }
+    const selectedStart = {
+      xPos: journey.customStart.xPos,
+      yPos: journey.customStart.yPos,
+    };
+    if (!needsRouteStartChoice(result.position, selectedStart)) {
+      activateGuide();
+      return;
+    }
+    setRouteStartChoice({
+      current: result.position,
+      distanceM: distanceToRouteStart(result.position, selectedStart),
+    });
+  }
+
+  /** 실제 위치에서 사용자가 고른 출발지까지 먼저 안내하고 원래 경로를 이어 간다. */
+  async function guideToSelectedStart() {
+    if (routeStartChoice === null || detailRoute === null) return;
+    // 비동기 경로 조회 전에 사용자 클릭 문맥에서 음성을 먼저 준비한다.
+    guide.primeVoice();
+    setRouteStartPending('to-start');
+    const loaded = await journey.startGuideToCustomStart(routeStartChoice.current, detailRoute);
+    setRouteStartPending(null);
+    if (!loaded) return;
+    setRouteStartChoice(null);
+    activateGuide();
+  }
+
+  /** 사용자가 고른 출발지는 취소하고 실제 위치에서 목적지까지 다시 계산해 안내한다. */
+  async function guideFromCurrentLocation() {
+    if (routeStartChoice === null) return;
+    guide.primeVoice();
+    setRouteStartPending('from-current');
+    const loaded = await journey.startGuideFromCurrentLocation(routeStartChoice.current);
+    setRouteStartPending(null);
+    if (!loaded) return;
+    setRouteStartChoice(null);
+    activateGuide();
+  }
+
   // 대여·반납 시트도 목적지 시트와 같은 mini(200px) 높이라 같은 값만큼 띄운다
   const liftClass = stationSheetOpen
     ? LIFT_FOR_STATION_CLASS
-    : destinationSheetOpen || rental.rentSheetOpen || rental.returnSheetOpen
+    : destinationSheetOpen || rental.returnSheetOpen
       ? LIFT_FOR_MINI_SHEET_CLASS
       : '';
   // "대여하기"는 아무것도 열려 있지 않은 맨 처음 지도에서만 필요하다 — 대여소를 보거나 목적지를
   // 확정하려는 중이면 이미 다른 화면으로 넘어간 것이라 굳이 보여줄 이유가 없다
   const showRentButton =
-    !stationSheetOpen &&
-    !destinationSheetOpen &&
-    !searchOpen &&
-    !rental.rentSheetOpen &&
-    !rental.returnSheetOpen;
+    !stationSheetOpen && !destinationSheetOpen && !searchOpen && !rental.returnSheetOpen;
 
   return (
     <div className="relative h-full overflow-hidden">
       <MapView
-        stations={stations}
+        stations={stationMarkersVisible ? stations : []}
         selectedStationId={rental.selectedStationId}
         onSelectStation={rental.selectStation}
         destination={destination}
@@ -357,19 +479,25 @@ export function MapHomePage() {
         />
       ) : (
         /* 상단 — 검색바, 공지 배너, 갱신 배지 */
-        <div className="pt-safe pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-start gap-2 p-4">
-          <div className="pointer-events-auto w-full">
+        <div className="pt-safe pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 px-4 pb-4">
+          <div className="pointer-events-auto mt-6 w-full">
             <SearchBar onClick={openSearch} value={destination?.title} />
           </div>
-          <div className="pointer-events-auto w-full">
-            <NoticeBanner onClick={() => navigate(NOTICES_PATH)} />
-          </div>
-          {/* Figma대로 오른쪽 끝에 붙인다 — 대여소를 아직 못 받았으면 보여줄 시각도 없다 */}
-          {stations && (
-            <div className="self-end">
-              <UpdatedBadge updatedAt={dataUpdatedAt} />
+          <div className="flex w-full flex-col items-end gap-1.5">
+            <div className="pointer-events-auto">
+              <NoticeBanner onClick={() => navigate(NOTICES_PATH)} />
             </div>
-          )}
+            {stations ? (
+              <div className="pointer-events-auto inline-flex items-center overflow-hidden rounded-full border border-line/90 bg-surface/95 shadow-[0_6px_18px_rgba(24,33,21,0.12)] backdrop-blur-md">
+                <UpdatedBadge grouped updatedAt={dataUpdatedAt} />
+                <StationRefreshButton
+                  compact
+                  onClick={refreshStations}
+                  refreshing={refreshingStations}
+                />
+              </div>
+            ) : null}
+          </div>
         </div>
       )}
 
@@ -378,13 +506,61 @@ export function MapHomePage() {
         <div
           className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-end gap-3 p-4 transition-transform duration-300 ease-out ${liftClass}`}
         >
-          <WeatherButton />
-          <StationRefreshButton onClick={refreshStations} refreshing={refreshingStations} />
-          <CurrentLocationButton onClick={focusCurrentLocation} loading={location.loading} />
+          <div
+            role="toolbar"
+            aria-label="지도 도구"
+            className="flex items-center self-end rounded-[19px] border border-white/90 bg-surface/95 p-1 shadow-[0_10px_28px_rgba(24,33,21,0.16)] backdrop-blur-xl"
+          >
+            <WeatherButton inDock />
+            <span aria-hidden="true" className="mx-0.5 h-6 w-px bg-line/80" />
+            <StationVisibilityToggle
+              enabled={stationMarkersVisible}
+              onToggle={toggleStationMarkers}
+            />
+            <span aria-hidden="true" className="mx-0.5 h-6 w-px bg-line/80" />
+            <CurrentLocationButton
+              inDock
+              onClick={focusCurrentLocation}
+              loading={location.loading}
+            />
+          </div>
           {showRentButton ? (
-            <Button full onClick={rental.openRentSheet}>
-              대여하기
-            </Button>
+            <button
+              type="button"
+              onClick={openScanner}
+              className="flex min-h-[64px] w-full items-center gap-3 rounded-[22px] border border-white/90 bg-surface/95 px-3.5 text-left shadow-[0_12px_32px_rgba(24,33,21,0.18)] backdrop-blur-md transition-[scale,box-shadow] duration-100 active:scale-[0.985] active:shadow-lg"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary-dark text-white shadow-sm">
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6">
+                  <path
+                    d="M4.5 4.5h5v5h-5zm10 0h5v5h-5zm-10 10h5v5h-5z"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                    strokeLinejoin="round"
+                  />
+                  <path d="M14.5 14.5h2v2h-2zm3 0h2v5h-2zm-3 3h2v2h-2z" fill="currentColor" />
+                </svg>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-bold text-ink">타슈 대여하기</span>
+                <span className="mt-0.5 block text-xs font-medium text-muted">
+                  자전거 번호를 입력해요
+                </span>
+              </span>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-light text-primary">
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+                  <path
+                    d="m9 5 7 7-7 7"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2.2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+            </button>
           ) : null}
         </div>
       )}
@@ -397,21 +573,17 @@ export function MapHomePage() {
         onReturn={rental.openReturnSheet}
       />
 
-      <CycleRentSheet
-        open={rental.rentSheetOpen}
-        stations={stations}
-        ensureLocation={location.ensure}
-        onClose={rental.closeRentSheet}
-        onRented={() => showToast('대여가 완료됐습니다. 안전하게 이용해 주세요.')}
-      />
-
       <CycleReturnSheet
         open={rental.returnSheetOpen}
         stationId={rental.returnStationId}
         stations={stations}
         ensureLocation={location.ensure}
         onClose={rental.closeReturnSheet}
-        onReturned={() => showToast('반납이 완료됐습니다.')}
+        onReturned={() => {
+          // 번호를 직접 입력해 반납해도 "빌린 자전거" 기억은 지워야 다음 QR이 대여로 잡힌다
+          clearRentalSession();
+          showToast('반납이 완료됐습니다.');
+        }}
       />
 
       <DestinationSheet
@@ -449,6 +621,19 @@ export function MapHomePage() {
           onBack={exitRouteDetail}
         />
       )}
+
+      <RouteStartChoiceSheet
+        open={routeStartChoice !== null}
+        startName={journey.customStart?.title ?? '선택한 출발지'}
+        distanceM={routeStartChoice?.distanceM ?? 0}
+        recommendedCourse={journey.staticRouteActive}
+        pending={routeStartPending}
+        onGuideToStart={guideToSelectedStart}
+        onStartFromCurrent={guideFromCurrentLocation}
+        onClose={() => {
+          if (routeStartPending === null) setRouteStartChoice(null);
+        }}
+      />
 
       {/* 안내 시트 — pickActive와는 파생상 동시에 참일 수 없어 분기가 필요 없다
           (MapPickLayer는 위 상단 오버레이 자리에서 한 번만 마운트한다) */}

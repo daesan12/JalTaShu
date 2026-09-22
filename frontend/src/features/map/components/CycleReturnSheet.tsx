@@ -9,7 +9,7 @@ import { nearestStationId } from '@/features/map/lib/nearestStation';
 import type { LocationResult } from '@/features/map/hooks/useCurrentLocation';
 import type { BikeStation } from '@/shared/api/types';
 
-/** 대여(`CycleRentSheet`)와 같은 형식 — QR 인쇄본, `QrScanPage`의 수동 입력 패턴과 통일 */
+/** QR 인쇄본 형식 — `QrScanPage`의 수동 입력 패턴과 통일 */
 const CODE_PATTERN = /^[A-Za-z0-9]{6,12}$/;
 
 const stroke = {

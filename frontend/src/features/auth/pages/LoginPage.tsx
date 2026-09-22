@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Navigate, useNavigate } from 'react-router';
 import { Button } from '@/shared/ui/Button';
+import logoWordmark from '@/assets/brand/logo-wordmark.png';
 import { startKakaoLogin } from '@/features/auth/api/auth';
 import { ME_QUERY_KEY, useAuth } from '@/features/auth/hooks/useAuth';
 
@@ -40,10 +41,14 @@ export function LoginPage() {
     <div className="flex flex-1 flex-col px-6">
       {/* 로고 영역 */}
       <div className="flex flex-1 flex-col items-center justify-center">
-        <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-primary">
-          <span className="text-2xl font-bold text-white">잘타슈</span>
-        </div>
-        <p className="mt-4 text-[15px] text-gray-500">대전 자전거 여정 내비게이션</p>
+        <img
+          src={logoWordmark}
+          alt="잘타슈"
+          width={1200}
+          height={401}
+          className="h-auto w-full max-w-[280px]"
+        />
+        <p className="mt-5 text-[15px] text-gray-500">대전 자전거 여정 내비게이션</p>
       </div>
 
       {/* 하단: 카카오 로그인 */}
