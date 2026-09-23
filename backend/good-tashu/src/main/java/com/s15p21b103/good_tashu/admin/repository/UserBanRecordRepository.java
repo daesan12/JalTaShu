@@ -11,9 +11,6 @@ public interface UserBanRecordRepository extends JpaRepository<UserBanRecordEnti
     @EntityGraph(attributePaths = "admin")
     List<UserBanRecordEntity> findAllByUser_UserIdOrderByStartedAtDescIdDesc(Long userId);
 
-    Optional<UserBanRecordEntity> findFirstByUser_UserIdAndReleasedAtIsNullAndScheduledEndAtAfter(
-            Long userId, LocalDateTime now);
-
     @Query(value = """
             SELECT b.*
             FROM user_ban_records b
