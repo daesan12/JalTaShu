@@ -17,6 +17,8 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -124,12 +126,24 @@ public class SecurityConfig {
                         .hasRole("USER")
                 )
                 .oauth2ResourceServer(resourceServer ->
-                        resourceServer.jwt(jwt ->
+                        resourceServer
+                                .bearerTokenResolver(bearerTokenResolver())
+                                .jwt(jwt ->
                                 jwt
                                         .decoder(accessTokenJwtDecoder)
                                         .jwtAuthenticationConverter(jwtAuthenticationConverter)
                         )
                 );
         return http.build();
+    }
+
+    // 로그인·재발급은 AT 없이 동작해야 한다. 만료된 AT가 헤더에 실려 와도 무시하지 않으면
+    // BearerTokenAuthenticationFilter가 permitAll 경로에서도 401을 내 재발급이 막힌다.
+    static BearerTokenResolver bearerTokenResolver() {
+        DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
+        List<String> tokenlessPaths = List.of(
+                "/api/admin/login", "/api/admin/token/refresh", "/api/auth/token/refresh");
+        return request -> tokenlessPaths.contains(request.getRequestURI())
+                ? null : delegate.resolve(request);
     }
 }

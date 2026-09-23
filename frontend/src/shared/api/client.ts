@@ -42,13 +42,63 @@ export const client = axios.create({
  */
 let accessToken: string | null = null;
 
-/** 로그인·재발급에 성공한 쪽이 토큰을 넣어 준다. 로그아웃은 null */
+/**
+ * 관리자 웹은 별도 토큰 체계다 — refresh 쿠키 이름(admin_refresh_token)과 재발급 경로가 다르다.
+ * 어느 쪽인지는 현재 화면이 /admin인지로 정한다(재발급·로그인 리다이렉트·탭 공유 모두 같은 기준).
+ */
+type AuthRealm = 'admin' | 'user';
+
+function currentRealm(): AuthRealm {
+  return window.location.pathname.startsWith(`${import.meta.env.BASE_URL}admin`) ? 'admin' : 'user';
+}
+
+/*
+ * 탭 간 토큰 공유 — refresh token은 rotation마다 인증 버전이 바뀌어 다른 탭의 AT가 즉시 무효가 되고,
+ * 두 탭이 같은 쿠키로 동시에 재발급하면 서버가 재사용으로 보고 로그인 자체를 폐기한다.
+ * - Web Locks로 재발급을 브라우저 전체에서 한 번에 하나만 한다
+ * - BroadcastChannel로 새 AT·로그아웃을 다른 탭에 알린다
+ * 둘 다 없는 브라우저에서는 탭 단독으로 동작한다(기존 동작).
+ */
+type AuthMessage =
+  | { type: 'token'; realm: AuthRealm; token: string }
+  | { type: 'logout'; realm: AuthRealm };
+
+const authChannel =
+  typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('tashu-auth');
+
+authChannel?.addEventListener('message', (event: MessageEvent<AuthMessage>) => {
+  const message = event.data;
+  // 관리자 탭과 이용자 탭은 토큰 체계가 달라서 서로의 토큰을 받지 않는다
+  if (message?.realm !== currentRealm()) return;
+  if (message.type === 'token') {
+    accessToken = message.token;
+  } else if (message.type === 'logout') {
+    accessToken = null;
+    redirectToLogin();
+  }
+});
+
+function broadcast(message: AuthMessage): void {
+  authChannel?.postMessage(message);
+}
+
+function withRefreshLock<T>(realm: AuthRealm, task: () => Promise<T>): Promise<T> {
+  if (typeof navigator === 'undefined' || !navigator.locks) return task();
+  return navigator.locks.request(`tashu-auth-refresh:${realm}`, task);
+}
+
+/** 로그인·재발급에 성공한 쪽이 토큰을 넣어 준다. 로그아웃은 null — 다른 탭에도 알린다 */
 export function setAccessToken(token: string | null): void {
   accessToken = token;
+  const realm = currentRealm();
+  broadcast(token === null ? { type: 'logout', realm } : { type: 'token', realm, token });
 }
 
 client.interceptors.request.use((config) => {
-  if (accessToken !== null) config.headers.Authorization = `Bearer ${accessToken}`;
+  // 재발급·로그인에는 AT를 싣지 않는다 — 만료된 AT가 실리면 서버 필터가 401로 막는다
+  if (accessToken !== null && !config.skipAuthRefresh) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
+  }
   return config;
 });
 
@@ -64,34 +114,28 @@ interface TokenResponse {
  */
 let refreshing: Promise<string | null> | null = null;
 
-/**
- * 관리자 웹은 별도 토큰 체계다 — refresh 쿠키 이름(admin_refresh_token)과 재발급 경로가 다르다.
- * 어느 쪽 재발급을 칠지는 로그인 리다이렉트와 같은 기준(현재 화면이 /admin인지)으로 정한다.
- */
-function refreshTokenUrl(): string {
-  const base = import.meta.env.BASE_URL;
-  return window.location.pathname.startsWith(`${base}admin`)
-    ? '/admin/token/refresh'
-    : '/auth/token/refresh';
-}
-
-function refreshAccessToken(): Promise<string | null> {
-  refreshing ??= client
-    .post<ApiResponse<TokenResponse>>(refreshTokenUrl(), null, {
-      skipAuthRedirect: true,
-      skipAuthRefresh: true,
-    })
-    .then((res) => {
+export function refreshAccessToken(): Promise<string | null> {
+  const realm = currentRealm();
+  const stale = accessToken;
+  refreshing ??= withRefreshLock(realm, async () => {
+    // 락을 기다리는 동안 다른 탭이 재발급해 새 토큰을 보내 줬으면 또 회전하지 않는다
+    if (accessToken !== null && accessToken !== stale) return accessToken;
+    try {
+      const res = await client.post<ApiResponse<TokenResponse>>(
+        realm === 'admin' ? '/admin/token/refresh' : '/auth/token/refresh',
+        null,
+        { skipAuthRedirect: true, skipAuthRefresh: true },
+      );
       accessToken = res.data?.data?.accessToken ?? null;
+      if (accessToken !== null) broadcast({ type: 'token', realm, token: accessToken });
       return accessToken;
-    })
-    .catch(() => {
+    } catch {
       accessToken = null;
       return null;
-    })
-    .finally(() => {
-      refreshing = null;
-    });
+    }
+  }).finally(() => {
+    refreshing = null;
+  });
   return refreshing;
 }
 
@@ -99,8 +143,7 @@ function refreshAccessToken(): Promise<string | null> {
 function redirectToLogin(): void {
   // 관리자 화면에서 끊겼으면 모바일 로그인이 아니라 관리자 로그인으로 보낸다
   const base = import.meta.env.BASE_URL;
-  const inAdmin = window.location.pathname.startsWith(`${base}admin`);
-  const loginUrl = `${base}${inAdmin ? 'admin/login' : 'login'}`;
+  const loginUrl = `${base}${currentRealm() === 'admin' ? 'admin/login' : 'login'}`;
   // 이미 로그인 화면이면 리다이렉트 루프 방지
   if (window.location.pathname !== loginUrl) {
     window.location.assign(loginUrl);
@@ -114,11 +157,12 @@ client.interceptors.response.use(undefined, async (error: unknown) => {
   }
   const config = error.config;
   if (!config.skipAuthRefresh && !config.authRetried) {
+    config.authRetried = true;
+    // 요청이 날아가는 사이 다른 탭(또는 이 탭)이 이미 새 토큰으로 갈아 끼웠으면 재발급 없이 재시도
+    const sent = config.headers?.Authorization;
+    if (accessToken !== null && sent !== `Bearer ${accessToken}`) return client.request(config);
     const token = await refreshAccessToken();
-    if (token !== null) {
-      config.authRetried = true;
-      return client.request(config);
-    }
+    if (token !== null) return client.request(config);
   }
   accessToken = null;
   if (!config.skipAuthRedirect) redirectToLogin();

@@ -1,4 +1,4 @@
-import { apiPost, setAccessToken } from '@/shared/api/client';
+import { apiPost, refreshAccessToken, setAccessToken } from '@/shared/api/client';
 
 /**
  * 관리자 인증 — 백엔드 실구현(AdminController) 기준.
@@ -32,16 +32,8 @@ export async function adminLogin(id: string, password: string): Promise<void> {
  * 실패해도 예외를 던지지 않는다(미로그인은 정상 상태).
  */
 export async function restoreAdminSession(): Promise<boolean> {
-  try {
-    const res = await apiPost<AdminTokenResponse>('/admin/token/refresh', null, {
-      skipAuthRedirect: true,
-      skipAuthRefresh: true,
-    });
-    setAccessToken(res.accessToken);
-    return true;
-  } catch {
-    return false;
-  }
+  // 401 인터셉터와 같은 재발급 락을 탄다 — 같은 쿠키로 두 번 치면 서버가 재사용으로 보고 세션을 폐기한다
+  return (await refreshAccessToken()) !== null;
 }
 
 /** POST /api/admin/logout — 서버가 refresh를 폐기하고 쿠키를 만료시킨다. 메모리 토큰도 지운다 */
