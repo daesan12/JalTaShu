@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -32,6 +33,7 @@ import static com.s15p21b103.good_tashu.admin.exception.AdminErrorCode.*;
 @Service
 @RequiredArgsConstructor
 public class AdminCycleService {
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private final AdminCycleRepository adminCycleRepository;
     private final StationRepository stationRepository;
     @Transactional(readOnly = true)
@@ -126,7 +128,12 @@ public class AdminCycleService {
             throw new AdminException(NOT_EXISTS_STATION);
         }
         // 현재 수량과 오늘·24시간 전 기준 통계를 응답 DTO로 변환한다.
-        StationDetailStats stats = adminCycleRepository.findStationDetailStats(stationId);
+        // "오늘"·"24시간 전"은 KST로 계산해 넘긴다 — DB 시계(UTC)를 쓰면 9시간 어긋난다.
+        LocalDateTime now = LocalDateTime.now(SEOUL);
+        LocalDateTime todayStart = now.toLocalDate().atStartOfDay();
+        StationDetailStats stats = adminCycleRepository.findStationDetailStats(stationId,
+                todayStart, todayStart.plusDays(1), todayStart.minusDays(1),
+                now.minusHours(24), now.minusHours(48));
         return new AdminStationDetailResponse(
                 stats.getStationName(), stats.getCurrentBikeCnt(),
                 stats.getTodayRentalCnt(), stats.getTodayReturnCnt(),
@@ -144,7 +151,7 @@ public class AdminCycleService {
         }
         String normalizedTerm = normalizeTerm(term);
         int days = normalizedTerm.equals("day") ? 1 : 7;
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(SEOUL);
         LocalDate fromDate = today.minusDays(days);
 
         Map<LocalDate, AdminStationTrendResponse> trendByDate = adminCycleRepository.findStationTrend(

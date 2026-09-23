@@ -29,7 +29,7 @@ interface CycleReturnSheetProps {
   ensureLocation: () => Promise<LocationResult>;
   onClose: () => void;
   /** 반납 성공 — 부모가 토스트 등으로 안내한다 */
-  onReturned: (result: CycleReturnResult, stationId: string) => void;
+  onReturned: (result: CycleReturnResult, cycleId: string, stationId: string) => void;
 }
 
 /**
@@ -61,7 +61,7 @@ export function CycleReturnSheet({
   const returnMutation = useMutation({
     mutationFn: returnCycle,
     onSuccess: (result, variables) => {
-      onReturned(result, variables.stationId);
+      onReturned(result, variables.cycleId, variables.stationId);
       close();
     },
   });

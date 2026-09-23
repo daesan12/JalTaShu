@@ -16,6 +16,7 @@ import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageListResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageDetailResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleStatementResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleReturnResponse;
+import com.s15p21b103.good_tashu.cycle.dto.res.CycleCurrentRentalResponse;
 
 @RequiredArgsConstructor
 @RestController
@@ -36,8 +37,13 @@ public class CycleController {
         LocalDateTime localDateTime = cycleService.rentalCycle(userId, request);
         return ApiResponse.success(localDateTime);
     }
+    //현재 대여 중인 자전거 조회 — 없으면 data가 null
+    @GetMapping("/rental/current")
+    public ApiResponse<CycleCurrentRentalResponse> getCurrentRental(@CurrentUserId Long userId) {
+        return ApiResponse.success(cycleService.getCurrentRental(userId));
+    }
     //반납 요청
-    @PostMapping("return")
+    @PostMapping("/return")
     public ApiResponse<CycleReturnResponse> returnCycle(@CurrentUserId Long userId,
                                                         @Valid @RequestBody CycleReturnRequest request){
         return ApiResponse.success(cycleService.returnCycle(userId, request));

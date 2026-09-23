@@ -267,6 +267,47 @@ class CycleServiceTest {
         verify(eventPublisher).publishEvent(new CycleReturnEvent(1L, result.returnedAt()));
     }
 
+    // 대여할 때 대문자로 등록하므로 반납도 대문자로 찾아야 같은 자전거다
+    @Test
+    void returnLooksUpCycleIdInUpperCase() {
+        existingUserAndCycle();
+        cycle.setStatus(CycleStatus.RENTING);
+        when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
+        CycleUsageEntity usage = CycleUsageEntity.builder().cycleUsageId(77L)
+                .userEntity(user).cycleEntity(cycle).build();
+        when(cycleUsageRepository.findByUserEntityAndCycleEntityAndReturnAtIsNull(user, cycle))
+                .thenReturn(Optional.of(usage));
+
+        cycleService.returnCycle(1L, returnRequest("c1", "S1"));
+
+        verify(cycleRepository).findById("C1");
+        assertThat(cycle.getStatus()).isEqualTo(CycleStatus.READY);
+    }
+
+    @Test
+    void currentRentalReturnsUnreturnedUsage() {
+        LocalDateTime rentalAt = LocalDateTime.of(2026, 9, 24, 9, 0);
+        CycleUsageEntity usage = CycleUsageEntity.builder().cycleUsageId(5L)
+                .userEntity(user).cycleEntity(cycle).rentalAt(rentalAt).build();
+        when(cycleUsageRepository
+                .findFirstByUserEntity_UserIdAndReturnAtIsNullOrderByRentalAtDescCycleUsageIdDesc(1L))
+                .thenReturn(Optional.of(usage));
+
+        var response = cycleService.getCurrentRental(1L);
+
+        assertThat(response.cycleId()).isEqualTo("C1");
+        assertThat(response.rentedAt()).isEqualTo(rentalAt);
+    }
+
+    @Test
+    void currentRentalIsNullWhenNothingIsRented() {
+        when(cycleUsageRepository
+                .findFirstByUserEntity_UserIdAndReturnAtIsNullOrderByRentalAtDescCycleUsageIdDesc(1L))
+                .thenReturn(Optional.empty());
+
+        assertThat(cycleService.getCurrentRental(1L)).isNull();
+    }
+
     @Test
     void pathIsSavedToRequestedCompletedUsage() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));

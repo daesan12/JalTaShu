@@ -13,6 +13,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -60,7 +62,8 @@ class AdminStationNameTest {
         when(stats.getYesterdayRentalCnt()).thenReturn(9L);
         when(stats.getYesterdayReturnCnt()).thenReturn(7L);
         when(stats.getYesterdayReportCnt()).thenReturn(0L);
-        when(adminCycleRepository.findStationDetailStats("ST0012")).thenReturn(stats);
+        when(adminCycleRepository.findStationDetailStats(eq("ST0012"), any(), any(), any(), any(), any()))
+                .thenReturn(stats);
 
         var response = adminCycleService.getStationDetail("ST0012");
 

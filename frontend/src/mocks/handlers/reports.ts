@@ -62,6 +62,30 @@ function readRentedCycles(): RentedCycles {
   }
 }
 
+/**
+ * 그중 **내가** 빌린 자전거 — `GET /api/cycle/rental/current`용.
+ * 위 목록은 남이 빌려 간 자전거(22B01262)도 담고 있어 따로 둔다.
+ */
+const MY_RENTAL_KEY = 'msw_my_rental';
+
+function readMyRental(): { cycleId: string; rentedAt: string } | null {
+  try {
+    const raw = localStorage.getItem(MY_RENTAL_KEY);
+    return raw === null ? null : (JSON.parse(raw) as { cycleId: string; rentedAt: string });
+  } catch {
+    return null;
+  }
+}
+
+function writeMyRental(rental: { cycleId: string; rentedAt: string } | null) {
+  try {
+    if (rental === null) localStorage.removeItem(MY_RENTAL_KEY);
+    else localStorage.setItem(MY_RENTAL_KEY, JSON.stringify(rental));
+  } catch {
+    // 저장 불가 환경 무시
+  }
+}
+
 function writeRentedCycles(rented: RentedCycles) {
   try {
     localStorage.setItem(RENTED_KEY, JSON.stringify(rented));
@@ -261,6 +285,13 @@ export const reportHandlers = [
     return HttpResponse.json({ code: 200, message: '신고가 접수되었습니다.', data: null });
   }),
 
+  http.get('/api/cycle/rental/current', async () => {
+    await delay(200);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    return HttpResponse.json(ok(readMyRental()));
+  }),
+
   http.post('/api/cycle/rental', async ({ request }) => {
     await delay(500);
     const authFail = requireAuth();
@@ -286,11 +317,15 @@ export const reportHandlers = [
       return fail(400, '현재 위치를 확인할 수 없습니다.');
     }
     const rented = readRentedCycles();
+    if (readMyRental() !== null) {
+      return fail(409, '이미 대여 중인 자전거가 있습니다.');
+    }
     if (cycleId in rented) {
-      return fail(409, '이미 대여 중인 자전거입니다.');
+      return fail(400, '대여 가능상태가 아닌 자전거입니다.');
     }
     const rentedAt = new Date().toISOString();
     writeRentedCycles({ ...rented, [cycleId]: rentedAt });
+    writeMyRental({ cycleId, rentedAt });
     return HttpResponse.json(ok(rentedAt));
   }),
 
@@ -321,6 +356,7 @@ export const reportHandlers = [
     }
     const { [cycleId]: _removed, ...rest } = rented;
     writeRentedCycles(rest);
+    if (readMyRental()?.cycleId === cycleId) writeMyRental(null);
     // 실서버는 여기서 이용 기록 한 건을 만든다 — 목업도 만들어야 "나의 경로"까지 이어진다
     const returnedAt = new Date().toISOString();
     const cycleUsageId = addMockUsage({ cycleId, stationId: body.stationId, rentedAt, returnedAt });

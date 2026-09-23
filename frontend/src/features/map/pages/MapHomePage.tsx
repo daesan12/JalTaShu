@@ -38,8 +38,8 @@ import type { ReturnedUsage } from '@/features/map/hooks/useRouteGuide';
 import { useToast } from '@/shared/lib/useToast';
 import { START_POS_FALLBACK } from '@/features/map/lib/mapDefaults';
 import { NOTICES_PATH } from '@/features/map/lib/noticeLink';
-import { clearRentalSession } from '@/features/rental/lib/rentalSession';
-import { useCycleRental, useScannedCode } from '@/features/map/hooks/useCycleRental';
+import { QrScanView } from '@/features/rental/components/QrScanView';
+import { useCycleRental } from '@/features/map/hooks/useCycleRental';
 import { useDeviceHeading } from '@/features/map/hooks/useDeviceHeading';
 import { readRecommendedRouteIntent } from '@/features/map/lib/recommendedRouteIntent';
 import {
@@ -51,12 +51,12 @@ import {
   waypointToPlace,
 } from '@/features/mypage/api/recommendedCourseRoutes';
 import {
-  CODE_PARAM,
   DETAIL_PARAM,
   FIELD_PARAM,
   GUIDE_PARAM,
   PICK_PARAM,
   ROUTES_PARAM,
+  SCAN_PARAM,
   SEARCH_PARAM,
   START_FIELD_VALUE,
 } from '@/features/map/lib/urlParams';
@@ -97,6 +97,7 @@ export function MapHomePage() {
   const guideInUrl = searchParams.get(GUIDE_PARAM) === '1';
   const pickInUrl = searchParams.get(PICK_PARAM) === '1';
   const startFieldInUrl = searchParams.get(FIELD_PARAM) === START_FIELD_VALUE;
+  const scanOpen = searchParams.get(SCAN_PARAM) === '1';
 
   // 현재위치 버튼을 누른 횟수 — 같은 자리에서 다시 눌러도 지도가 그 위치로 돌아오게 하는 신호
   const [locationFocusToken, setLocationFocusToken] = useState(0);
@@ -167,8 +168,8 @@ export function MapHomePage() {
   const rental = useRentalSheets(stations);
   const [returnedUsage, setReturnedUsage] = useState<ReturnedUsage | null>(null);
   const rememberReturnedUsage = useCallback(
-    (cycleUsageId: number, returnedAt: string, stationId: string) => {
-      setReturnedUsage({ cycleUsageId, returnedAt, stationId });
+    (cycleUsageId: number, cycleId: string, returnedAt: string, stationId: string) => {
+      setReturnedUsage({ cycleUsageId, cycleId, returnedAt, stationId });
     },
     [],
   );
@@ -176,34 +177,47 @@ export function MapHomePage() {
 
 
   /**
-   * QR 대여·반납. 스캔 화면은 민원·상태확인이 쓰던 것을 그대로 쓰고(`?next=/`),
-   * 돌아올 때 붙는 `?code=`를 한 번 처리한 뒤 지운다.
+   * QR 대여·반납. 스캔 화면은 지도 위 오버레이(`?scan=1`)라 현재 위치와 경로 안내가 그대로 남는다.
+   * 대여인지 반납인지는 스캔 결과를 받은 `useCycleRental`이 가른다.
    */
   const cycleRental = useCycleRental({
-    stations,
-    position: location.position,
+    location,
     showToast,
     onReturned: (result, input) =>
-      rememberReturnedUsage(result.cycleUsageId, result.returnedAt, input.stationId),
+      rememberReturnedUsage(result.cycleUsageId, input.cycleId, result.returnedAt, input.stationId),
   });
   /** 빌린 자전거가 있으면 하단 버튼과 대여소 시트가 "반납하기"로 바뀐다 */
   const hasRentedCycle = cycleRental.session !== null;
-  useScannedCode(searchParams.get(CODE_PARAM), cycleRental.handleCode, () => {
+
+  /** 하단 버튼·대여소 시트·안내 중 버튼 — QR로 자전거를 확인한다. 카메라를 못 쓰면 번호 직접 입력 */
+  function openScanner() {
+    if (cycleRental.busy) return;
+    rental.selectStation(null);
+    setSearchParams((params) => {
+      params.set(SCAN_PARAM, '1');
+      return params;
+    });
+  }
+
+  /** 스캔 오버레이만 닫는다. 열 때 쌓은 히스토리가 없으면(새로고침·딥링크) 파라미터만 걷어낸다 */
+  function closeScanner() {
+    const historyIdx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (historyIdx >= 1) {
+      navigate(-1);
+      return;
+    }
     setSearchParams(
       (params) => {
-        params.delete(CODE_PARAM);
+        params.delete(SCAN_PARAM);
         return params;
       },
       { replace: true },
     );
-  });
+  }
 
-  /**
-   * 하단 버튼 — QR로 자전거를 확인한다. 카메라를 못 쓰면 그 화면의 번호 직접 입력으로 넘어간다.
-   * 대여인지 반납인지는 스캔 결과를 받은 `useCycleRental`이 가르므로 여기서는 나누지 않는다.
-   */
-  function openScanner() {
-    navigate(`/report/scan?next=${encodeURIComponent('/')}`);
+  function handleScannedCode(code: string) {
+    closeScanner();
+    void cycleRental.handleCode(code);
   }
 
   function toggleStationMarkers() {
@@ -286,6 +300,7 @@ export function MapHomePage() {
     onIntermediateArrival: journey.continueAfterReachingStart,
     returnedUsage,
     onReturnedUsageHandled: clearReturnedUsage,
+    rentedCycleId: cycleRental.session?.cycleId ?? null,
     showToast,
   });
 
@@ -461,6 +476,11 @@ export function MapHomePage() {
   // 확정하려는 중이면 이미 다른 화면으로 넘어간 것이라 굳이 보여줄 이유가 없다
   const showRentButton =
     !stationSheetOpen && !destinationSheetOpen && !searchOpen && !rental.returnSheetOpen;
+  const rentLabel = cycleRental.busy
+    ? '처리 중…'
+    : hasRentedCycle
+      ? '타슈 반납하기'
+      : '타슈 대여하기';
 
   return (
     <div className="relative h-full overflow-hidden">
@@ -566,6 +586,7 @@ export function MapHomePage() {
             <button
               type="button"
               onClick={openScanner}
+              disabled={cycleRental.busy}
               className="flex min-h-[64px] w-full items-center gap-3 rounded-[22px] border border-white/90 bg-surface/95 px-3.5 text-left shadow-[0_12px_32px_rgba(24,33,21,0.18)] backdrop-blur-md transition-[scale,box-shadow] duration-100 active:scale-[0.985] active:shadow-lg"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary-dark text-white shadow-sm">
@@ -581,13 +602,11 @@ export function MapHomePage() {
                 </svg>
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-bold text-ink">
-                  {hasRentedCycle ? '타슈 반납하기' : '타슈 대여하기'}
-                </span>
+                <span className="block text-[15px] font-bold text-ink">{rentLabel}</span>
                 <span className="mt-0.5 block text-xs font-medium text-muted">
                   {hasRentedCycle
-                    ? `${cycleRental.session?.cycleId ?? ''} 자전거를 반납해요`
-                    : '자전거 번호를 입력해요'}
+                    ? `${cycleRental.session?.cycleId ?? ''} 자전거의 QR을 찍어 반납해요`
+                    : '자전거 QR을 찍거나 번호를 입력해요'}
                 </span>
               </span>
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-light text-primary">
@@ -622,12 +641,11 @@ export function MapHomePage() {
         stations={stations}
         ensureLocation={location.ensure}
         onClose={rental.closeReturnSheet}
-        onReturned={(result, stationId) => {
-          rememberReturnedUsage(result.cycleUsageId, result.returnedAt, stationId);
-          // 번호를 직접 입력해 반납해도 "빌린 자전거" 기억은 지워야 다음 QR이 대여로 잡힌다
-          clearRentalSession();
-          // 저장소만 지우면 화면은 모른다 — 버튼이 "대여하기"로 돌아가도록 함께 알린다
-          cycleRental.syncSession();
+        onReturned={(result, cycleId, stationId) => {
+          rememberReturnedUsage(result.cycleUsageId, cycleId, result.returnedAt, stationId);
+          // 번호를 직접 입력해 반납해도 "빌린 자전거" 기억을 지워야 다음 QR이 대여로 잡히고
+          // 버튼도 "대여하기"로 돌아간다
+          cycleRental.markReturned();
           showToast('반납이 완료됐습니다.');
         }}
       />
@@ -682,6 +700,34 @@ export function MapHomePage() {
         }}
       />
 
+      {/* 안내 중 대여·반납 — 하단 도구는 비교·안내 중 숨으므로 안내 시트(peek) 바로 위에 따로 띄운다 */}
+      {guideActive && !scanOpen ? (
+        <div
+          className={`pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-end p-4 ${LIFT_FOR_STATION_CLASS}`}
+        >
+          <button
+            type="button"
+            onClick={openScanner}
+            disabled={cycleRental.busy}
+            className="pointer-events-auto flex min-h-[48px] items-center gap-2 rounded-full border border-white/90 bg-surface/95 py-1.5 pr-4 pl-1.5 shadow-[0_10px_28px_rgba(24,33,21,0.18)] backdrop-blur-md transition-[scale] duration-100 active:scale-[0.97] disabled:opacity-60"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-dark text-white">
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
+                <path
+                  d="M4.5 4.5h5v5h-5zm10 0h5v5h-5zm-10 10h5v5h-5z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                  strokeLinejoin="round"
+                />
+                <path d="M14.5 14.5h2v2h-2zm3 0h2v5h-2zm-3 3h2v2h-2z" fill="currentColor" />
+              </svg>
+            </span>
+            <span className="text-sm font-bold text-ink">{rentLabel}</span>
+          </button>
+        </div>
+      ) : null}
+
       {/* 안내 시트 — pickActive와는 파생상 동시에 참일 수 없어 분기가 필요 없다
           (MapPickLayer는 위 상단 오버레이 자리에서 한 번만 마운트한다) */}
       {guideActive && guide.guideProgress !== null ? (
@@ -713,6 +759,24 @@ export function MapHomePage() {
           onSwap={journey.swapStartAndDestination}
           onUseCurrentLocationAsStart={journey.resetStartToCurrentLocation}
         />
+      ) : null}
+
+      {/* QR 스캔 — 탭바·시트(z-40)를 덮는다. 토스트(z-60)는 그 위라 실패 안내가 보인다 */}
+      {scanOpen ? (
+        <div className="fixed inset-y-0 left-1/2 z-50 flex w-full max-w-[430px] -translate-x-1/2 flex-col bg-canvas">
+          <QrScanView
+            onCode={handleScannedCode}
+            onBack={closeScanner}
+            headerTitle={hasRentedCycle ? '타슈 반납' : '타슈 대여'}
+            eyebrow={hasRentedCycle ? 'RETURN' : 'RENT'}
+            title="자전거 QR을 비춰주세요"
+            description={
+              hasRentedCycle
+                ? `${cycleRental.session?.cycleId ?? ''} 자전거의 QR을 찍으면 가장 가까운 대여소에 반납해요.`
+                : 'QR을 찍으면 가장 가까운 대여소에서 대여해요.'
+            }
+          />
+        </div>
       ) : null}
 
       {message && <Toast message={message} />}

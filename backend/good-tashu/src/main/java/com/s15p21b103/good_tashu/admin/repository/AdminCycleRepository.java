@@ -167,6 +167,8 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
                                @Param("to") LocalDateTime to);
 
     // 어제 수량은 현재 수량에서 최근 24시간의 대여·반납 흐름을 역산한다.
+    // 기준 시각은 호출하는 쪽이 KST로 넘긴다 — MySQL은 UTC(default-time-zone=+00:00)라
+    // CURRENT_DATE·CURRENT_TIMESTAMP를 쓰면 KST로 저장된 대여·반납 시각과 9시간 어긋난다.
     @Query(value = """
             SELECT
                 (SELECT s.name FROM stations s WHERE s.station_id = :stationId) AS stationName,
@@ -174,31 +176,36 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
                  WHERE c.station_id = :stationId AND c.status = 'READY') AS currentBikeCnt,
                 (SELECT COUNT(*) FROM cycle_usages cu
                  WHERE cu.rental_station_id = :stationId
-                   AND cu.rental_at >= CURRENT_DATE AND cu.rental_at < CURRENT_DATE + INTERVAL 1 DAY) AS todayRentalCnt,
+                   AND cu.rental_at >= :todayStart AND cu.rental_at < :tomorrowStart) AS todayRentalCnt,
                 (SELECT COUNT(*) FROM cycle_usages cu
                  WHERE cu.return_station_id = :stationId
-                   AND cu.return_at >= CURRENT_DATE AND cu.return_at < CURRENT_DATE + INTERVAL 1 DAY) AS todayReturnCnt,
+                   AND cu.return_at >= :todayStart AND cu.return_at < :tomorrowStart) AS todayReturnCnt,
                 (SELECT COUNT(*) FROM claims cc
                  JOIN cycles c ON c.cycle_id = cc.cycle_id
                  WHERE c.station_id = :stationId AND cc.status = 'READY') AS currentReportCnt,
                 (SELECT COUNT(*) FROM cycles c WHERE c.station_id = :stationId AND c.status = 'READY')
                 + (SELECT COUNT(*) FROM cycle_usages cu WHERE cu.rental_station_id = :stationId
-                   AND cu.rental_at >= CURRENT_TIMESTAMP - INTERVAL 24 HOUR)
+                   AND cu.rental_at >= :dayAgo)
                 - (SELECT COUNT(*) FROM cycle_usages cu WHERE cu.return_station_id = :stationId
-                   AND cu.return_at >= CURRENT_TIMESTAMP - INTERVAL 24 HOUR) AS yesterdayBikeCnt,
+                   AND cu.return_at >= :dayAgo) AS yesterdayBikeCnt,
                 (SELECT COUNT(*) FROM cycle_usages cu WHERE cu.rental_station_id = :stationId
-                   AND cu.rental_at >= CURRENT_DATE - INTERVAL 1 DAY
-                   AND cu.rental_at < CURRENT_TIMESTAMP - INTERVAL 24 HOUR) AS yesterdayRentalCnt,
+                   AND cu.rental_at >= :yesterdayStart
+                   AND cu.rental_at < :dayAgo) AS yesterdayRentalCnt,
                 (SELECT COUNT(*) FROM cycle_usages cu WHERE cu.return_station_id = :stationId
-                   AND cu.return_at >= CURRENT_DATE - INTERVAL 1 DAY
-                   AND cu.return_at < CURRENT_TIMESTAMP - INTERVAL 24 HOUR) AS yesterdayReturnCnt,
+                   AND cu.return_at >= :yesterdayStart
+                   AND cu.return_at < :dayAgo) AS yesterdayReturnCnt,
                 (SELECT COUNT(*) FROM claims cc
                  JOIN cycles c ON c.cycle_id = cc.cycle_id
                  WHERE c.station_id = :stationId AND cc.status = 'READY'
-                   AND cc.created_at >= CURRENT_TIMESTAMP - INTERVAL 48 HOUR
-                   AND cc.created_at < CURRENT_TIMESTAMP - INTERVAL 24 HOUR) AS yesterdayReportCnt
+                   AND cc.created_at >= :twoDaysAgo
+                   AND cc.created_at < :dayAgo) AS yesterdayReportCnt
             """, nativeQuery = true)
-    StationDetailStats findStationDetailStats(@Param("stationId") String stationId);
+    StationDetailStats findStationDetailStats(@Param("stationId") String stationId,
+                                              @Param("todayStart") LocalDateTime todayStart,
+                                              @Param("tomorrowStart") LocalDateTime tomorrowStart,
+                                              @Param("yesterdayStart") LocalDateTime yesterdayStart,
+                                              @Param("dayAgo") LocalDateTime dayAgo,
+                                              @Param("twoDaysAgo") LocalDateTime twoDaysAgo);
 
     // 오늘을 제외하고 대여·반납 이벤트를 날짜별로 합산한다.
     @Query(value = """

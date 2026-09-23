@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router';
 import type { Pos, RouteCandidate } from '@/shared/api/types';
 import { getReRoutePaths } from '@/features/map/api/routes';
 import type { useCurrentLocation } from '@/features/map/hooks/useCurrentLocation';
-import { saveUsagePath } from '@/features/history/api/rides';
+import { saveUsagePath, type SaveUsagePathInput } from '@/features/history/api/rides';
+import { toSeoulLocalDateTime } from '@/shared/lib/format';
 import { useKeepAwake } from '@/features/map/hooks/useKeepAwake';
 import { useSpeech } from '@/features/map/hooks/useSpeech';
 import { readVoiceOn, writeVoiceOn } from '@/features/map/lib/guideVoicePref';
@@ -13,6 +14,10 @@ import { getRouteProgress } from '@/features/map/lib/routeProgress';
 import { shouldReRoute, toTravelStatus } from '@/features/map/lib/routeReroute';
 import { toLegs } from '@/features/map/lib/routeSegments';
 import { toUsagePath } from '@/features/map/lib/usagePath';
+import {
+  takePendingUsagePath,
+  writePendingUsagePath,
+} from '@/features/map/lib/pendingUsagePath';
 import { ANNOUNCE, cueSpeech, spokenKey, voiceStage } from '@/features/map/lib/routeVoice';
 
 /**
@@ -52,11 +57,14 @@ interface RouteGuideDeps {
   onIntermediateArrival: () => boolean;
   returnedUsage: ReturnedUsage | null;
   onReturnedUsageHandled: () => void;
+  /** 지금 빌려 둔 자전거 번호 — 반납 전에 "도착 완료"를 누르면 경로를 이 자전거 반납에 붙인다 */
+  rentedCycleId: string | null;
   showToast: (message: string) => void;
 }
 
 export interface ReturnedUsage {
   cycleUsageId: number;
+  cycleId: string;
   returnedAt: string;
   stationId: string;
 }
@@ -81,6 +89,7 @@ export function useRouteGuide({
   onIntermediateArrival,
   returnedUsage,
   onReturnedUsageHandled,
+  rentedCycleId,
   showToast,
 }: RouteGuideDeps) {
   const navigate = useNavigate();
@@ -112,9 +121,36 @@ export function useRouteGuide({
       void queryClient.invalidateQueries({ queryKey: ['usageList'] });
       void queryClient.invalidateQueries({ queryKey: ['usageStats'] });
       void queryClient.invalidateQueries({ queryKey: ['me'] });
+      // 경로 없이 먼저 열어 본 상세가 캐시에 남아 있으면 방금 붙인 경로가 안 보인다
+      void queryClient.invalidateQueries({ queryKey: ['usageDetail'] });
     },
     onError: () => showToast('이동 기록을 저장하지 못했어요.'),
   });
+
+  /**
+   * 안내하던 경로를 저장 요청 형태로 만든다. 실제 GPS 궤적이 아니라 안내 중이던 경로의 거리다.
+   * 서버는 미터 정수를 받는다(자전거 거리 ≤ 전체 거리 검증이 있어 반올림 순서를 맞춘다).
+   * 시각은 LocalDateTime(서울)으로 보낸다 — toISOString()의 UTC 'Z'는 9시간 어긋나 저장된다.
+   */
+  function buildPath(
+    route: RouteCandidate,
+    startedAt: number,
+    finishedAt: number,
+  ): Omit<SaveUsagePathInput, 'cycleUsageId'> {
+    const guideLegs = toLegs(route);
+    const totalDistanceM = guideLegs.reduce((sum, leg) => sum + leg.distance, 0);
+    const bikeDistanceM = guideLegs.reduce(
+      (sum, leg) => sum + (leg.mode === 'BICYCLE' ? leg.distance : 0),
+      0,
+    );
+    return {
+      pathInfo: { road: toUsagePath(route) },
+      createdAt: toSeoulLocalDateTime(startedAt),
+      finishedAt: toSeoulLocalDateTime(Math.max(startedAt, finishedAt)),
+      totalDistance: Math.round(totalDistanceM),
+      bikeDistance: Math.min(Math.round(bikeDistanceM), Math.round(totalDistanceM)),
+    };
+  }
 
   // 안내 중에는 화면이 꺼지지 않게 한다 — 꺼지면 WebView가 멈춰 안내도 음성도 같이 멎는다
   useKeepAwake(guideActive);
@@ -147,7 +183,14 @@ export function useRouteGuide({
     if (handledReturnedUsageIdRef.current === returnedUsage.cycleUsageId) return;
     handledReturnedUsageIdRef.current = returnedUsage.cycleUsageId;
     onReturnedUsageHandled();
-    if (!guideActive || detailRoute === null) return;
+    if (!guideActive || detailRoute === null) {
+      // 안내는 이미 "도착 완료"로 끝났고 반납이 뒤따라온 경우 — 맡겨 둔 경로를 이 기록에 붙인다
+      const pending = takePendingUsagePath(returnedUsage.cycleId);
+      if (pending !== null) {
+        savePath.mutate({ ...pending.path, cycleUsageId: returnedUsage.cycleUsageId });
+      }
+      return;
+    }
 
     returnedUsageIdRef.current = returnedUsage.cycleUsageId;
     if (detailRoute.endStation?.stationId === returnedUsage.stationId) return;
@@ -156,22 +199,15 @@ export function useRouteGuide({
     const startedAt = guideStartAtRef.current ?? Date.now();
     const parsedReturnedAt = Date.parse(returnedUsage.returnedAt);
     const finishedAt = Number.isNaN(parsedReturnedAt) ? Date.now() : parsedReturnedAt;
-    const guideLegs = toLegs(detailRoute);
-    const totalDistanceM = guideLegs.reduce((sum, leg) => sum + leg.distance, 0);
-    const bikeDistanceM = guideLegs.reduce(
-      (sum, leg) => sum + (leg.mode === 'BICYCLE' ? leg.distance : 0),
-      0,
-    );
     savePath.mutate({
+      ...buildPath(detailRoute, startedAt, finishedAt),
       cycleUsageId: returnedUsage.cycleUsageId,
-      pathInfo: { road: toUsagePath(detailRoute) },
-      createdAt: new Date(startedAt).toISOString(),
-      finishedAt: new Date(Math.max(startedAt, finishedAt)).toISOString(),
-      totalDistance: Math.round(totalDistanceM),
-      bikeDistance: Math.min(Math.round(bikeDistanceM), Math.round(totalDistanceM)),
     });
     returnedUsageIdRef.current = null;
     clearJourney();
+    // 경로 상태만 지우면 URL의 routes·detail·guide가 남아, 다음 경로 조회가 곧장 안내로 들어간다
+    navigate('/');
+    showToast('안내 경로와 다른 대여소에 반납해 안내를 마쳤어요.');
     // mutation 객체와 콜백은 렌더마다 새 참조가 될 수 있으므로 반납 이벤트만 한 번 소비한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [returnedUsage]);
@@ -202,34 +238,23 @@ export function useRouteGuide({
       guideStartAtRef.current = Date.now();
       return;
     }
-    // 실제 GPS 궤적이 아니라 안내 중이던 경로의 거리다(원시 좌표를 쌓지 않는다)
-    const guideLegs = toLegs(detailRoute);
-    const totalDistanceM = guideLegs.reduce((sum, leg) => sum + leg.distance, 0);
-    const bikeDistanceM = guideLegs.reduce(
-      (sum, leg) => sum + (leg.mode === 'BICYCLE' ? leg.distance : 0),
-      0,
-    );
     const startedAt = guideStartAtRef.current ?? Date.now();
     const finishedAt = Date.now();
+    const path = buildPath(detailRoute, startedAt, finishedAt);
     setArrivalSummary({
       destinationTitle,
       elapsedSec: (finishedAt - startedAt) / 1000,
-      totalDistanceM,
-      bikeDistanceM,
+      totalDistanceM: path.totalDistance,
+      bikeDistanceM: path.bikeDistance,
       route: detailRoute,
     });
-    // 서버는 미터 정수를 받는다(자전거 거리 ≤ 전체 거리 검증이 있어 반올림 순서를 맞춘다)
     const cycleUsageId = returnedUsageIdRef.current;
     if (cycleUsageId !== null) {
-      savePath.mutate({
-        cycleUsageId,
-        pathInfo: { road: toUsagePath(detailRoute) },
-        createdAt: new Date(startedAt).toISOString(),
-        finishedAt: new Date(finishedAt).toISOString(),
-        totalDistance: Math.round(totalDistanceM),
-        bikeDistance: Math.min(Math.round(bikeDistanceM), Math.round(totalDistanceM)),
-      });
+      savePath.mutate({ ...path, cycleUsageId });
       returnedUsageIdRef.current = null;
+    } else if (rentedCycleId !== null) {
+      // 아직 반납 전이다 — 이 자전거를 반납하면 그 이용 기록에 붙인다
+      writePendingUsagePath({ cycleId: rentedCycleId, savedAt: finishedAt, path });
     }
   }
 

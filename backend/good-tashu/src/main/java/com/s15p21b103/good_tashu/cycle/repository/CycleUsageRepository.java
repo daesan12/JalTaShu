@@ -71,6 +71,11 @@ public interface CycleUsageRepository extends JpaRepository<CycleUsageEntity, Lo
 
     boolean existsByUserEntity_UserIdAndReturnAtIsNull(Long userId);
 
+    // 반납 전인 대여 — 앱이 기억한 "빌린 자전거"를 서버 기준으로 맞출 때 쓴다
+    @EntityGraph(attributePaths = {"cycleEntity"})
+    Optional<CycleUsageEntity> findFirstByUserEntity_UserIdAndReturnAtIsNullOrderByRentalAtDescCycleUsageIdDesc(
+            Long userId);
+
     Optional<CycleUsageEntity> findByUserEntityAndCycleEntityAndReturnAtIsNull(
             UserEntity userEntity,
             CycleEntity cycleEntity

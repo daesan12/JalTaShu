@@ -28,6 +28,7 @@ import com.s15p21b103.good_tashu.cycle.dto.res.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.ZoneId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -41,6 +42,8 @@ import static com.s15p21b103.good_tashu.user.exception.UserErrorCode.NOT_EXISTS_
 @Service
 @RequiredArgsConstructor
 public class CycleService {
+    // 컨테이너 기본 시간대(UTC일 수 있다)에 기대지 않는다 — 이용내역·월 통계가 KST 기준이다
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private final CycleRepository cycleRepository;
     private final CycleUsageRepository cycleUsageRepository;
     private final UserRepository userRepository;
@@ -182,7 +185,7 @@ public class CycleService {
         }
 
         //이용 내역 저장
-        LocalDateTime currentTime = LocalDateTime.now();
+        LocalDateTime currentTime = LocalDateTime.now(SEOUL);
         cycleUsageRepository.save(CycleUsageEntity.builder()
                 .userEntity(userEntity)
                 .cycleEntity(cycleEntity)
@@ -204,8 +207,8 @@ public class CycleService {
         UserEntity userEntity = userRepository.findById(userId)
                 .orElseThrow(() -> new UserException(NOT_EXISTS_USER));
 
-        //조회
-        CycleEntity cycleEntity = cycleRepository.findById(request.cycleId())
+        //조회 — 대여와 같이 대문자로 맞춘다(소문자로 입력한 반납이 "없는 자전거"가 되지 않게)
+        CycleEntity cycleEntity = cycleRepository.findById(request.cycleId().toUpperCase())
                 .orElseThrow(() -> new CycleException(NOT_EXIST_CYCLE_ID));
         StationEntity stationEntity = requestedStation(
                 request.stationId(), request.latitude(), request.longitude());
@@ -223,13 +226,22 @@ public class CycleService {
         cycleEntity.returnRental(stationEntity);
 
         //반납 기록 저장
-        LocalDateTime currentTime = LocalDateTime.now();
+        LocalDateTime currentTime = LocalDateTime.now(SEOUL);
         cycleUsageEntity.returning(stationEntity, currentTime);
 
         //알림 전송
         eventPublisher.publishEvent(new CycleReturnEvent(userId, currentTime));
 
         return new CycleReturnResponse(cycleUsageEntity.getCycleUsageId(), currentTime);
+    }
+
+    @Transactional(readOnly = true)
+    public CycleCurrentRentalResponse getCurrentRental(Long userId) {
+        return cycleUsageRepository
+                .findFirstByUserEntity_UserIdAndReturnAtIsNullOrderByRentalAtDescCycleUsageIdDesc(userId)
+                .map(usage -> new CycleCurrentRentalResponse(
+                        usage.getCycleEntity().getCycleId(), usage.getRentalAt()))
+                .orElse(null);
     }
 
     @Transactional
