@@ -105,8 +105,8 @@ export function spokenKey(next: NextCue, stage: VoiceStage): string {
  * 재탐색과 도착은 지금까지 토스트로만 알렸는데, 화면을 보지 않는 것이 전제인 기능에서
  * "길을 잘못 들었다"와 "다 왔다"를 모르는 것은 회전 안내를 놓치는 것보다 큰 구멍이다.
  *
- * `arrived`는 마지막 구간 `arrive`의 near 문구와 **일부러 같은 문자열**이다. 도착 감지(30m)와
- * 회전 안내(도보 near 15m·자전거 near 40m)는 어느 쪽이 먼저 올지 경로에 따라 다른데, 먼저 말한
+ * `arrived`는 마지막 구간 `arrive`의 near 문구와 **일부러 같은 문자열**이다. "도착 완료" 버튼과
+ * 회전 안내(도보 near 15m·자전거 near 40m)는 어느 쪽이 먼저 올지 누르는 시점에 따라 다른데, 먼저 말한
  * 쪽이 이 문장을 말했다는 기록을 남겨 두 번 말하지 않게 한다(`useRouteGuide`).
  */
 export const ANNOUNCE = {

@@ -9,7 +9,7 @@ import { useKeepAwake } from '@/features/map/hooks/useKeepAwake';
 import { useSpeech } from '@/features/map/hooks/useSpeech';
 import { readVoiceOn, writeVoiceOn } from '@/features/map/lib/guideVoicePref';
 import { buildRouteCues, getNextCue } from '@/features/map/lib/routeCues';
-import { getRouteProgress, hasArrived } from '@/features/map/lib/routeProgress';
+import { getRouteProgress } from '@/features/map/lib/routeProgress';
 import { shouldReRoute, toTravelStatus } from '@/features/map/lib/routeReroute';
 import { toLegs } from '@/features/map/lib/routeSegments';
 import { toUsagePath } from '@/features/map/lib/usagePath';
@@ -17,8 +17,8 @@ import { ANNOUNCE, cueSpeech, spokenKey, voiceStage } from '@/features/map/lib/r
 
 /**
  * 도착 문장을 이미 말했다는 표시. 회전 안내의 `spokenKey`("3:near")와 겹치지 않는 이름이면 된다.
- * 도착 감지와 마지막 `arrive` 회전 안내가 같은 문장을 말하는데, 어느 쪽이 먼저 올지는 경로에
- * 따라 다르다(도착 판정 30m vs 도보 near 15m·자전거 near 40m).
+ * "도착 완료" 버튼과 마지막 `arrive` 회전 안내(도보 near 15m·자전거 near 40m)가 같은 문장을
+ * 말하는데, 어느 쪽이 먼저 올지는 사용자가 언제 누르느냐에 달렸다.
  */
 const ARRIVED_KEY = 'arrived';
 
@@ -62,7 +62,7 @@ export interface ReturnedUsage {
 }
 
 /**
- * 12 경로 안내 — 위치 추적, 진행률, 회전 안내와 음성, 재탐색, 자동 도착 감지(30m)와 요약 화면.
+ * 12 경로 안내 — 위치 추적, 진행률, 회전 안내와 음성, 재탐색, "도착 완료" 버튼과 요약 화면.
  *
  * 계산은 전부 `lib/`의 순수 함수가 한다(`routeCues`·`routeVoice`·`routeReroute`).
  * 여기서는 "언제 부를지"와 "이미 했는지"만 들고 있다.
@@ -92,7 +92,7 @@ export function useRouteGuide({
   // 마지막으로 재탐색한 시각 — 위치가 튈 때마다 서버를 두드리지 않게 간격을 둔다
   const lastRerouteAtRef = useRef<number | null>(null);
 
-  // 12 안내 중 실제 도착(30m 이내)하면 채워지는 전체 화면 요약 — null이면 안 보인다
+  // 12 안내 중 "도착 완료"를 누르면 채워지는 전체 화면 요약 — null이면 안 보인다
   const [arrivalSummary, setArrivalSummary] = useState<ArrivalSummary | null>(null);
   // 12 안내 시작 시각(도착 요약의 소요 시간 계산용)과 도착 처리 중복 방지 플래그 — 렌더에 쓰지 않아 ref로 둔다
   const guideStartAtRef = useRef<number | null>(null);
@@ -141,7 +141,7 @@ export function useRouteGuide({
   }, [detailRoute]);
 
   // 반납은 실제 자전거 이용의 종료 시점이다. 안내된 정류소와 다르면 현재 안내를 확정해
-  // 즉시 저장하고, 같으면 남은 도보 안내가 끝날 때 같은 usageId로 저장한다.
+  // 즉시 저장하고, 같으면 "도착 완료"를 누를 때 같은 usageId로 저장한다.
   useEffect(() => {
     if (returnedUsage === null) return;
     if (handledReturnedUsageIdRef.current === returnedUsage.cycleUsageId) return;
@@ -176,8 +176,7 @@ export function useRouteGuide({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [returnedUsage]);
 
-  // 목적지 근처(30m 이내)에 오면 안내를 자동으로 끝내고 전체 화면 요약을 띄운다.
-  // "안내 종료" 버튼으로 직접 끝낼 때는 요약을 보여주지 않는다 — 도착이 아니라 중단이라서다
+  // 안내가 켜진 시각을 기록한다(도착 요약의 소요 시간). 꺼지면 도착 처리 상태를 비운다
   useEffect(() => {
     if (!guideActive) {
       guideStartAtRef.current = null;
@@ -186,12 +185,15 @@ export function useRouteGuide({
       return;
     }
     guideStartAtRef.current ??= Date.now();
-    if (
-      arrivalHandledRef.current ||
-      detailRoute === null ||
-      !hasArrived(detailRoute, location.position)
-    )
-      return;
+  }, [guideActive]);
+
+  /**
+   * "도착 완료" 버튼 — 위치로 도착을 자동 판정하지 않고 사용자가 직접 확정한다.
+   * 누르면 안내를 끝내고 전체 화면 요약을 띄운다. "안내 종료"(중단)와 달리 요약·기록이 남는다.
+   * 선택한 출발지로 먼저 가는 중이었다면 기록 없이 원래 경로 안내로 넘어간다.
+   */
+  function completeArrival() {
+    if (!guideActive || arrivalHandledRef.current || detailRoute === null) return;
     arrivalHandledRef.current = true;
     if (intermediateArrival && onIntermediateArrival()) {
       // 접근 경로는 실제 이용 완료가 아니므로 기록·도착 요약을 만들지 않는다.
@@ -207,7 +209,7 @@ export function useRouteGuide({
       (sum, leg) => sum + (leg.mode === 'BICYCLE' ? leg.distance : 0),
       0,
     );
-    const startedAt = guideStartAtRef.current;
+    const startedAt = guideStartAtRef.current ?? Date.now();
     const finishedAt = Date.now();
     setArrivalSummary({
       destinationTitle,
@@ -229,16 +231,7 @@ export function useRouteGuide({
       });
       returnedUsageIdRef.current = null;
     }
-    // savePath는 훅이 만든 안정적인 객체라 의존성에 넣지 않는다 — 넣으면 렌더마다 이펙트가 다시 돈다
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    guideActive,
-    detailRoute,
-    location.position,
-    destinationTitle,
-    intermediateArrival,
-    onIntermediateArrival,
-  ]);
+  }
 
   // 회전 안내 지점은 경로가 바뀔 때만 다시 만든다 — 위치가 들어올 때마다 다시 계산할 이유가 없다
   const guideCues = useMemo(
@@ -271,7 +264,7 @@ export function useRouteGuide({
     if (spokenRef.current.has(key)) return;
     spokenRef.current.add(key);
     const text = cueSpeech(detailRoute, nextCue, stage);
-    // 도착 문장은 도착 감지(30m)도 말한다. 먼저 말한 쪽이 기록을 가져가 두 번 말하지 않게 한다
+    // 도착 문장은 "도착 완료" 버튼도 말한다. 먼저 말한 쪽이 기록을 가져가 두 번 말하지 않게 한다
     if (text === ANNOUNCE.arrived) spokenRef.current.add(ARRIVED_KEY);
     speech.speak(text);
   }, [guideActive, voiceOn, nextCue, detailRoute, speech]);
@@ -354,7 +347,7 @@ export function useRouteGuide({
   /**
    * "안내 종료"를 직접 눌러 끝낼 때 — 실제로 도착한 게 아니라 중간에 그만둔 것이므로 요약 없이
    * 지도로 나간다. 목적지·경로도 처음부터 다시 찾도록 같이 초기화한다(`clearJourney`).
-   * 자동 도착 감지(위 useEffect)는 이 함수를 쓰지 않고 전체 화면 요약(`arrivalSummary`)을 띄운다
+   * "도착 완료"(`completeArrival`)는 이 함수를 쓰지 않고 전체 화면 요약(`arrivalSummary`)을 띄운다
    * — 그건 실제 도착이라 다르게 취급한다. 요약 화면의 "닫기"가 이 함수와 똑같이 지도로 나간다
    * (`closeArrivalSummary`).
    * 브라우저·하드웨어 뒤로가기는 그대로 한 단계만 닫는다(11로) — 여기서 건드리지 않는다.
@@ -377,6 +370,7 @@ export function useRouteGuide({
     guideRemainingSec,
     arrivalSummary,
     endGuide,
+    completeArrival,
     closeArrivalSummary,
     nextCue,
     rerouting: reroute.isPending,

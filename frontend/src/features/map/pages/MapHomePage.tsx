@@ -690,6 +690,8 @@ export function MapHomePage() {
           progress={guide.guideProgress}
           remainingSec={guide.guideRemainingSec}
           onEnd={guide.endGuide}
+          onArrive={guide.completeArrival}
+          intermediate={journey.guidingToCustomStart}
         />
       ) : null}
 
