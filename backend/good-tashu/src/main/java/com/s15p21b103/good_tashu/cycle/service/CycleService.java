@@ -41,9 +41,6 @@ import static com.s15p21b103.good_tashu.user.exception.UserErrorCode.NOT_EXISTS_
 @Service
 @RequiredArgsConstructor
 public class CycleService {
-    private static final double MAX_STATION_DISTANCE_METERS = 300.0;
-    private static final double EARTH_RADIUS_METERS = 6_371_000.0;
-
     private final CycleRepository cycleRepository;
     private final CycleUsageRepository cycleUsageRepository;
     private final UserRepository userRepository;
@@ -151,30 +148,12 @@ public class CycleService {
                 .build());
     }
 
-    private StationEntity stationWithinRange(String stationId, BigDecimal latitude, BigDecimal longitude) {
+    private StationEntity requestedStation(String stationId, BigDecimal latitude, BigDecimal longitude) {
         if (latitude == null || longitude == null) {
             throw new CycleException(CURRENT_LOCATION_REQUIRED);
         }
-        StationEntity station = stationRepository.findById(stationId)
+        return stationRepository.findById(stationId)
                 .orElseThrow(() -> new CycleException(NOT_EXIST_STATION_ID));
-        if (station.getLatitude() == null || station.getLongitude() == null) {
-            throw new CycleException(STATION_LOCATION_UNAVAILABLE);
-        }
-        if (haversineMeters(latitude.doubleValue(), longitude.doubleValue(),
-                station.getLatitude().doubleValue(), station.getLongitude().doubleValue())
-                > MAX_STATION_DISTANCE_METERS) {
-            throw new CycleException(STATION_TOO_FAR);
-        }
-        return station;
-    }
-
-    private double haversineMeters(double latitude, double longitude,
-                                   double stationLatitude, double stationLongitude) {
-        double lat = Math.toRadians(stationLatitude - latitude);
-        double lon = Math.toRadians(stationLongitude - longitude);
-        double h = Math.pow(Math.sin(lat / 2), 2) + Math.cos(Math.toRadians(latitude))
-                * Math.cos(Math.toRadians(stationLatitude)) * Math.pow(Math.sin(lon / 2), 2);
-        return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(Math.clamp(h, 0, 1)));
     }
 
     //TODO: 동시성 처리
@@ -183,7 +162,7 @@ public class CycleService {
         UserEntity userEntity = userRepository.findById(userId)
                 .orElseThrow(() -> new UserException(NOT_EXISTS_USER));
 
-        StationEntity rentalStation = stationWithinRange(
+        StationEntity rentalStation = requestedStation(
                 request.stationId(), request.latitude(), request.longitude());
 
         //대소문자만 다른 자전거가 따로 등록되지 않도록 대문자로 맞춘다(프론트도 대문자로 입력받는다)
@@ -228,7 +207,7 @@ public class CycleService {
         //조회
         CycleEntity cycleEntity = cycleRepository.findById(request.cycleId())
                 .orElseThrow(() -> new CycleException(NOT_EXIST_CYCLE_ID));
-        StationEntity stationEntity = stationWithinRange(
+        StationEntity stationEntity = requestedStation(
                 request.stationId(), request.latitude(), request.longitude());
 
         //자전거 상태 확인

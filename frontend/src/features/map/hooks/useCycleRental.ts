@@ -10,10 +10,7 @@ import {
 } from '@/features/rental/lib/rentalSession';
 import { rentCycle, returnCycle } from '@/features/map/api/cycle';
 import type { CycleReturnResult } from '@/features/map/api/cycle';
-import {
-  CYCLE_STATION_RADIUS_M,
-  nearestStation,
-} from '@/features/map/lib/nearestStation';
+import { nearestStation } from '@/features/map/lib/nearestStation';
 
 interface ReturnInput {
   cycleId: string;
@@ -88,7 +85,7 @@ export function useCycleRental({ stations, position, showToast, onReturned }: Us
     if (session === null) {
       const station = nearestStation(stations, position);
       if (station === null || position === null) {
-        showToast(`대여소에서 ${CYCLE_STATION_RADIUS_M}m 안으로 이동한 뒤 대여해 주세요.`);
+        showToast('현재 위치와 대여소 정보를 확인한 뒤 다시 시도해 주세요.');
         return;
       }
       rent.mutate({
@@ -107,7 +104,7 @@ export function useCycleRental({ stations, position, showToast, onReturned }: Us
 
     const station = nearestStation(stations, position);
     if (station === null || position === null) {
-      showToast(`대여소에서 ${CYCLE_STATION_RADIUS_M}m 안으로 이동한 뒤 반납해 주세요.`);
+      showToast('현재 위치와 대여소 정보를 확인한 뒤 다시 시도해 주세요.');
       return;
     }
     giveBack.mutate({

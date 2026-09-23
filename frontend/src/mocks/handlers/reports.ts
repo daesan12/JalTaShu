@@ -3,8 +3,6 @@ import { addMockUsage } from '@/mocks/handlers/rides';
 import { fail, getAuthState, ok, requireAuth } from '@/mocks/core';
 import { getMockClaims } from '@/mocks/handlers/adminClaims';
 import { STATIONS } from '@/mocks/stations';
-import { haversineMeters } from '@/shared/lib/coords';
-import { CYCLE_STATION_RADIUS_M } from '@/features/map/lib/nearestStation';
 
 /** 내가 접수한 민원 — 새로고침에도 유지되도록 localStorage 사용 */
 const REPORTS_KEY = 'msw_reports';
@@ -287,13 +285,6 @@ export const reportHandlers = [
         || !Number.isFinite(body.latitude) || !Number.isFinite(body.longitude)) {
       return fail(400, '현재 위치를 확인할 수 없습니다.');
     }
-    const distance = haversineMeters(
-      { lat: body.latitude, lng: body.longitude },
-      { lat: station.lat, lng: station.lng },
-    );
-    if (distance > CYCLE_STATION_RADIUS_M) {
-      return fail(400, `대여소 ${CYCLE_STATION_RADIUS_M}m 이내에서 이용해 주세요.`);
-    }
     const rented = readRentedCycles();
     if (cycleId in rented) {
       return fail(409, '이미 대여 중인 자전거입니다.');
@@ -322,13 +313,6 @@ export const reportHandlers = [
     if (typeof body.latitude !== 'number' || typeof body.longitude !== 'number'
         || !Number.isFinite(body.latitude) || !Number.isFinite(body.longitude)) {
       return fail(400, '현재 위치를 확인할 수 없습니다.');
-    }
-    const distance = haversineMeters(
-      { lat: body.latitude, lng: body.longitude },
-      { lat: station.lat, lng: station.lng },
-    );
-    if (distance > CYCLE_STATION_RADIUS_M) {
-      return fail(400, `대여소 ${CYCLE_STATION_RADIUS_M}m 이내에서 이용해 주세요.`);
     }
     const rented = readRentedCycles();
     const rentedAt = rented[cycleId];

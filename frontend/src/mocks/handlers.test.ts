@@ -376,14 +376,14 @@ describe('QR 대여 → 반납 → 이용 내역', () => {
     );
   });
 
-  it('대여소에서 300m 밖이면 대여 요청을 거절한다', async () => {
+  it('대여소에서 멀어도 대여 요청을 허용한다', async () => {
     await post('/api/auth/mock-login');
     const response = await post('/api/cycle/rental', {
       cycleId: 'DJ88888',
       ...LOCATION,
       latitude: LOCATION.latitude + 0.004,
     });
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
   });
 
   it('안내 도착 저장이 방금 만든 기록에 붙는다', async () => {

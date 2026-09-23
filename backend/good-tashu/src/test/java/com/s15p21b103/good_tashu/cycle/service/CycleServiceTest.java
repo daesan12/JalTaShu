@@ -200,15 +200,14 @@ class CycleServiceTest {
     }
 
     @Test
-    void rentalRejectsStationMoreThan300MetersAway() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+    void rentalAllowsStationRegardlessOfDistance() {
+        existingUserAndCycle();
         when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
 
-        assertThatThrownBy(() -> cycleService.rentalCycle(1L,
-                new CycleRentalRequest("C2", "S1", new BigDecimal("36.354000"), LONGITUDE)))
-                .isInstanceOfSatisfying(CycleException.class,
-                        error -> assertThat(error.getErrorCode()).isEqualTo(STATION_TOO_FAR));
-        verifyNoInteractions(cycleRepository, cycleUsageRepository, eventPublisher);
+        cycleService.rentalCycle(1L,
+                new CycleRentalRequest("C1", "S1", new BigDecimal("36.354000"), LONGITUDE));
+
+        verify(cycleUsageRepository).save(any(CycleUsageEntity.class));
     }
 
     // 소문자로 입력해도 같은 자전거다 — 대소문자만 다른 행이 따로 생기면 이력이 갈린다.
@@ -346,16 +345,20 @@ class CycleServiceTest {
     }
 
     @Test
-    void returnRejectsStationMoreThan300MetersAway() {
+    void returnAllowsStationRegardlessOfDistance() {
         existingUserAndCycle();
         cycle.setStatus(CycleStatus.RENTING);
         when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
+        CycleUsageEntity usage = CycleUsageEntity.builder().cycleUsageId(77L)
+                .userEntity(user).cycleEntity(cycle).build();
+        when(cycleUsageRepository.findByUserEntityAndCycleEntityAndReturnAtIsNull(user, cycle))
+                .thenReturn(Optional.of(usage));
 
-        assertThatThrownBy(() -> cycleService.returnCycle(1L,
-                new CycleReturnRequest("C1", "S1", new BigDecimal("36.354000"), LONGITUDE)))
-                .isInstanceOfSatisfying(CycleException.class,
-                        error -> assertThat(error.getErrorCode()).isEqualTo(STATION_TOO_FAR));
-        verifyNoInteractions(cycleUsageRepository, eventPublisher);
+        cycleService.returnCycle(1L,
+                new CycleReturnRequest("C1", "S1", new BigDecimal("36.354000"), LONGITUDE));
+
+        assertThat(usage.getReturnStationEntity()).isSameAs(station);
+        verify(eventPublisher).publishEvent(any(CycleReturnEvent.class));
     }
 
     @Test
