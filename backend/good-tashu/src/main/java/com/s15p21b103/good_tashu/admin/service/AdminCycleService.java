@@ -112,7 +112,7 @@ public class AdminCycleService {
         // 직전 1시간을 대여소별로 집계하고 time에는 조회 기준 시각을 담는다.
         return adminCycleRepository.findHeatmap(datetime.minusHours(1), datetime).stream()
                 .map(row -> new AdminHeatmapResponse(
-                        datetime, row.getStationId(),
+                        datetime, row.getStationId(), row.getStationName(),
                         row.getXPos(), row.getYPos(), row.getRentCnt(), row.getReturnCnt()))
                 .toList();
     }
@@ -128,7 +128,8 @@ public class AdminCycleService {
         // 현재 수량과 오늘·24시간 전 기준 통계를 응답 DTO로 변환한다.
         StationDetailStats stats = adminCycleRepository.findStationDetailStats(stationId);
         return new AdminStationDetailResponse(
-                stats.getCurrentBikeCnt(), stats.getTodayRentalCnt(), stats.getTodayReturnCnt(),
+                stats.getStationName(), stats.getCurrentBikeCnt(),
+                stats.getTodayRentalCnt(), stats.getTodayReturnCnt(),
                 stats.getCurrentReportCnt(), stats.getYesterdayBikeCnt(), stats.getYesterdayRentalCnt(),
                 stats.getYesterdayReturnCnt(), stats.getYesterdayReportCnt());
     }

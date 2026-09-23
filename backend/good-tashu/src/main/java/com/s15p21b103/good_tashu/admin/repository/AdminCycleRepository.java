@@ -116,6 +116,7 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
 
     interface HeatmapRow {
         String getStationId();
+        String getStationName();
         BigDecimal getXPos();
         BigDecimal getYPos();
         Long getRentCnt();
@@ -123,6 +124,7 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
     }
 
     interface StationDetailStats {
+        String getStationName();
         Long getCurrentBikeCnt();
         Long getTodayRentalCnt();
         Long getTodayReturnCnt();
@@ -141,7 +143,8 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
 
     // 대여·반납 이벤트를 합쳐 직전 1시간의 대여소별 건수를 집계한다.
     @Query(value = """
-            SELECT s.station_id AS stationId, s.longitude AS xPos, s.latitude AS yPos,
+            SELECT s.station_id AS stationId, s.name AS stationName,
+                   s.longitude AS xPos, s.latitude AS yPos,
                    SUM(events.rent_cnt) AS rentCnt, SUM(events.return_cnt) AS returnCnt
             FROM (
                 SELECT cu.rental_station_id AS station_id,
@@ -157,7 +160,7 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
                   AND cu.return_station_id IS NOT NULL
             ) events
             JOIN stations s ON s.station_id = events.station_id
-            GROUP BY s.station_id, s.longitude, s.latitude
+            GROUP BY s.station_id, s.name, s.longitude, s.latitude
             ORDER BY s.station_id
             """, nativeQuery = true)
     List<HeatmapRow> findHeatmap(@Param("from") LocalDateTime from,
@@ -166,6 +169,7 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
     // 어제 수량은 현재 수량에서 최근 24시간의 대여·반납 흐름을 역산한다.
     @Query(value = """
             SELECT
+                (SELECT s.name FROM stations s WHERE s.station_id = :stationId) AS stationName,
                 (SELECT COUNT(*) FROM cycles c
                  WHERE c.station_id = :stationId AND c.status = 'READY') AS currentBikeCnt,
                 (SELECT COUNT(*) FROM cycle_usages cu

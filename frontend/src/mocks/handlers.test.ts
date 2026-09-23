@@ -103,6 +103,18 @@ describe('관리자 핸들러 등록 순서', () => {
     expect(data[0]).toHaveProperty('rentalCnt');
   });
 
+  it('히트맵과 대여소 상세가 사람이 읽을 수 있는 현재 명칭을 함께 준다', async () => {
+    await adminLogin();
+    const datetime = '2026-09-23T08:00:00';
+    const heatmap = await (
+      await get(`/api/admin/heatmap?datetime=${encodeURIComponent(datetime)}`)
+    ).json();
+    expect(heatmap.data[0].stationName).toBe('유성구청역 대여소');
+
+    const station = await (await get('/api/admin/station/ST0001')).json();
+    expect(station.data.stationName).toBe('유성구청역 대여소');
+  });
+
   it('user/list(고정)와 user/:userId(파라미터)가 각각 응답한다', async () => {
     await adminLogin();
     const list = await (await get('/api/admin/user/list')).json();
