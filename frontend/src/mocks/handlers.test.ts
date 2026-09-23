@@ -96,7 +96,7 @@ describe('관리자 핸들러 등록 순서', () => {
 
   it('station/trend(고정)가 station/:stationId에 잡히지 않고 주간 추이를 준다', async () => {
     await adminLogin();
-    const res = await get('/api/admin/station/trend?term=week');
+    const res = await get('/api/admin/station/trend?stationId=ST0001&term=week');
     expect(res.status).toBe(200);
     const { data } = await res.json();
     expect(data).toHaveLength(7);

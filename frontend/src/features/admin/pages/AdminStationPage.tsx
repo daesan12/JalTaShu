@@ -16,10 +16,11 @@ export function AdminStationPage() {
     queryKey: ['adminStation', stationId],
     queryFn: () => getAdminStation(stationId),
   });
-  // ⚠ 서버 추이는 대여소 구분 없는 전체 합계다 (대여소별은 백엔드 전달 목록)
+  // 현재 상세 화면의 대여소만 조회하고 캐시도 대여소별로 분리한다.
   const trend = useQuery({
-    queryKey: ['adminStationTrend'],
-    queryFn: getAdminStationTrend,
+    queryKey: ['adminStationTrend', stationId],
+    queryFn: () => getAdminStationTrend(stationId),
+    enabled: stationId.length > 0,
   });
 
   if (detail.isPending || detail.isError) {
@@ -70,10 +71,10 @@ export function AdminStationPage() {
         />
       </div>
 
-      {/* 7일 추이 — 서버가 전체 합계만 줘서 이 대여소만의 추이가 아니다 */}
+      {/* 현재 대여소의 최근 7일 추이 */}
       <section className="rounded-lg border border-admin-line p-5">
         <h3 className="mb-4 text-base font-semibold">
-          최근 7일 대여·반납 <span className="text-sm font-normal text-admin-muted">(전체 대여소)</span>
+          최근 7일 대여·반납
         </h3>
         {trend.isPending && <p className="text-sm text-admin-muted">불러오는 중…</p>}
         {trend.isError && <p className="text-sm text-admin-muted">추이를 불러오지 못했습니다.</p>}
