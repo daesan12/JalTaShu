@@ -7,6 +7,7 @@ import com.s15p21b103.good_tashu.cycle.domain.*;
 import com.s15p21b103.good_tashu.cycle.dto.req.CyclePathRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleRentalRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleReturnRequest;
+import com.s15p21b103.good_tashu.cycle.dto.res.CycleReturnResponse;
 import com.s15p21b103.good_tashu.cycle.event.CycleRentalStartedEvent;
 import com.s15p21b103.good_tashu.cycle.event.CycleReturnEvent;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
@@ -220,7 +221,7 @@ public class CycleService {
     }
 
     @Transactional
-    public LocalDateTime returnCycle(Long userId, CycleReturnRequest request) {
+    public CycleReturnResponse returnCycle(Long userId, CycleReturnRequest request) {
         UserEntity userEntity = userRepository.findById(userId)
                 .orElseThrow(() -> new UserException(NOT_EXISTS_USER));
 
@@ -249,15 +250,20 @@ public class CycleService {
         //알림 전송
         eventPublisher.publishEvent(new CycleReturnEvent(userId, currentTime));
 
-        return currentTime;
+        return new CycleReturnResponse(cycleUsageEntity.getCycleUsageId(), currentTime);
     }
 
     @Transactional
     public void savePathTrace(Long userId, CyclePathRequest request) {
         UserEntity user = userRepository.findById(userId)
             .orElseThrow(() -> new UserException(NOT_EXISTS_USER));
-        CycleUsageEntity cycleUsage = cycleUsageRepository.findFirstByUserEntity_UserIdAndReturnAtIsNotNullOrderByReturnAtDescCycleUsageIdDesc(userId)
+        CycleUsageEntity cycleUsage = cycleUsageRepository
+                .findByCycleUsageIdAndUserEntity_UserId(request.cycleUsageId(), userId)
                 .orElseThrow(() -> new CycleException(NOT_EXIST_USAGE));
+
+        if (cycleUsage.getReturnAt() == null) {
+            throw new CycleException(USAGE_NOT_COMPLETED);
+        }
 
         if (pathRepository.findByCycleUsage_CycleUsageId(cycleUsage.getCycleUsageId()).isPresent()) {
             throw new CycleException(PATH_ALREADY_EXISTS);

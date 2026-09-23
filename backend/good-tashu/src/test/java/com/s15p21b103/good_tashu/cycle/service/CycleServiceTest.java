@@ -14,6 +14,8 @@ import com.s15p21b103.good_tashu.cycle.exception.CycleException;
 import com.s15p21b103.good_tashu.claim.exception.ClaimException;
 import static com.s15p21b103.good_tashu.claim.exception.ClaimErrorCode.*;
 import com.s15p21b103.good_tashu.cycle.repository.*;
+import com.s15p21b103.good_tashu.path.domain.PathEntity;
+import com.s15p21b103.good_tashu.path.domain.PathInfo;
 import com.s15p21b103.good_tashu.user.domain.UserEntity;
 import com.s15p21b103.good_tashu.user.exception.UserException;
 import com.s15p21b103.good_tashu.user.repository.UserRepository;
@@ -251,17 +253,62 @@ class CycleServiceTest {
         existingUserAndCycle();
         cycle.setStatus(CycleStatus.RENTING);
         when(stationRepository.findById("S1")).thenReturn(Optional.of(station));
-        CycleUsageEntity usage = CycleUsageEntity.builder().userEntity(user).cycleEntity(cycle).build();
+        CycleUsageEntity usage = CycleUsageEntity.builder().cycleUsageId(77L)
+                .userEntity(user).cycleEntity(cycle).build();
         when(cycleUsageRepository.findByUserEntityAndCycleEntityAndReturnAtIsNull(user, cycle))
                 .thenReturn(Optional.of(usage));
 
-        LocalDateTime returnedAt = cycleService.returnCycle(1L, returnRequest("C1", "S1"));
+        var result = cycleService.returnCycle(1L, returnRequest("C1", "S1"));
 
         assertThat(cycle.getStatus()).isEqualTo(CycleStatus.READY);
         assertThat(cycle.getStationEntity()).isSameAs(station);
         assertThat(usage.getReturnStationEntity()).isSameAs(station);
-        assertThat(usage.getReturnAt()).isEqualTo(returnedAt);
-        verify(eventPublisher).publishEvent(new CycleReturnEvent(1L, returnedAt));
+        assertThat(usage.getReturnAt()).isEqualTo(result.returnedAt());
+        assertThat(result.cycleUsageId()).isEqualTo(77L);
+        verify(eventPublisher).publishEvent(new CycleReturnEvent(1L, result.returnedAt()));
+    }
+
+    @Test
+    void pathIsSavedToRequestedCompletedUsage() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        LocalDateTime rentalAt = LocalDateTime.of(2026, 9, 23, 10, 0);
+        CycleUsageEntity usage = CycleUsageEntity.builder()
+                .cycleUsageId(77L)
+                .userEntity(user)
+                .cycleEntity(cycle)
+                .rentalAt(rentalAt)
+                .returnAt(rentalAt.plusMinutes(20))
+                .build();
+        when(cycleUsageRepository.findByCycleUsageIdAndUserEntity_UserId(77L, 1L))
+                .thenReturn(Optional.of(usage));
+        when(pathRepository.findByCycleUsage_CycleUsageId(77L)).thenReturn(Optional.empty());
+        CyclePathRequest request = new CyclePathRequest(
+                77L, new PathInfo(List.of()), rentalAt, rentalAt.plusMinutes(20), 3_000, 2_000);
+
+        cycleService.savePathTrace(1L, request);
+
+        ArgumentCaptor<PathEntity> captor = ArgumentCaptor.forClass(PathEntity.class);
+        verify(pathRepository).save(captor.capture());
+        assertThat(captor.getValue().getCycleUsage()).isSameAs(usage);
+        assertThat(captor.getValue().getUser()).isSameAs(user);
+        assertThat(captor.getValue().getTotalDistance()).isEqualTo(3_000);
+    }
+
+    @Test
+    void pathRejectsUsageThatHasNotBeenReturned() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        LocalDateTime rentalAt = LocalDateTime.of(2026, 9, 23, 10, 0);
+        CycleUsageEntity usage = CycleUsageEntity.builder()
+                .cycleUsageId(77L).userEntity(user).cycleEntity(cycle).rentalAt(rentalAt).build();
+        when(cycleUsageRepository.findByCycleUsageIdAndUserEntity_UserId(77L, 1L))
+                .thenReturn(Optional.of(usage));
+        CyclePathRequest request = new CyclePathRequest(
+                77L, new PathInfo(List.of()), rentalAt, rentalAt.plusMinutes(20), 3_000, 2_000);
+
+        assertThatThrownBy(() -> cycleService.savePathTrace(1L, request))
+                .isInstanceOfSatisfying(CycleException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(USAGE_NOT_COMPLETED));
+        verifyNoInteractions(pathRepository);
     }
 
     @Test

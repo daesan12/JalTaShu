@@ -238,6 +238,7 @@ describe('이용 기록 저장 (POST /cycle/usage)', () => {
       .reduce((sum: number, leg: { distance: number }) => sum + leg.distance, 0);
 
     const res = await post('/api/cycle/usage', {
+      cycleUsageId: 1,
       pathInfo: { road },
       createdAt: new Date(Date.now() - 20 * 60_000).toISOString(),
       finishedAt: new Date().toISOString(),
@@ -250,6 +251,7 @@ describe('이용 기록 저장 (POST /cycle/usage)', () => {
   it('자전거 거리가 전체 거리를 넘으면 400', async () => {
     await post('/api/auth/mock-login');
     const res = await post('/api/cycle/usage', {
+      cycleUsageId: 1,
       pathInfo: { road: [{ latitude: 36.35, longitude: 127.38, altitude: 50, travelStatus: 'BIKE', seq: 0 }] },
       createdAt: new Date(Date.now() - 60_000).toISOString(),
       finishedAt: new Date().toISOString(),
@@ -360,6 +362,9 @@ describe('QR 대여 → 반납 → 이용 내역', () => {
     const before = await (await get('/api/cycle/usage/list')).json();
     const give = await post('/api/cycle/return', { cycleId: CODE, ...LOCATION });
     expect(give.status).toBe(200);
+    const returned = await give.json();
+    expect(returned.data.cycleUsageId).toEqual(expect.any(Number));
+    expect(returned.data.returnedAt).toEqual(expect.any(String));
 
     const after = await (await get('/api/cycle/usage/list')).json();
     expect(after.data).toHaveLength(before.data.length + 1);
@@ -399,6 +404,7 @@ describe('QR 대여 → 반납 → 이용 내역', () => {
       { latitude: 36.3602, longitude: 127.3944, altitude: 52, travelStatus: 'WALK2', seq: 2 },
     ];
     const save = await post('/api/cycle/usage', {
+      cycleUsageId: usageId,
       pathInfo: { road },
       createdAt: new Date(Date.now() - 600_000).toISOString(),
       finishedAt: new Date().toISOString(),

@@ -68,7 +68,7 @@ interface AddMockUsageInput {
  * 대여 대여소는 요청에 없어(실서버도 자전거 위치로 서버가 안다) 반납 대여소를 양쪽에 쓴다 —
  * 안내 도착 저장이 붙으면 경로의 처음·끝 좌표로 덮어써 제자리가 된다.
  */
-export function addMockUsage({ cycleId, stationId, rentedAt, returnedAt }: AddMockUsageInput) {
+export function addMockUsage({ cycleId, stationId, rentedAt, returnedAt }: AddMockUsageInput): number {
   const station = STATIONS.find((s) => s.stationId === stationId) ?? STATIONS[0];
   const point = { latitude: station.lat, longitude: station.lng };
   const list = readLiveUsages();
@@ -88,15 +88,21 @@ export function addMockUsage({ cycleId, stationId, rentedAt, returnedAt }: AddMo
     bikeDistance: null,
   });
   writeLiveUsages(list);
+  return nextId;
 }
 
 /**
  * 안내 도착 저장을 **가장 최근에 반납한 기록**에 붙인다 — 실서버와 같은 규칙.
  * 붙일 기록이 없으면 아무것도 하지 않는다(목업은 그 경우에도 저장을 거절하지 않는다).
  */
-function attachMockPath(road: UsagePathPoint[], totalDistance: number, bikeDistance: number) {
+function attachMockPath(
+  usageId: number,
+  road: UsagePathPoint[],
+  totalDistance: number,
+  bikeDistance: number,
+) {
   const list = readLiveUsages();
-  const target = [...list].reverse().find((u) => u.road === null);
+  const target = list.find((u) => u.usageId === usageId && u.road === null);
   if (target === undefined || road.length === 0) return;
   const sorted = [...road].sort((a, b) => a.seq - b.seq);
   target.road = sorted;
@@ -173,12 +179,14 @@ export const rideHandlers = [
     const authFail = requireAuth();
     if (authFail) return authFail;
     const body = (await request.json()) as {
+      cycleUsageId?: number;
       pathInfo?: { road?: unknown[] };
       createdAt?: string;
       finishedAt?: string;
       totalDistance?: number;
       bikeDistance?: number;
     };
+    if (!Number.isInteger(body.cycleUsageId)) return fail(400, '이용 기록 ID가 필요합니다.');
     if (!body.pathInfo?.road?.length) return fail(400, '경로 좌표가 필요합니다.');
     if (!body.createdAt || !body.finishedAt) return fail(400, '이동 시각이 필요합니다.');
     if (new Date(body.finishedAt) < new Date(body.createdAt)) {
@@ -188,7 +196,7 @@ export const rideHandlers = [
     const bike = body.bikeDistance ?? 0;
     if (total < 0 || bike < 0) return fail(400, '거리는 0보다 작을 수 없습니다.');
     if (bike > total) return fail(400, '자전거 거리는 전체 거리보다 클 수 없습니다.');
-    attachMockPath(body.pathInfo.road as UsagePathPoint[], total, bike);
+    attachMockPath(body.cycleUsageId as number, body.pathInfo.road as UsagePathPoint[], total, bike);
     return HttpResponse.json(ok(null));
   }),
 

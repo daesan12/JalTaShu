@@ -68,11 +68,13 @@ export function getUsageDetail(usageId: string): Promise<UsageDetail> {
 /**
  * 안내가 끝난 경로를 이용 기록에 붙인다 — 백엔드 `POST /cycle/usage`.
  *
- * 서버가 **가장 최근에 반납한 이용 기록**에 알아서 붙이므로 usageId를 보내지 않는다.
- * 그래서 이 앱으로 대여·반납하지 않았거나(NOT_EXIST_USAGE) 이미 경로가 저장된
- * 기록이면(PATH_ALREADY_EXISTS) 실패한다 — 호출한 쪽이 실패를 삼키지 말고 알려야 한다.
+ * 반납 응답으로 받은 usageId를 함께 보내 정확한 이용 기록에 연결한다.
+ * 다른 사용자의 이용이거나(NOT_EXIST_USAGE), 반납 전이거나, 이미 경로가 저장된
+ * 기록이면 실패한다 — 호출한 쪽이 실패를 삼키지 말고 알려야 한다.
  */
 export interface SaveUsagePathInput {
+  /** 반납 응답으로 받은 이용 기록 ID */
+  cycleUsageId: number;
   pathInfo: { road: UsagePathPoint[] };
   /** 안내 시작·종료 시각 (ISO 8601) */
   createdAt: string;

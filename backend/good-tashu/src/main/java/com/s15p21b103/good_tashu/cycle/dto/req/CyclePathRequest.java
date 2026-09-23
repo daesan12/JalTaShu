@@ -9,6 +9,8 @@ import jakarta.validation.constraints.PositiveOrZero;
 import java.time.LocalDateTime;
 
 public record CyclePathRequest (
+    @NotNull
+    Long cycleUsageId,
     @NotNull @Valid
     PathInfo pathInfo,
     @NotNull
