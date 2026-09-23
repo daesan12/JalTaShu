@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import static com.s15p21b103.good_tashu.admin.exception.AdminErrorCode.INVALID_STATION_ID;
@@ -39,7 +40,8 @@ class AdminStationTrendTest {
 
     @Test
     void returnsOnlyRequestedStationTrendAndFillsDatesWithoutEvents() {
-        LocalDate today = LocalDate.now();
+        // 서비스가 서울 기준 날짜를 쓰므로 테스트도 맞춘다 — CI 컨테이너는 UTC라 0~9시(KST)에 날짜가 갈린다
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
         LocalDate eventDate = today.minusDays(3);
         AdminCycleRepository.StationTrendRow row = mock(AdminCycleRepository.StationTrendRow.class);
         when(row.getDate()).thenReturn(eventDate.toString());
