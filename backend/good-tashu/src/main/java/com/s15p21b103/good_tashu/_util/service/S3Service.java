@@ -1,6 +1,7 @@
 package com.s15p21b103.good_tashu._util.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -26,8 +27,8 @@ public class S3Service {
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
 
-    private static final String BUCKET =
-            "good-tashu-photo-755719633654-us-east-1-an";
+    @Value("${S3_BUCKET:good-tashu-photo-755719633654-us-east-1-an}")
+    private String bucket;
     private static final Set<String> ALLOWED_IMAGE_EXTENSIONS =
             Set.of("jpg", "jpeg", "png", "gif", "webp", "heic", "heif");
 
@@ -57,7 +58,7 @@ public class S3Service {
 
         String key = "images/" + UUID.randomUUID();
         PutObjectRequest request = PutObjectRequest.builder()
-                .bucket(BUCKET)
+                .bucket(bucket)
                 .key(key)
                 .contentType(contentType)
                 .build();
@@ -76,7 +77,7 @@ public class S3Service {
         String key = "images/" + UUID.randomUUID();
 
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                .bucket(BUCKET)
+                .bucket(bucket)
                 .key(key)
                 .contentType(contentType)
                 .build();
@@ -96,7 +97,7 @@ public class S3Service {
     // 저장된 객체 키를 일정 시간 동안 접근 가능한 조회 URL로 변환한다.
     public String createDownloadUrl(String key) {
         GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                .bucket(BUCKET)
+                .bucket(bucket)
                 .key(key)
                 .build();
         GetObjectPresignRequest request = GetObjectPresignRequest.builder()
@@ -111,7 +112,7 @@ public class S3Service {
         if (key == null || key.isBlank()) {
             return;
         }
-        s3Client.deleteObject(DeleteObjectRequest.builder().bucket(BUCKET).key(key).build());
+        s3Client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build());
     }
 
 }

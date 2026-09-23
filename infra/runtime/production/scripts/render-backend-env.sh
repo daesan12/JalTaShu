@@ -8,6 +8,7 @@ readonly mysql_password_file="${TASHU_MYSQL_PRODUCTION_PASSWORD_FILE:-/etc/tashu
 readonly redis_env="${TASHU_REDIS_ENV_FILE:-/etc/tashu/redis/runtime.env}"
 readonly naver_place_env="${TASHU_NAVER_PLACE_ENV_FILE:-/etc/tashu/backend-common/naver-place.env}"
 readonly admin_bootstrap_env="${TASHU_ADMIN_BOOTSTRAP_ENV_FILE:-/etc/tashu/backend-common/admin-bootstrap.env}"
+readonly photo_s3_env="${TASHU_PHOTO_S3_ENV_FILE:-/etc/tashu/backend-common/photo-s3.env}"
 readonly public_origin="${TASHU_PUBLIC_ORIGIN:-https://j15b103.p.ssafy.io}"
 readonly runtime_env="${secret_dir}/runtime.env"
 
@@ -30,7 +31,8 @@ for required_file in \
   "${mysql_password_file}" \
   "${redis_env}" \
   "${naver_place_env}" \
-  "${admin_bootstrap_env}"; do
+  "${admin_bootstrap_env}" \
+  "${photo_s3_env}"; do
   if [[ ! -s ${required_file} ]]; then
     echo "필수 Secret 파일이 없거나 비어 있습니다: ${required_file}" >&2
     exit 1
@@ -55,6 +57,10 @@ naver_client_secret="$(read_env_value "${naver_place_env}" NAVER_CLIENT_SECRET)"
 admin_bootstrap_enabled="$(read_env_value "${admin_bootstrap_env}" ADMIN_BOOTSTRAP_ENABLED)"
 admin_bootstrap_id="$(read_env_value "${admin_bootstrap_env}" ADMIN_BOOTSTRAP_ID)"
 admin_bootstrap_password="$(read_env_value "${admin_bootstrap_env}" ADMIN_BOOTSTRAP_PASSWORD)"
+aws_access_key_id="$(read_env_value "${photo_s3_env}" AWS_ACCESS_KEY_ID)"
+aws_secret_access_key="$(read_env_value "${photo_s3_env}" AWS_SECRET_ACCESS_KEY)"
+aws_region="$(read_env_value "${photo_s3_env}" AWS_REGION)"
+s3_bucket="$(read_env_value "${photo_s3_env}" S3_BUCKET)"
 mysql_password="$(<"${mysql_password_file}")"
 
 if [[ -z ${mysql_password} ]]; then
@@ -72,7 +78,7 @@ if [[ ${admin_bootstrap_enabled} == true && ${#admin_bootstrap_password} -lt 12 
 fi
 
 temporary_file="$(mktemp "${secret_dir}/.runtime.env.XXXXXX")"
-trap 'rm -f "${temporary_file:-}"; unset kakao_rest_api_key kakao_client_secret jwt_secret jwt_access_expires jwt_refresh_expires redis_password naver_client_id naver_client_secret admin_bootstrap_enabled admin_bootstrap_id admin_bootstrap_password mysql_password' EXIT
+trap 'rm -f "${temporary_file:-}"; unset kakao_rest_api_key kakao_client_secret jwt_secret jwt_access_expires jwt_refresh_expires redis_password naver_client_id naver_client_secret admin_bootstrap_enabled admin_bootstrap_id admin_bootstrap_password aws_access_key_id aws_secret_access_key aws_region s3_bucket mysql_password' EXIT
 
 {
   printf 'SPRING_DATASOURCE_URL=%s\n' 'jdbc:mysql://tashu-mysql:3306/tashu_prod?useSSL=false&useUnicode=true&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true'
@@ -92,6 +98,12 @@ trap 'rm -f "${temporary_file:-}"; unset kakao_rest_api_key kakao_client_secret 
   printf 'TASHU_PREDICTION_REDIS_DATABASE=%s\n' '2'
   printf 'NAVER_CLIENT_ID=%s\n' "${naver_client_id}"
   printf 'NAVER_CLIENT_SECRET=%s\n' "${naver_client_secret}"
+  printf 'AWS_ACCESS_KEY_ID=%s\n' "${aws_access_key_id}"
+  printf 'AWS_SECRET_ACCESS_KEY=%s\n' "${aws_secret_access_key}"
+  printf 'AWS_REGION=%s\n' "${aws_region}"
+  printf 'S3_BUCKET=%s\n' "${s3_bucket}"
+  printf 'SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE=%s\n' '5MB'
+  printf 'SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=%s\n' '6MB'
   printf 'ADMIN_BOOTSTRAP_ENABLED=%s\n' "${admin_bootstrap_enabled}"
   printf 'ADMIN_BOOTSTRAP_ID=%s\n' "${admin_bootstrap_id}"
   printf 'ADMIN_BOOTSTRAP_PASSWORD=%s\n' "${admin_bootstrap_password}"
@@ -112,7 +124,7 @@ chown root:root "${temporary_file}"
 chmod 0600 "${temporary_file}"
 mv -f "${temporary_file}" "${runtime_env}"
 
-unset kakao_rest_api_key kakao_client_secret jwt_secret jwt_access_expires jwt_refresh_expires redis_password naver_client_id naver_client_secret admin_bootstrap_enabled admin_bootstrap_id admin_bootstrap_password mysql_password
+unset kakao_rest_api_key kakao_client_secret jwt_secret jwt_access_expires jwt_refresh_expires redis_password naver_client_id naver_client_secret admin_bootstrap_enabled admin_bootstrap_id admin_bootstrap_password aws_access_key_id aws_secret_access_key aws_region s3_bucket mysql_password
 trap - EXIT
 
 echo "생성: ${runtime_env}"
