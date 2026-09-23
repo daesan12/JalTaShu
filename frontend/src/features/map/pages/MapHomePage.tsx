@@ -39,6 +39,7 @@ import { START_POS_FALLBACK } from '@/features/map/lib/mapDefaults';
 import { NOTICES_PATH } from '@/features/map/lib/noticeLink';
 import { clearRentalSession } from '@/features/rental/lib/rentalSession';
 import { useCycleRental, useScannedCode } from '@/features/map/hooks/useCycleRental';
+import { useDeviceHeading } from '@/features/map/hooks/useDeviceHeading';
 import { readRecommendedRouteIntent } from '@/features/map/lib/recommendedRouteIntent';
 import {
   distanceToRouteStart,
@@ -164,6 +165,7 @@ export function MapHomePage() {
   const popup = useNoticePopup();
   const rental = useRentalSheets(stations);
 
+
   /**
    * QR 대여·반납. 스캔 화면은 민원·상태확인이 쓰던 것을 그대로 쓰고(`?next=/`),
    * 돌아올 때 붙는 `?code=`를 한 번 처리한 뒤 지운다.
@@ -240,6 +242,11 @@ export function MapHomePage() {
   const detailRoute = detailActive ? selectedRoute : null;
   // 12 안내는 상세 위에 한 단계 더 쌓인 상태다
   const guideActive = detailActive && guideInUrl && detailRoute !== null;
+  /*
+   * 바라보는 방향은 **안내 중에만** 켠다. 방위 센서는 계속 켜 두면 배터리를 먹고,
+   * 지도를 구경할 때는 화살표가 쓸모없다 — 길을 따라갈 때만 필요하다.
+   */
+  const heading = useDeviceHeading(guideActive);
   const compareSheetOpen = compareActive && !stationSheetOpen && !detailActive;
   const detailSheetOpen = detailActive && !stationSheetOpen && !guideActive;
   const destinationSheetOpen =
@@ -449,6 +456,7 @@ export function MapHomePage() {
         selectedRouteIndex={selectedRouteIndex}
         detailRoute={detailRoute}
         currentLocation={location.position}
+        heading={heading}
         locationFocusToken={locationFocusToken}
         followLocation={guideActive}
         pickActive={pickActive}

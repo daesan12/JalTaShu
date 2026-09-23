@@ -30,7 +30,11 @@ export const CLAIM_REPORT_CATEGORIES: { value: ClaimReportCategory; label: strin
   { value: 'ETC', label: '기타' },
 ];
 
-/** 18 자전거 상태 — 백엔드 API 미정, msw 목업 기준 임시 스키마 (확정 시 이 파일만 수정) */
+/**
+ * 18 자전거 상태 — 한 화면에 쓰는 값이지만 서버는 두 곳에서 온다.
+ * 상태·최근 이용은 `GET /cycle/statement/{cycleId}`, 제보 목록은 `GET /claim/list?cycleId=`.
+ * 이용 이력이 없거나 대여소를 모르는 자전거는 시각·대여소가 null로 온다(화면에서 "없음" 표기).
+ */
 export interface BikeStatus {
   /** QR에서 추출한 코드 — CSV 자전거번호(DJ-xxxx)와 다른 체계 */
   code: string;

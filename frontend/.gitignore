@@ -24,6 +24,9 @@ android/local.properties
 android/app/release/
 *.keystore
 *.jks
+# 팀 공용 디버그 서명 키 — 누가 빌드해도 같은 서명이라 폰에서 덮어쓰기가 된다.
+# 디버그 전용이라 공개돼도 무방하다(배포용 키는 절대 커밋하지 않는다).
+!android/app/shared-debug.keystore
 
 # Editor directories and files
 .vscode/*
