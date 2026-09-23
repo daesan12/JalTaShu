@@ -16,7 +16,29 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    /*
+     * 디버그 서명 키를 팀이 공유한다.
+     *
+     * 안드로이드 기본 디버그 키는 **PC마다 다르게 자동 생성**된다. 그래서 A가 설치한 폰에
+     * B가 빌드한 앱을 덮어쓰면 서명이 달라 실패하고(INSTALL_FAILED_UPDATE_INCOMPATIBLE),
+     * 매번 지웠다 깔아야 해서 로그인까지 풀린다. 키를 하나로 고정해 그 일을 없앤다.
+     *
+     * 이 키는 **디버그 전용**이다 — 배포 서명이 아니므로 저장소에 넣어도 된다
+     * (안드로이드 기본 디버그 키도 비밀번호가 공개된 'android'다). 스토어 배포용 키는
+     * 절대 여기에 두지 않는다.
+     */
+    signingConfigs {
+        debug {
+            storeFile file('shared-debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
