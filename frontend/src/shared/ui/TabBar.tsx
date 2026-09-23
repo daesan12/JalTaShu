@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { NavLink } from 'react-router';
+import { NavLink, useLocation, useSearchParams } from 'react-router';
+import { ROUTES_PARAM } from '@/features/map/lib/urlParams';
 
 /** Figma Tab Bar v2 기준 — 4탭: 지도 / 민원 / 이동 기록 / 마이 */
 interface TabItem {
@@ -72,8 +73,23 @@ const TABS: TabItem[] = [
 ];
 
 export function TabBar() {
+  const { pathname } = useLocation();
+  const [searchParams] = useSearchParams();
+  /*
+   * 경로 비교·상세·안내에서는 바텀 시트가 탭바를 덮는다. 그런데 시트가 열리고 닫히는
+   * 0.3초 동안에는 그 자리가 잠깐 비어, 시트 버튼을 연타하면 **탭이 탭바로 새어 들어가**
+   * 엉뚱한 탭으로 넘어간다("이 경로로 안내 시작"이 민원 탭과 같은 자리다 — 실측 확인).
+   * 어차피 가려서 보이지 않는 동안이므로 탭을 받지 않게 한다.
+   */
+  const coveredByRouteSheet = pathname === '/' && searchParams.get(ROUTES_PARAM) === '1';
+
   return (
-    <nav className="pb-safe z-20 border-t border-gray-100 bg-surface">
+    <nav
+      aria-hidden={coveredByRouteSheet}
+      className={`pb-safe z-20 border-t border-gray-100 bg-surface ${
+        coveredByRouteSheet ? 'pointer-events-none' : ''
+      }`}
+    >
       <div className="flex h-16">
         {TABS.map((tab) => (
           <NavLink
