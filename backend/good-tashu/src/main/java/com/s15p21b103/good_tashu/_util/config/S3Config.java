@@ -15,7 +15,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 @Configuration
 public class S3Config {
     @Bean
-    public Region awsRegion(@Value("${AWS_REGION:us-east-1}") String region) {
+    public Region awsRegion(@Value("${AWS_REGION:ap-northeast-2}") String region) {
         return Region.of(region);
     }
 

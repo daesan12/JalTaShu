@@ -52,7 +52,7 @@ sudo /opt/tashu/infra/runtime/backend/scripts/render-staging-env.sh
 실제 값은 출력하지 않고 최종 파일의 변수 이름과 권한만 표시한다.
 
 사진 Secret은 최초 한 번 다음 명령으로 네 값을 저장한다. 이 IAM 사용자는
-`good-tashu-photo-755719633654-us-east-1-an` bucket의 `images/*`에 필요한
+`tashu-upload-755719633654-ap-northeast-2-an` bucket의 `images/*`에 필요한
 최소 권한만 가져야 하며 MySQL backup·ECR 자격증명을 재사용하지 않는다.
 
 ```text
@@ -69,7 +69,7 @@ S3_BUCKET
     {
       "Effect": "Allow",
       "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
-      "Resource": "arn:aws:s3:::good-tashu-photo-755719633654-us-east-1-an/images/*"
+      "Resource": "arn:aws:s3:::tashu-upload-755719633654-ap-northeast-2-an/images/*"
     }
   ]
 }

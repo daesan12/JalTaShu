@@ -27,7 +27,7 @@ public class S3Service {
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
 
-    @Value("${S3_BUCKET:good-tashu-photo-755719633654-us-east-1-an}")
+    @Value("${S3_BUCKET:tashu-upload-755719633654-ap-northeast-2-an}")
     private String bucket;
     private static final Set<String> ALLOWED_IMAGE_EXTENSIONS =
             Set.of("jpg", "jpeg", "png", "gif", "webp", "heic", "heif");
