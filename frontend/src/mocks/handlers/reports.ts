@@ -339,7 +339,7 @@ export const reportHandlers = [
     writeRentedCycles(rest);
     // 실서버는 여기서 이용 기록 한 건을 만든다 — 목업도 만들어야 "나의 경로"까지 이어진다
     const returnedAt = new Date().toISOString();
-    addMockUsage({ cycleId, stationId: body.stationId, rentedAt, returnedAt });
-    return HttpResponse.json(ok(returnedAt));
+    const cycleUsageId = addMockUsage({ cycleId, stationId: body.stationId, rentedAt, returnedAt });
+    return HttpResponse.json(ok({ cycleUsageId, returnedAt }));
   }),
 ];

@@ -202,17 +202,19 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
                    SUM(events.rental_cnt) AS rentalCnt, SUM(events.return_cnt) AS returnCnt
             FROM (
                 SELECT DATE(cu.rental_at) AS event_date, 1 AS rental_cnt, 0 AS return_cnt
-                FROM cycle_usages cu WHERE cu.rental_at < CURRENT_DATE
+                FROM cycle_usages cu
+                WHERE cu.rental_station_id = :stationId
+                  AND cu.rental_at >= :from AND cu.rental_at < :to
                 UNION ALL
                 SELECT DATE(cu.return_at) AS event_date, 0 AS rental_cnt, 1 AS return_cnt
-                FROM cycle_usages cu WHERE cu.return_at < CURRENT_DATE
+                FROM cycle_usages cu
+                WHERE cu.return_station_id = :stationId
+                  AND cu.return_at >= :from AND cu.return_at < :to
             ) events
-            WHERE events.event_date >= CASE
-                WHEN :term = 'day' THEN CURRENT_DATE - INTERVAL 1 DAY
-                WHEN :term = 'week' THEN CURRENT_DATE - INTERVAL 7 DAY
-                ELSE CURRENT_DATE - INTERVAL 1 DAY
-            END
             GROUP BY events.event_date ORDER BY events.event_date
             """, nativeQuery = true)
-    List<StationTrendRow> findStationTrend(@Param("term") String term);
+    List<StationTrendRow> findStationTrend(
+            @Param("stationId") String stationId,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
 }

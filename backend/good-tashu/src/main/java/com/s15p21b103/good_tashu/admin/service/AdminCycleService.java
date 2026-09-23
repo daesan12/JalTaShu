@@ -22,6 +22,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static com.s15p21b103.good_tashu.admin.exception.AdminErrorCode.*;
 
@@ -130,12 +134,28 @@ public class AdminCycleService {
     }
 
     @Transactional(readOnly = true)
-    public List<AdminStationTrendResponse> getStationTrend(String term) {
+    public List<AdminStationTrendResponse> getStationTrend(String stationId, String term) {
+        if (stationId == null || stationId.isBlank()) {
+            throw new AdminException(INVALID_STATION_ID);
+        }
+        if (!stationRepository.existsById(stationId)) {
+            throw new AdminException(NOT_EXISTS_STATION);
+        }
         String normalizedTerm = normalizeTerm(term);
-        // 오늘을 제외한 기간별 날짜 집계 결과를 응답 DTO로 변환한다.
-        return adminCycleRepository.findStationTrend(normalizedTerm).stream()
+        int days = normalizedTerm.equals("day") ? 1 : 7;
+        LocalDate today = LocalDate.now();
+        LocalDate fromDate = today.minusDays(days);
+
+        Map<LocalDate, AdminStationTrendResponse> trendByDate = adminCycleRepository.findStationTrend(
+                        stationId, fromDate.atStartOfDay(), today.atStartOfDay()).stream()
                 .map(row -> new AdminStationTrendResponse(
                         LocalDate.parse(row.getDate()), row.getRentalCnt(), row.getReturnCnt()))
+                .collect(Collectors.toMap(AdminStationTrendResponse::date, Function.identity()));
+
+        return IntStream.range(0, days)
+                .mapToObj(index -> fromDate.plusDays(index))
+                .map(date -> trendByDate.getOrDefault(
+                        date, new AdminStationTrendResponse(date, 0L, 0L)))
                 .toList();
     }
 

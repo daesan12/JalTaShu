@@ -34,6 +34,7 @@ import { useMapPick } from '@/features/map/hooks/useMapPick';
 import { useNoticePopup } from '@/features/map/hooks/useNoticePopup';
 import { useRentalSheets } from '@/features/map/hooks/useRentalSheets';
 import { useRouteGuide } from '@/features/map/hooks/useRouteGuide';
+import type { ReturnedUsage } from '@/features/map/hooks/useRouteGuide';
 import { useToast } from '@/shared/lib/useToast';
 import { START_POS_FALLBACK } from '@/features/map/lib/mapDefaults';
 import { NOTICES_PATH } from '@/features/map/lib/noticeLink';
@@ -164,13 +165,27 @@ export function MapHomePage() {
 
   const popup = useNoticePopup();
   const rental = useRentalSheets(stations);
+  const [returnedUsage, setReturnedUsage] = useState<ReturnedUsage | null>(null);
+  const rememberReturnedUsage = useCallback(
+    (cycleUsageId: number, returnedAt: string, stationId: string) => {
+      setReturnedUsage({ cycleUsageId, returnedAt, stationId });
+    },
+    [],
+  );
+  const clearReturnedUsage = useCallback(() => setReturnedUsage(null), []);
 
 
   /**
    * QR 대여·반납. 스캔 화면은 민원·상태확인이 쓰던 것을 그대로 쓰고(`?next=/`),
    * 돌아올 때 붙는 `?code=`를 한 번 처리한 뒤 지운다.
    */
-  const cycleRental = useCycleRental({ stations, position: location.position, showToast });
+  const cycleRental = useCycleRental({
+    stations,
+    position: location.position,
+    showToast,
+    onReturned: (result, input) =>
+      rememberReturnedUsage(result.cycleUsageId, result.returnedAt, input.stationId),
+  });
   /** 빌린 자전거가 있으면 하단 버튼과 대여소 시트가 "반납하기"로 바뀐다 */
   const hasRentedCycle = cycleRental.session !== null;
   useScannedCode(searchParams.get(CODE_PARAM), cycleRental.handleCode, () => {
@@ -269,6 +284,8 @@ export function MapHomePage() {
     rerouteEnabled: !journey.staticRouteActive,
     intermediateArrival: journey.guidingToCustomStart,
     onIntermediateArrival: journey.continueAfterReachingStart,
+    returnedUsage,
+    onReturnedUsageHandled: clearReturnedUsage,
     showToast,
   });
 
@@ -605,7 +622,8 @@ export function MapHomePage() {
         stations={stations}
         ensureLocation={location.ensure}
         onClose={rental.closeReturnSheet}
-        onReturned={() => {
+        onReturned={(result, stationId) => {
+          rememberReturnedUsage(result.cycleUsageId, result.returnedAt, stationId);
           // 번호를 직접 입력해 반납해도 "빌린 자전거" 기억은 지워야 다음 QR이 대여로 잡힌다
           clearRentalSession();
           // 저장소만 지우면 화면은 모른다 — 버튼이 "대여하기"로 돌아가도록 함께 알린다

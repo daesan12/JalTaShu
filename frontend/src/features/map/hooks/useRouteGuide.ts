@@ -50,7 +50,15 @@ interface RouteGuideDeps {
   intermediateArrival: boolean;
   /** 중간 목적지인 선택 출발지에 도착했을 때 원래 경로로 전환한다. */
   onIntermediateArrival: () => boolean;
+  returnedUsage: ReturnedUsage | null;
+  onReturnedUsageHandled: () => void;
   showToast: (message: string) => void;
+}
+
+export interface ReturnedUsage {
+  cycleUsageId: number;
+  returnedAt: string;
+  stationId: string;
 }
 
 /**
@@ -71,6 +79,8 @@ export function useRouteGuide({
   rerouteEnabled,
   intermediateArrival,
   onIntermediateArrival,
+  returnedUsage,
+  onReturnedUsageHandled,
   showToast,
 }: RouteGuideDeps) {
   const navigate = useNavigate();
@@ -87,6 +97,8 @@ export function useRouteGuide({
   // 12 안내 시작 시각(도착 요약의 소요 시간 계산용)과 도착 처리 중복 방지 플래그 — 렌더에 쓰지 않아 ref로 둔다
   const guideStartAtRef = useRef<number | null>(null);
   const arrivalHandledRef = useRef(false);
+  const returnedUsageIdRef = useRef<number | null>(null);
+  const handledReturnedUsageIdRef = useRef<number | null>(null);
 
   /**
    * 도착하면 안내하던 경로를 이용 기록에 붙인다.
@@ -128,12 +140,49 @@ export function useRouteGuide({
     arrivalHandledRef.current = false;
   }, [detailRoute]);
 
+  // 반납은 실제 자전거 이용의 종료 시점이다. 안내된 정류소와 다르면 현재 안내를 확정해
+  // 즉시 저장하고, 같으면 남은 도보 안내가 끝날 때 같은 usageId로 저장한다.
+  useEffect(() => {
+    if (returnedUsage === null) return;
+    if (handledReturnedUsageIdRef.current === returnedUsage.cycleUsageId) return;
+    handledReturnedUsageIdRef.current = returnedUsage.cycleUsageId;
+    onReturnedUsageHandled();
+    if (!guideActive || detailRoute === null) return;
+
+    returnedUsageIdRef.current = returnedUsage.cycleUsageId;
+    if (detailRoute.endStation?.stationId === returnedUsage.stationId) return;
+
+    arrivalHandledRef.current = true;
+    const startedAt = guideStartAtRef.current ?? Date.now();
+    const parsedReturnedAt = Date.parse(returnedUsage.returnedAt);
+    const finishedAt = Number.isNaN(parsedReturnedAt) ? Date.now() : parsedReturnedAt;
+    const guideLegs = toLegs(detailRoute);
+    const totalDistanceM = guideLegs.reduce((sum, leg) => sum + leg.distance, 0);
+    const bikeDistanceM = guideLegs.reduce(
+      (sum, leg) => sum + (leg.mode === 'BICYCLE' ? leg.distance : 0),
+      0,
+    );
+    savePath.mutate({
+      cycleUsageId: returnedUsage.cycleUsageId,
+      pathInfo: { road: toUsagePath(detailRoute) },
+      createdAt: new Date(startedAt).toISOString(),
+      finishedAt: new Date(Math.max(startedAt, finishedAt)).toISOString(),
+      totalDistance: Math.round(totalDistanceM),
+      bikeDistance: Math.min(Math.round(bikeDistanceM), Math.round(totalDistanceM)),
+    });
+    returnedUsageIdRef.current = null;
+    clearJourney();
+    // mutation 객체와 콜백은 렌더마다 새 참조가 될 수 있으므로 반납 이벤트만 한 번 소비한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [returnedUsage]);
+
   // 목적지 근처(30m 이내)에 오면 안내를 자동으로 끝내고 전체 화면 요약을 띄운다.
   // "안내 종료" 버튼으로 직접 끝낼 때는 요약을 보여주지 않는다 — 도착이 아니라 중단이라서다
   useEffect(() => {
     if (!guideActive) {
       guideStartAtRef.current = null;
       arrivalHandledRef.current = false;
+      returnedUsageIdRef.current = null;
       return;
     }
     guideStartAtRef.current ??= Date.now();
@@ -168,13 +217,18 @@ export function useRouteGuide({
       route: detailRoute,
     });
     // 서버는 미터 정수를 받는다(자전거 거리 ≤ 전체 거리 검증이 있어 반올림 순서를 맞춘다)
-    savePath.mutate({
-      pathInfo: { road: toUsagePath(detailRoute) },
-      createdAt: new Date(startedAt).toISOString(),
-      finishedAt: new Date(finishedAt).toISOString(),
-      totalDistance: Math.round(totalDistanceM),
-      bikeDistance: Math.min(Math.round(bikeDistanceM), Math.round(totalDistanceM)),
-    });
+    const cycleUsageId = returnedUsageIdRef.current;
+    if (cycleUsageId !== null) {
+      savePath.mutate({
+        cycleUsageId,
+        pathInfo: { road: toUsagePath(detailRoute) },
+        createdAt: new Date(startedAt).toISOString(),
+        finishedAt: new Date(finishedAt).toISOString(),
+        totalDistance: Math.round(totalDistanceM),
+        bikeDistance: Math.min(Math.round(bikeDistanceM), Math.round(totalDistanceM)),
+      });
+      returnedUsageIdRef.current = null;
+    }
     // savePath는 훅이 만든 안정적인 객체라 의존성에 넣지 않는다 — 넣으면 렌더마다 이펙트가 다시 돈다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [

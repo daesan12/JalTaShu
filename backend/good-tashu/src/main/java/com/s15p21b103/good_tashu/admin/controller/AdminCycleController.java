@@ -85,9 +85,10 @@ public class AdminCycleController {
     @GetMapping("/station/trend")
     public ApiResponse<List<AdminStationTrendResponse>> getStationTrend(
             @CurrentAdminId Long adminId,
+            @RequestParam(name = "stationId") String stationId,
             @RequestParam(name = "term") String term) {
         // 오늘은 제외하고 term 범위의 날짜별 대여·반납 건수를 리스트로 반환
         // day는 하루, week는 7일 범위로 조회
-        return ApiResponse.success(adminCycleService.getStationTrend(term));
+        return ApiResponse.success(adminCycleService.getStationTrend(stationId, term));
     }
 }

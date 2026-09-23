@@ -31,7 +31,13 @@ export interface ReturnCycleRequest {
   longitude: number;
 }
 
-/** 성공 시 반납 시각(ISO 8601)을 돌려준다 */
-export function returnCycle(request: ReturnCycleRequest): Promise<string> {
-  return apiPost<string>('/cycle/return', request);
+export interface CycleReturnResult {
+  cycleUsageId: number;
+  /** 반납 시각(ISO 8601) */
+  returnedAt: string;
+}
+
+/** 성공 시 경로를 정확한 이용 기록에 연결할 ID와 반납 시각을 돌려준다. */
+export function returnCycle(request: ReturnCycleRequest): Promise<CycleReturnResult> {
+  return apiPost<CycleReturnResult>('/cycle/return', request);
 }

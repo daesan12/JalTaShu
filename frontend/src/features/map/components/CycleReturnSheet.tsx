@@ -5,6 +5,7 @@ import { BottomSheet } from '@/shared/ui/BottomSheet';
 import { Button } from '@/shared/ui/Button';
 import { InputField } from '@/shared/ui/InputField';
 import { returnCycle } from '@/features/map/api/cycle';
+import type { CycleReturnResult } from '@/features/map/api/cycle';
 import {
   CYCLE_STATION_RADIUS_M,
   nearestStation,
@@ -31,7 +32,7 @@ interface CycleReturnSheetProps {
   ensureLocation: () => Promise<LocationResult>;
   onClose: () => void;
   /** 반납 성공 — 부모가 토스트 등으로 안내한다 */
-  onReturned: () => void;
+  onReturned: (result: CycleReturnResult, stationId: string) => void;
 }
 
 /**
@@ -62,8 +63,8 @@ export function CycleReturnSheet({
 
   const returnMutation = useMutation({
     mutationFn: returnCycle,
-    onSuccess: () => {
-      onReturned();
+    onSuccess: (result, variables) => {
+      onReturned(result, variables.stationId);
       close();
     },
   });

@@ -9,6 +9,7 @@ import {
   type RentalSession,
 } from '@/features/rental/lib/rentalSession';
 import { rentCycle, returnCycle } from '@/features/map/api/cycle';
+import type { CycleReturnResult } from '@/features/map/api/cycle';
 import {
   CYCLE_STATION_RADIUS_M,
   nearestStation,
@@ -26,6 +27,7 @@ interface UseCycleRentalOptions {
   stations: BikeStation[] | undefined;
   position: Pos | null;
   showToast: (message: string) => void;
+  onReturned?: (result: CycleReturnResult, input: ReturnInput) => void;
 }
 
 /**
@@ -37,7 +39,7 @@ interface UseCycleRentalOptions {
  * 반납할 대여소는 묻지 않고 가장 가까운 곳으로 정한다 — QR만 찍는 흐름이라 고를 화면이 없다.
  * 대신 어느 대여소에 넣었는지 토스트로 알려, 잘못 잡혔으면 사용자가 바로 알 수 있게 한다.
  */
-export function useCycleRental({ stations, position, showToast }: UseCycleRentalOptions) {
+export function useCycleRental({ stations, position, showToast, onReturned }: UseCycleRentalOptions) {
   const queryClient = useQueryClient();
 
   /*
@@ -64,10 +66,12 @@ export function useCycleRental({ stations, position, showToast }: UseCycleRental
     // 대여소 이름은 서버에 보내지 않는다 — 토스트에 쓰려고 함께 들고 다닐 뿐이다
     mutationFn: ({ cycleId, stationId, latitude, longitude }: ReturnInput) =>
       returnCycle({ cycleId, stationId, latitude, longitude }),
-    onSuccess: (_returnedAt, { cycleId, stationName }) => {
+    onSuccess: (result, input) => {
+      const { cycleId, stationName } = input;
       clearRentalSession();
       setSession(null);
       showToast(`${cycleId} 자전거를 ${stationName}에 반납했습니다.`);
+      onReturned?.(result, input);
       // 반납으로 이용 기록 한 건이 생긴다 — 나의 경로가 열릴 때 새로 받게 한다
       void queryClient.invalidateQueries({ queryKey: ['usageList'] });
       void queryClient.invalidateQueries({ queryKey: ['usageStats'] });
