@@ -8,10 +8,12 @@ Server A에서 ECR의 Backend runtime image를 staging MySQL과 Redis에 연결�
 | --- | --- | --- |
 | `compose.staging.yml` | Backend image, loopback port, health check, 자원 제한과 내부 network 정의 | Git 추적, Secret 없음 |
 | `scripts/render-staging-env.sh` | 서버에 따로 저장된 MySQL·Redis·JWT·OAuth Secret을 하나의 Backend 환경파일로 조합 | Git 추적, Secret 없음 |
+| `scripts/configure-photo-s3-secret.sh` | 사진 bucket 전용 Access Key를 화면에 다시 출력하지 않고 공통 Secret 파일로 저장 | Git 추적, Secret 없음 |
 | `scripts/deploy-staging.sh` | 미리 pull한 immutable ECR image로 staging 컨테이너 교체 | Git 추적, Secret 없음 |
 | `/etc/tashu/backend-staging/oauth.env` | Backend 팀의 Kakao·Frontend OAuth 설정 | Server A 전용, Git 금지 |
 | `/etc/tashu/backend-staging/jwt.env` | JWT 서명키, access·refresh 만료시간과 Secure cookie 여부 | Server A 전용, Git 금지 |
 | `/etc/tashu/backend-common/naver-place.env` | Naver Place API Hub의 Client ID와 Client Secret | Server A 전용, Git 금지 |
+| `/etc/tashu/backend-common/photo-s3.env` | 사진 업로드 bucket 전용 Access Key ID·Secret Access Key와 Region·Bucket | Server A 전용, Git 금지 |
 | `/etc/tashu/backend-staging/runtime.env` | 컨테이너에 전달할 최종 환경변수 | Server A 전용, Git 금지 |
 
 ## 연결 구조
@@ -45,8 +47,41 @@ sudo /opt/tashu/infra/runtime/backend/scripts/render-staging-env.sh
 - `/etc/tashu/backend-staging/jwt.env`
 - `/etc/tashu/backend-staging/oauth.env`
 - `/etc/tashu/backend-common/naver-place.env`
+- `/etc/tashu/backend-common/photo-s3.env`
 
 실제 값은 출력하지 않고 최종 파일의 변수 이름과 권한만 표시한다.
+
+사진 Secret은 최초 한 번 다음 명령으로 네 값을 저장한다. 이 IAM 사용자는
+`good-tashu-photo-755719633654-us-east-1-an` bucket의 `images/*`에 필요한
+최소 권한만 가져야 하며 MySQL backup·ECR 자격증명을 재사용하지 않는다.
+
+```text
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+AWS_REGION
+S3_BUCKET
+```
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::good-tashu-photo-755719633654-us-east-1-an/images/*"
+    }
+  ]
+}
+```
+
+```bash
+sudo /opt/tashu/infra/runtime/backend/scripts/configure-photo-s3-secret.sh
+```
+
+Backend와 관리 화면의 안내를 맞추기 위해 파일 한 개는 최대 5MB, multipart 요청 전체는
+6MB로 제한한다. 외부 Nginx의 `client_max_body_size 10m`보다 작으므로 5MB 초과 파일은
+Backend에서 일관되게 거부된다.
 
 `jwt.env`에는 `JWT_SECURE=true|false`가 반드시 있어야 한다. 공개 HTTPS staging에서는 `true`를 사용해 브라우저가 JWT cookie를 암호화되지 않은 HTTP 요청에 보내지 않게 한다. 로컬 HTTP 개발처럼 TLS가 없는 환경에서만 `false`를 사용한다.
 
@@ -68,6 +103,8 @@ sudo /opt/tashu/infra/runtime/backend/scripts/deploy-staging.sh \
 sudo docker compose --file /opt/tashu/infra/runtime/backend/compose.staging.yml ps
 curl --fail --silent http://127.0.0.1:18081/api/actuator/health
 sudo docker inspect --format '{{.State.Health.Status}}' tashu-backend-staging
+sudo docker inspect tashu-backend-staging --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  | awk -F= '/^AWS_/ || /^S3_BUCKET=/ {print $1 "=<configured>"}'
 ```
 
 OSRM과 DEM 연결은 actuator health만으로 확인되지 않는다. 로그인한 사용자 access token으로

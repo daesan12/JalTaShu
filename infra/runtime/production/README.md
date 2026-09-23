@@ -24,6 +24,7 @@ Blue와 Green Backend는 같은 `tashu_prod` MySQL DB와 Redis database `0`을 �
 | `scripts/deploy-slot.sh` | 지정한 slot에 이미 pull한 immutable ECR image 실행 | 없음 |
 | `scripts/jenkins-production-deploy.sh` | 후보 준비·정리, Nginx 전환, 이전 slot 롤백 | 없음 |
 | `/etc/tashu/backend-production/runtime.env` | 운영 DB·Redis·JWT·OAuth 최종 환경변수 | Server A 전용, Git 금지 |
+| `/etc/tashu/backend-common/photo-s3.env` | staging·production이 공유하는 사진 bucket 전용 자격증명 | Server A 전용, Git 금지 |
 | `/var/lib/tashu-production/` | 활성·이전·후보 slot과 SHA 상태 | Secret 없음 |
 
 Frontend production image는 경로 `/`, API `/api`, 로그인 `/auth`로 빌드한다.
@@ -76,7 +77,7 @@ sudo /opt/tashu/infra/runtime/production/scripts/render-backend-env.sh
 ```
 
 이 스크립트는 기존 Kakao·JWT Secret, MySQL production 비밀번호, Redis 비밀번호,
-Naver Place 자격증명과 관리자 초기 계정 설정을 읽어
+Naver Place 자격증명, 사진 S3 전용 자격증명과 관리자 초기 계정 설정을 읽어
 `/etc/tashu/backend-production/runtime.env`를 `0600 root:root`로 만든다. 값은 출력하지 않는다.
 production OAuth 성공·실패 주소는 각각 공개 origin의 `/`, `/login`이다.
 Kakao 개발자 콘솔에는 기존 staging callback과 별도로 production callback
@@ -96,7 +97,12 @@ AI 예측 조회용 Redis DB 2를 사용한다. OSRM 세 컨테이너는 `tashu-
 /etc/tashu/redis/runtime.env
 /etc/tashu/backend-common/naver-place.env
 /etc/tashu/backend-common/admin-bootstrap.env
+/etc/tashu/backend-common/photo-s3.env
 ```
+
+사진 S3 Secret은 staging과 같은 `/etc/tashu/backend-common/photo-s3.env`를 사용하며
+Access Key ID·Secret Access Key·Region·Bucket 네 값을 보관한다. 최종 production
+환경파일에도 이 네 값과 파일 5MB·요청 6MB 제한이 들어간다.
 
 공개 production에서 초기 관리자 생성이 활성화된 경우 비밀번호는 12자 이상이어야 한다.
 초기 계정 생성과 로그인 검증이 끝나면 `ADMIN_BOOTSTRAP_ENABLED=false`로 바꾸고 다음
