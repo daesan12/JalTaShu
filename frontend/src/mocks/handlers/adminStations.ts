@@ -61,6 +61,7 @@ export const adminStationHandlers = [
     const points = STATIONS.map((station, stationIdx) => ({
       time: datetime,
       stationId: station.stationId,
+      stationName: station.name,
       // xPos=경도, yPos=위도 (coords.ts 규약)
       xPos: station.lng,
       yPos: station.lat,
@@ -101,6 +102,7 @@ export const adminStationHandlers = [
     const yesterday = mockDayTotals(mockDateString(1), stationIdx);
     return HttpResponse.json(
       ok({
+        stationName: station.name,
         currentBikeCnt: station.currentBikes,
         todayRentalCnt: today.rentCnt,
         todayReturnCnt: today.returnCnt,

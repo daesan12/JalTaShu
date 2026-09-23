@@ -7,7 +7,7 @@ import { AdminStatCard } from '@/features/admin/ui/AdminStatCard';
 
 /**
  * 02 대여소 상세 — 히트맵(01)의 원을 눌러 진입한다.
- * 백엔드 응답에 이름·주소·거치대·배치 자전거 목록이 없어(전달 목록) 통계 카드 중심으로 구성한다.
+ * 백엔드 대여소 마스터의 현재 한글 명칭과 통계를 보여준다.
  */
 export function AdminStationPage() {
   const { stationId = '' } = useParams();
@@ -41,7 +41,8 @@ export function AdminStationPage() {
           ← 히트맵
         </Link>
         <div className="mt-2 flex items-baseline gap-3">
-          <h2 className="text-xl font-semibold tabular-nums">대여소 {stationId}</h2>
+          <h2 className="text-xl font-semibold">{station.stationName}</h2>
+          <span className="text-sm text-admin-muted tabular-nums">{stationId}</span>
           <span className="text-sm text-admin-muted">어제 대비는 24시간 전 기준</span>
         </div>
       </div>

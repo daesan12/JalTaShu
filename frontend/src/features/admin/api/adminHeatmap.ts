@@ -9,6 +9,8 @@ export interface HeatmapPoint {
   /** 조회 기준 시각 (ISO 8601) — 요청한 datetime이 그대로 온다 */
   time: string;
   stationId: string;
+  /** 현재 대여소 마스터에 등록된 한글 명칭 */
+  stationName: string;
   /** 경도 */
   xPos: number;
   /** 위도 */

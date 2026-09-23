@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 public record AdminHeatmapResponse(
         LocalDateTime time,
         String stationId,
+        String stationName,
         BigDecimal xPos,
         BigDecimal yPos,
         Long rentCnt,
