@@ -219,6 +219,15 @@ describe('도메인 간 저장소 공유', () => {
     expect(data[0]).not.toHaveProperty('content');
   });
 
+  it('모바일 이용자도 공지 상세(/notice/{id})를 읽을 수 있다', async () => {
+    await post('/api/auth/mock-login');
+    const list = await (await get('/api/notice/list')).json();
+    const res = await get(`/api/notice/${list.data[0].noticeId}`);
+    expect(res.status).toBe(200);
+    const { data } = await res.json();
+    expect(data).toHaveProperty('content');
+  });
+
   it('로그인 없이 모바일 API를 부르면 401', async () => {
     const res = await get('/api/cycle/usage/list');
     expect(res.status).toBe(401);

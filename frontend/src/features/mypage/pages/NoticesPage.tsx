@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router';
 import { formatDate } from '@/shared/lib/format';
 import { TopHeader } from '@/shared/ui/TopHeader';
 import { getNotices } from '@/features/mypage/api/support';
 
-/** 공지사항 — 목록만 (상세는 공지 콘텐츠 확정 후) */
+/** 공지사항 목록 — 누르면 상세(`NoticeDetailPage`)로 */
 export function NoticesPage() {
   const { data: notices, isPending, error } = useQuery({
     queryKey: ['notices'],
@@ -21,14 +22,16 @@ export function NoticesPage() {
         {notices && (
           <ul className="space-y-3">
             {notices.map((notice) => (
-              <li
-                key={notice.noticeId}
-                className="rounded-2xl border border-gray-200 bg-surface p-4"
-              >
-                <p className="truncate font-medium text-gray-900">{notice.title}</p>
-                <p className="tabular-nums mt-1.5 text-sm text-gray-400">
-                  {formatDate(notice.createdAt)}
-                </p>
+              <li key={notice.noticeId}>
+                <Link
+                  to={`/mypage/support/notices/${notice.noticeId}`}
+                  className="block rounded-2xl border border-gray-200 bg-surface p-4 active:bg-gray-50"
+                >
+                  <p className="truncate font-medium text-gray-900">{notice.title}</p>
+                  <p className="tabular-nums mt-1.5 text-sm text-gray-400">
+                    {formatDate(notice.createdAt)}
+                  </p>
+                </Link>
               </li>
             ))}
           </ul>

@@ -14,6 +14,7 @@ import { BikeInsurancePage } from '@/features/mypage/pages/BikeInsurancePage';
 import { OpenApiPage } from '@/features/mypage/pages/OpenApiPage';
 import { FaqPage } from '@/features/mypage/pages/FaqPage';
 import { GuidePage } from '@/features/mypage/pages/GuidePage';
+import { NoticeDetailPage } from '@/features/mypage/pages/NoticeDetailPage';
 import { NoticesPage } from '@/features/mypage/pages/NoticesPage';
 import { SettingsPage } from '@/features/mypage/pages/SettingsPage';
 import { SupportPage } from '@/features/mypage/pages/SupportPage';
@@ -69,6 +70,7 @@ export const router = createBrowserRouter(
                 { path: '/mypage/bike-info/open-api', element: <OpenApiPage /> }, // Open API
                 { path: '/mypage/support', element: <SupportPage /> }, // 고객센터
                 { path: '/mypage/support/notices', element: <NoticesPage /> }, // 공지사항
+                { path: '/mypage/support/notices/:noticeId', element: <NoticeDetailPage /> }, // 공지사항 상세
                 { path: '/mypage/support/faq', element: <FaqPage /> }, // 자주 묻는 질문
                 { path: '/mypage/settings', element: <SettingsPage /> }, // 설정
                 { path: '/mypage/withdraw', element: <WithdrawPage /> }, // 회원 탈퇴
