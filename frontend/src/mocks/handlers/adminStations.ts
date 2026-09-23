@@ -69,24 +69,22 @@ export const adminStationHandlers = [
     return HttpResponse.json(ok(points));
   }),
 
-  // ── 추이 — ⚠ 실서버처럼 대여소 구분 없는 전체 합계, 오늘 제외 (term=day|week) ──
+  // ── 대여소별 추이 — 오늘 제외 (term=day|week) ──
   // trend가 아래 :stationId에 잡히지 않도록 반드시 먼저 등록한다
   http.get('/api/admin/station/trend', async ({ request }) => {
     await delay(350);
     if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
-    const term = new URL(request.url).searchParams.get('term') ?? '';
+    const searchParams = new URL(request.url).searchParams;
+    const stationId = searchParams.get('stationId') ?? '';
+    const term = searchParams.get('term') ?? '';
     if (term !== 'day' && term !== 'week') return fail(400, '조회 기간이 올바르지 않습니다.');
+    const stationIdx = STATIONS.findIndex((station) => station.stationId === stationId);
+    if (stationIdx < 0) return fail(404, '존재하지 않는 대여소입니다.');
     const days = term === 'day' ? 1 : 7;
     const points = Array.from({ length: days }, (_, i) => {
       const date = mockDateString(days - i);
-      const totals = STATIONS.reduce(
-        (acc, _station, stationIdx) => {
-          const day = mockDayTotals(date, stationIdx);
-          return { rentalCnt: acc.rentalCnt + day.rentCnt, returnCnt: acc.returnCnt + day.returnCnt };
-        },
-        { rentalCnt: 0, returnCnt: 0 },
-      );
-      return { date, ...totals };
+      const totals = mockDayTotals(date, stationIdx);
+      return { date, rentalCnt: totals.rentCnt, returnCnt: totals.returnCnt };
     });
     return HttpResponse.json(ok(points));
   }),

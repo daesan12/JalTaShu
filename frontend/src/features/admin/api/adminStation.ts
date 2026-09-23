@@ -19,7 +19,7 @@ export interface AdminStationDetail {
   yesterdayReportCnt: number;
 }
 
-/** GET /admin/station/trend?term= 의 한 점 (AdminStationTrendResponse 실측) — 오늘은 제외 */
+/** GET /admin/station/trend?stationId=&term= 의 한 점 — 오늘은 제외 */
 export interface StationTrendPoint {
   /** YYYY-MM-DD */
   date: string;
@@ -34,11 +34,11 @@ export function getAdminStation(stationId: string): Promise<AdminStationDetail> 
 }
 
 /**
- * 최근 7일 추이 — ⚠ 서버가 대여소 구분 없이 **전체 대여소 합계**를 준다
- * (stationId 파라미터 없음, 대여소별 추이는 백엔드 전달 목록). term은 day|week.
+ * 지정한 대여소의 최근 7일 추이. term은 day|week.
  */
-export function getAdminStationTrend(): Promise<StationTrendPoint[]> {
-  return apiGet<StationTrendPoint[]>('/admin/station/trend?term=week', {
+export function getAdminStationTrend(stationId: string): Promise<StationTrendPoint[]> {
+  const query = new URLSearchParams({ stationId, term: 'week' });
+  return apiGet<StationTrendPoint[]>(`/admin/station/trend?${query.toString()}`, {
     skipAuthRedirect: true,
   });
 }
