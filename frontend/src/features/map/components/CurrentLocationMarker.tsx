@@ -99,9 +99,18 @@ export function CurrentLocationMarker({
     arrow.style.rotate = `${heading}deg`;
   }, [heading, position]);
 
-  // 버튼을 누른 순간에만 이동한다. 위치 갱신만으로 지도가 멋대로 움직이지 않게 분리했다
+  /*
+   * 버튼을 누른 순간에만 이동한다. 위치 갱신만으로 지도가 멋대로 움직이지 않게 분리했다.
+   *
+   * `position`이 의존성에 있는 이유: 안내 시작은 위치를 받기 전에 신호를 올리므로, 위치가
+   * 뒤늦게 도착했을 때 한 번은 실행돼야 한다. 그런데 그대로 두면 **위치가 바뀔 때마다** 같은
+   * 신호를 다시 처리해 사용자가 확대해 둔 지도를 매번 줌 16으로 되돌린다(실기기: 12초에 8번).
+   * 그래서 처리한 신호 번호를 기억해 두고, 같은 번호는 다시 처리하지 않는다.
+   */
+  const handledTokenRef = useRef(0);
   useEffect(() => {
-    if (focusToken === 0 || position === null) return;
+    if (focusToken === 0 || position === null || handledTokenRef.current === focusToken) return;
+    handledTokenRef.current = focusToken;
     const { lat, lng } = posToLatLng(position);
     map.morph(new naver.maps.LatLng(lat, lng), CURRENT_LOCATION_ZOOM);
   }, [map, focusToken, position]);
