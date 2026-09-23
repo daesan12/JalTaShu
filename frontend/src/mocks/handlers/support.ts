@@ -37,6 +37,28 @@ export function setOpenApiRequests(requests: MockOpenApiRequest[]) {
  * 공지 목록·상세는 실서버와 같이 /api/notice/* (adminNotices 핸들러)를 쓴다.
  */
 export const supportHandlers = [
+  http.get('/api/notifications', async () => {
+    await delay(250);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    return HttpResponse.json(ok([
+      {
+        notificationId: 2,
+        type: 'RETURN_COMPLETED',
+        title: '반납이 완료되었습니다.',
+        body: '반납 완료 시간은 2026-09-23 10:42입니다.',
+        createdAt: '2026-09-23T10:42:00',
+      },
+      {
+        notificationId: 1,
+        type: 'RENTAL_STARTED',
+        title: '대여가 시작되었습니다.',
+        body: '대여 시작 시간은 2026-09-23 09:15입니다.',
+        createdAt: '2026-09-23T09:15:00',
+      },
+    ]));
+  }),
+
   // ── Open API 신청 (자전거 정보 — 백엔드 API 미정, 임시 스키마) ──────
   http.post('/api/open-api/requests', async ({ request }) => {
     await delay(400);
