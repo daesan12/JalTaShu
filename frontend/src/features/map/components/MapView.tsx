@@ -53,6 +53,8 @@ interface MapViewProps {
   detailRoute: RouteCandidate | null;
   /** 현재 위치. null이면 점을 그리지 않는다 */
   currentLocation: Pos | null;
+  /** 바라보는 방향(0=북, 시계방향 度). 안내 중에만 값이 있고, 없으면 화살표를 안 그린다 */
+  heading?: number | null;
   /** 값이 바뀔 때마다 현재 위치로 지도를 옮긴다(현재위치 버튼) */
   locationFocusToken: number;
   /** 경로 안내 중 — 지도가 현재 위치를 계속 따라간다 */
@@ -76,6 +78,7 @@ export function MapView({
   selectedRouteIndex,
   detailRoute,
   currentLocation,
+  heading = null,
   locationFocusToken,
   followLocation,
   pickActive,
@@ -151,6 +154,7 @@ export function MapView({
         <CurrentLocationMarker
           map={map}
           position={currentLocation}
+          heading={heading}
           focusToken={locationFocusToken}
           follow={followLocation}
         />
