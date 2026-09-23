@@ -55,6 +55,13 @@ public class FcmTokenEntity {
         this.lastSeenAt = LocalDateTime.now();
     }
 
+    public void activate(UserEntity userEntity, Platform platform, String deviceId) {
+        this.userEntity = userEntity;
+        this.platform = platform;
+        this.deviceId = deviceId;
+        reactivate();
+    }
+
     public void deactivate() {
         this.enabled = false;
         this.lastSeenAt = LocalDateTime.now();

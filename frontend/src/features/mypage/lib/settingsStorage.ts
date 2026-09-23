@@ -11,6 +11,8 @@ export interface AppSettings {
 
 const DEFAULT_SETTINGS: AppSettings = { autoLogin: true, pushEnabled: true };
 
+export const SETTINGS_CHANGED_EVENT = 'app-settings-changed';
+
 export function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.settings);
@@ -24,6 +26,7 @@ export function loadSettings(): AppSettings {
 export function saveSettings(settings: AppSettings) {
   try {
     localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings));
+    window.dispatchEvent(new CustomEvent<AppSettings>(SETTINGS_CHANGED_EVENT, { detail: settings }));
   } catch {
     // 저장 불가 환경 무시
   }

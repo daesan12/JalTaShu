@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { apiGet, apiPatch, apiPost, setAccessToken } from '@/shared/api/client';
 import { ENV } from '@/shared/config/env';
 import { TERMS, type TermCode } from '@/shared/config/constants';
+import { deactivateStoredPushToken } from '@/features/notification/lib/pushNotifications';
 
 /** GET /users/me 응답 (백엔드 UserMeResponse) — 월간 통계는 매달 1일 0시(KST) 기준 리셋 */
 export interface Me {
@@ -64,6 +65,7 @@ export function updateNickname(nickname: string): Promise<null> {
 /** POST /api/auth/logout — 서버가 refresh를 폐기하고 쿠키를 만료시킨다. 메모리 토큰도 지운다 */
 export async function logout(): Promise<void> {
   try {
+    await deactivateStoredPushToken();
     await apiPost<null>('/auth/logout');
   } finally {
     setAccessToken(null);

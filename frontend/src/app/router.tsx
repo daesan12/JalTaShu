@@ -28,6 +28,7 @@ import { QrScanPage } from '@/features/rental/pages/QrScanPage';
 import { MyReportsPage } from '@/features/report/pages/MyReportsPage';
 import { ReportPage } from '@/features/report/pages/ReportPage';
 import { InstallLandingPage } from '@/features/install/pages/InstallLandingPage';
+import { NotificationsPage } from '@/features/notification/pages/NotificationsPage';
 
 /** 배포 경로(예: /staging/)에서도 라우팅이 동작하도록 Vite base를 basename으로 사용 */
 const basename = import.meta.env.BASE_URL.replace(/\/+$/, '') || '/';
@@ -51,6 +52,7 @@ export const router = createBrowserRouter(
               element: <MobileLayout />,
               children: [
                 { path: '/', element: <MapHomePage /> }, // 07~16 지도·경로 (만두)
+                { path: '/notifications', element: <NotificationsPage /> },
                 { path: '/report', element: <ReportPage /> }, // 17-0~17-3 자전거·민원 (?type= 전환)
                 { path: '/report/scan', element: <QrScanPage /> }, // QR 스캔 (상태확인·신고 공용)
                 { path: '/report/bikes/:code', element: <BikeStatusPage /> }, // 18 자전거 상태

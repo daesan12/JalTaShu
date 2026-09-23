@@ -12,6 +12,7 @@ import { MapPickLayer } from '@/features/map/components/MapPickLayer';
 import { MapView } from '@/features/map/components/MapView';
 import { NoticeBanner } from '@/features/map/components/NoticeBanner';
 import { NoticePopup } from '@/features/map/components/NoticePopup';
+import { NotificationButton } from '@/features/notification/components/NotificationButton';
 import { PlaceSearchOverlay } from '@/features/map/components/PlaceSearchOverlay';
 import { RouteCompareControls } from '@/features/map/components/RouteCompareControls';
 import { RouteCompareSheet } from '@/features/map/components/RouteCompareSheet';
@@ -492,20 +493,23 @@ export function MapHomePage() {
           <div className="pointer-events-auto mt-6 w-full">
             <SearchBar onClick={openSearch} value={destination?.title} />
           </div>
-          <div className="flex w-full flex-col items-end gap-1.5">
-            <div className="pointer-events-auto">
-              <NoticeBanner onClick={() => navigate(NOTICES_PATH)} />
-            </div>
-            {stations ? (
-              <div className="pointer-events-auto inline-flex items-center overflow-hidden rounded-full border border-line/90 bg-surface/95 shadow-[0_6px_18px_rgba(24,33,21,0.12)] backdrop-blur-md">
-                <UpdatedBadge grouped updatedAt={dataUpdatedAt} />
-                <StationRefreshButton
-                  compact
-                  onClick={refreshStations}
-                  refreshing={refreshingStations}
-                />
+          <div className="flex w-full items-start justify-between gap-2">
+            <NotificationButton onClick={() => navigate('/notifications')} />
+            <div className="flex flex-col items-end gap-1.5">
+              <div className="pointer-events-auto">
+                <NoticeBanner onClick={() => navigate(NOTICES_PATH)} />
               </div>
-            ) : null}
+              {stations ? (
+                <div className="pointer-events-auto inline-flex items-center overflow-hidden rounded-full border border-line/90 bg-surface/95 shadow-[0_6px_18px_rgba(24,33,21,0.12)] backdrop-blur-md">
+                  <UpdatedBadge grouped updatedAt={dataUpdatedAt} />
+                  <StationRefreshButton
+                    compact
+                    onClick={refreshStations}
+                    refreshing={refreshingStations}
+                  />
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       )}
