@@ -24,6 +24,7 @@ function bundledImage(fileName: string): string {
 /**
  * 서비스에 기본으로 포함하는 공지 5장.
  * `public` 파일이라 frontend 이미지와 함께 배포되며 staging의 `/staging/` base path도 따른다.
+ * 같은 이미지를 관리자 화면에서 공지 1~5번에 핀으로 올려 서버 팝업으로도 쓴다.
  */
 export const BUNDLED_NOTICE_POPUPS: PopupNotice[] = [
   {
@@ -53,17 +54,14 @@ export const BUNDLED_NOTICE_POPUPS: PopupNotice[] = [
   },
 ];
 
-export function resolveNoticePopups(serverNotices: PopupNotice[]): PopupNotice[] {
-  return serverNotices.length > 0 ? serverNotices : BUNDLED_NOTICE_POPUPS;
-}
-
 /**
- * 관리자가 등록한 팝업이 있으면 서버 목록을 사용한다.
- * 아직 팝업 데이터가 없거나 API가 실패하면 앱에 포함된 기본 5장을 보여 준다.
+ * 팝업은 관리자 화면의 핀 상태를 그대로 따른다 — 서버 목록이 비어 있으면(핀이 모두 꺼짐) 띄우지 않는다.
+ * 비었을 때 기본 5장으로 채우면 관리자가 핀을 다 꺼도 앱에는 계속 떠서 두 화면이 어긋난다.
+ * 기본 5장은 API 자체가 실패했을 때만 쓴다.
  */
 export async function getNoticePopups(): Promise<PopupNotice[]> {
   try {
-    return resolveNoticePopups(await apiGet<PopupNotice[]>('/notice/pop-up'));
+    return await apiGet<PopupNotice[]>('/notice/pop-up');
   } catch {
     return BUNDLED_NOTICE_POPUPS;
   }
