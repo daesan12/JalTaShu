@@ -24,16 +24,16 @@ export function formatUserCode(userId: number): string {
 }
 
 /**
- * 표의 "이용자"·"제보자" 칸 — 닉네임이 없을 수 있다.
+ * 표의 "이용자"·"제보자" 칸 — 사용자 연결 여부와 닉네임 설정 여부를 구분한다.
  *
  * 두 가지 경우가 있고 뜻이 다르다.
- * - 닉네임만 없음: 소셜 로그인만 하고 가입을 끝내지 않은 사용자 → 사용자 코드로 대신 가리킨다
- * - 사용자 자체가 없음: 앱을 거치지 않은 이용 이력 → 가리킬 사람이 없으므로 '-'
+ * - 닉네임만 없음: 소셜 로그인만 하고 가입을 끝내지 않은 사용자
+ * - 사용자 자체가 없음: 앱을 거치지 않은 이용 이력
  */
 export function formatUserName(nickname: string | null, userId: number | null): string {
-  if (nickname) return nickname;
-  if (userId !== null && userId !== undefined) return formatUserCode(userId);
-  return '-';
+  if (userId === null || userId === undefined) return '연결된 사용자 없음';
+  if (!nickname) return `닉네임 미설정 · #${userId}`;
+  return `${nickname} · #${userId}`;
 }
 
 /**

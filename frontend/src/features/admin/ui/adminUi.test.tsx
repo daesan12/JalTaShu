@@ -101,12 +101,12 @@ describe('AdminTableStatus', () => {
 });
 
 describe('formatUserName', () => {
-  it('닉네임이 있으면 닉네임, 없으면 사용자 코드, 사용자가 없으면 -', () => {
-    expect(formatUserName('조용한산책366', 315)).toBe('조용한산책366');
+  it('닉네임과 사용자 연결 여부를 구분해 표시한다', () => {
+    expect(formatUserName('조용한산책366', 315)).toBe('조용한산책366 · #315');
     // 소셜 로그인만 하고 가입을 끝내지 않은 사용자
-    expect(formatUserName(null, 7)).toBe('U-000007');
+    expect(formatUserName(null, 7)).toBe('닉네임 미설정 · #7');
     // 앱을 거치지 않은 이용 이력 — 가리킬 사람이 없다
-    expect(formatUserName(null, null)).toBe('-');
+    expect(formatUserName(null, null)).toBe('연결된 사용자 없음');
   });
 });
 
