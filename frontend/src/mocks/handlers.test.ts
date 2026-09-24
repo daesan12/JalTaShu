@@ -68,6 +68,9 @@ describe('관리자 핸들러 등록 순서', () => {
     const detail = await (await get('/api/admin/cycle/DJ-10001')).json();
     expect(Array.isArray(detail.data)).toBe(true);
     expect(detail.data[0]).toHaveProperty('recordId');
+    expect(detail.data[0]).toMatchObject({ userId: null, nickname: null });
+    expect(detail.data[1].userId).not.toBeNull();
+    expect(detail.data[1].nickname).toBeNull();
   });
 
   it('admin/claim/list(고정)가 admin/claim/:claimId(상세)에 잡히지 않는다', async () => {

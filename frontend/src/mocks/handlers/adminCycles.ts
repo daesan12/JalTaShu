@@ -33,13 +33,17 @@ function mockCycleSummary(index: number) {
 function mockCycleHistory(index: number) {
   return Array.from({ length: 10 }, (_, j) => {
     const userId = ((index + j * 7) % 30) + 1;
+    // 실서버에는 앱 사용자가 연결되지 않은 공공 대여 이력과
+    // 가입 전이라 닉네임이 없는 사용자가 모두 존재한다.
+    const userLinked = !(index === 1 && j === 0);
+    const nicknameSet = !(index === 1 && j === 1);
     return {
       recordId: index * 100 + j,
       usingAt: new Date(Date.now() - (j * 13 + index) * 3600_000).toISOString(),
       startingPoint: STATIONS[(index + j) % STATIONS.length].name,
       endPoint: STATIONS[(index + j * 3 + 1) % STATIONS.length].name,
-      userId,
-      nickname: mockUserNickname(userId),
+      userId: userLinked ? userId : null,
+      nickname: userLinked && nicknameSet ? mockUserNickname(userId) : null,
     };
   });
 }
