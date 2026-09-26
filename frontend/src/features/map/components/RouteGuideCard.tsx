@@ -147,7 +147,8 @@ export function RouteGuideCard({
             <p className="line-clamp-2 text-lg leading-snug font-bold text-gray-900">
               {nextCue === null ? legText : nextCue.cue.maneuver.instruction}
             </p>
-            {nextCue === null ? null : (
+            {/* 출발 안내는 거리를 붙이지 않는다 — 서 있는 자리가 곧 출발점이라 늘 "0m 앞"이 된다 */}
+            {nextCue === null || nextCue.cue.maneuver.type === 'depart' ? null : (
               <p className="mt-1 text-base font-bold tabular-nums text-primary">
                 {formatDistance(nextCue.remainingM)} 앞
               </p>

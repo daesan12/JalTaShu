@@ -53,6 +53,21 @@ describe('getRouteProgress', () => {
     expect(later.ratio).toBeGreaterThan(start.ratio);
   });
 
+  it('구간 하한을 주면 위치가 출발점이어도 그 구간부터 본다 — 대여·반납 성공 뒤 GPS가 틀려도 넘어간다', () => {
+    const start = { xPos: 127.0005, yPos: 36.35 };
+    const riding = getRouteProgress(makeRoute(), start, 1);
+    expect(riding.legIndex).toBe(1);
+    expect(riding.leg?.mode).toBe('BICYCLE');
+    const lastWalk = getRouteProgress(makeRoute(), null, 2);
+    expect(lastWalk.legIndex).toBe(2);
+    expect(lastWalk.remainingM).toBeLessThan(200);
+  });
+
+  it('위치가 하한보다 앞서 있으면 위치를 따른다', () => {
+    const nearEnd = { xPos: 127.0095, yPos: 36.35 };
+    expect(getRouteProgress(makeRoute(), nearEnd, 1).legIndex).toBe(2);
+  });
+
   it('좌표가 모자라면 빈 결과', () => {
     const route = makeRoute({ legs: [makeLeg('WALK', 0, 0, 100, 60)] });
     const progress = getRouteProgress(route, null);

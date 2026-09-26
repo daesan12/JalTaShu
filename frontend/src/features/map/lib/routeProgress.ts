@@ -54,8 +54,17 @@ function nearestPoint(points: RoutePoint[], position: Pos): { index: number; dis
   return { index, distanceM };
 }
 
-/** 현재 위치 기준 진행 상황. 위치를 모르면 출발 상태(첫 구간, 전체 남음)로 본다 */
-export function getRouteProgress(route: RouteCandidate, position: Pos | null): RouteProgress {
+/**
+ * 현재 위치 기준 진행 상황. 위치를 모르면 출발 상태(첫 구간, 전체 남음)로 본다.
+ *
+ * `minLegIndex` — 적어도 이 구간까지는 왔다고 보는 하한(#145). 대여·반납에 성공하면 GPS가
+ * 대여소 근처로 잡히지 않아도 다음 구간으로 넘어가야 한다. 위치가 그보다 뒤에 있으면 위치를 따른다.
+ */
+export function getRouteProgress(
+  route: RouteCandidate,
+  position: Pos | null,
+  minLegIndex = 0,
+): RouteProgress {
   const legs = toLegs(route);
   if (legs.length === 0) return EMPTY;
 
@@ -67,8 +76,10 @@ export function getRouteProgress(route: RouteCandidate, position: Pos | null): R
   if (totalM <= 0) return EMPTY;
 
   const nearest = position === null ? null : nearestPoint(points, position);
-  const traveledM = nearest === null ? 0 : cumulative[nearest.index];
   const legEndM = legEndIndexes.map((index) => cumulative[index]);
+  const floorLeg = Math.min(Math.max(0, minLegIndex), legs.length - 1);
+  const floorM = floorLeg === 0 ? 0 : legEndM[floorLeg - 1];
+  const traveledM = Math.max(nearest === null ? 0 : cumulative[nearest.index], floorM);
   // 아직 끝나지 않은 첫 구간이 지금 가고 있는 구간이다. 다 지났으면 마지막 구간에 머문다
   const firstUnfinished = legEndM.findIndex((end) => traveledM < end);
   const legIndex = firstUnfinished === -1 ? legs.length - 1 : firstUnfinished;
