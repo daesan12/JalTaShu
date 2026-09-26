@@ -110,6 +110,15 @@ export function MapHomePage() {
     'to-start' | 'from-current' | null
   >(null);
   const location = useCurrentLocation();
+  const requestLocation = location.request;
+
+  // 07 진입 — 지도를 내 위치에서 시작한다(현재위치 버튼을 한 번 누른 것과 같다).
+  // 실패하면 안내 없이 대전시청 기본 중심에 둔다. 들어오자마자 권한 거절 토스트가 뜨면 방해만 된다
+  useEffect(() => {
+    void requestLocation().then((result) => {
+      if (result.ok) setLocationFocusToken((token) => token + 1);
+    });
+  }, [requestLocation]);
 
   // 읽기만 하므로 state가 아니라 ref에 둔다(지도를 옮길 때마다 화면을 다시 그릴 이유가 없다)
   const mapRef = useRef<naver.maps.Map | null>(null);
