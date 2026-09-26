@@ -33,19 +33,18 @@ import { useJourneyPlanner } from '@/features/map/hooks/useJourneyPlanner';
 import { useMapPick } from '@/features/map/hooks/useMapPick';
 import { useNoticePopup } from '@/features/map/hooks/useNoticePopup';
 import { useRentalSheets } from '@/features/map/hooks/useRentalSheets';
+import { useGuideZoom } from '@/features/map/hooks/useGuideZoom';
 import { useRouteGuide } from '@/features/map/hooks/useRouteGuide';
 import type { ReturnedUsage } from '@/features/map/hooks/useRouteGuide';
 import { useToast } from '@/shared/lib/useToast';
+import { readSavedCamera } from '@/features/map/lib/mapCamera';
 import { START_POS_FALLBACK } from '@/features/map/lib/mapDefaults';
 import { NOTICES_PATH } from '@/features/map/lib/noticeLink';
 import { QrScanView } from '@/features/rental/components/QrScanView';
 import { useCycleRental } from '@/features/map/hooks/useCycleRental';
 import { useDeviceHeading } from '@/features/map/hooks/useDeviceHeading';
 import { readRecommendedRouteIntent } from '@/features/map/lib/recommendedRouteIntent';
-import {
-  distanceToRouteStart,
-  needsRouteStartChoice,
-} from '@/features/map/lib/routeStartGuard';
+import { distanceToRouteStart, needsRouteStartChoice } from '@/features/map/lib/routeStartGuard';
 import {
   getRecommendedCourseRoute,
   waypointToPlace,
@@ -106,19 +105,23 @@ export function MapHomePage() {
     current: Pos;
     distanceM: number;
   } | null>(null);
-  const [routeStartPending, setRouteStartPending] = useState<
-    'to-start' | 'from-current' | null
-  >(null);
+  const [routeStartPending, setRouteStartPending] = useState<'to-start' | 'from-current' | null>(
+    null,
+  );
   const location = useCurrentLocation();
   const requestLocation = location.request;
 
+  // 앱을 켜고 처음 들어온 것인지. 다른 탭에서 돌아왔으면 지도가 떠나던 화면을 복원하므로 옮기지 않는다
+  const [firstEntry] = useState(() => readSavedCamera() === null);
+
   // 07 진입 — 지도를 내 위치에서 시작한다(현재위치 버튼을 한 번 누른 것과 같다).
-  // 실패하면 안내 없이 대전시청 기본 중심에 둔다. 들어오자마자 권한 거절 토스트가 뜨면 방해만 된다
+  // 실패하면 안내 없이 대전시청 기본 중심에 둔다. 들어오자마자 권한 거절 토스트가 뜨면 방해만 된다.
+  // 돌아온 경우에도 위치는 새로 받는다 — 내 위치 점만 갱신하고 지도는 그대로 둔다
   useEffect(() => {
-    void requestLocation().then((result) => {
-      if (result.ok) setLocationFocusToken((token) => token + 1);
+    void requestLocation({ quick: true }).then((result) => {
+      if (result.ok && firstEntry) setLocationFocusToken((token) => token + 1);
     });
-  }, [requestLocation]);
+  }, [requestLocation, firstEntry]);
 
   // 읽기만 하므로 state가 아니라 ref에 둔다(지도를 옮길 때마다 화면을 다시 그릴 이유가 없다)
   const mapRef = useRef<naver.maps.Map | null>(null);
@@ -183,7 +186,6 @@ export function MapHomePage() {
     [],
   );
   const clearReturnedUsage = useCallback(() => setReturnedUsage(null), []);
-
 
   /**
    * QR 대여·반납. 스캔 화면은 지도 위 오버레이(`?scan=1`)라 현재 위치와 경로 안내가 그대로 남는다.
@@ -313,6 +315,14 @@ export function MapHomePage() {
     showToast,
   });
 
+  // 12 안내 시작·이동 수단이 바뀔 때 — 내 위치로 도보 17 / 자전거 16 확대
+  useGuideZoom({
+    mapRef,
+    active: guideActive,
+    mode: guide.guideProgress?.leg?.mode ?? null,
+    position: location.position,
+  });
+
   /**
    * 목적지를 고르는 화면을 연다. 07 검색바에서도, **10 비교 화면의 도착 칸에서도** 이 함수 하나를 쓴다.
    * 함수형 업데이트로 기존 쿼리(특히 `routes=1`)를 그대로 두고 `search`만 얹는다 —
@@ -392,13 +402,13 @@ export function MapHomePage() {
 
   /** 08 검색 화면의 "현재 위치" 줄·"내 위치" 칩 — 위치만 새로 잡는다(지도는 오버레이에 가려 안 보인다) */
   async function refreshLocation() {
-    const result = await location.request();
+    const result = await location.request({ quick: true });
     if (!result.ok) showToast(LOCATION_ERROR_TEXT[result.error]);
   }
 
   /** 07 현재위치 버튼 — 위치를 새로 잡고 성공하면 지도를 그 자리로 옮긴다 */
   async function focusCurrentLocation() {
-    const result = await location.request();
+    const result = await location.request({ quick: true });
     if (!result.ok) {
       showToast(LOCATION_ERROR_TEXT[result.error]);
       return;
@@ -419,8 +429,7 @@ export function MapHomePage() {
   function activateGuide() {
     // 브라우저는 사용자가 누르지 않은 상태의 첫 소리를 막는다 — 이 클릭 안에서 권한을 받아 둔다
     guide.primeVoice();
-    // 경로 전체를 보던 축척 그대로면 길이 안 보인다 — 안내를 시작할 때 현재 위치로 확대한다
-    setLocationFocusToken((token) => token + 1);
+    // 확대는 `useGuideZoom`이 맡는다 — 구간의 이동 수단에 맞춰 도보 17 / 자전거 16
     setSearchParams({ [ROUTES_PARAM]: '1', [DETAIL_PARAM]: '1', [GUIDE_PARAM]: '1' });
   }
 
@@ -494,7 +503,8 @@ export function MapHomePage() {
   return (
     <div className="relative h-full overflow-hidden">
       <MapView
-        stations={stationMarkersVisible ? stations : []}
+        stations={stations}
+        stationsVisible={stationMarkersVisible}
         selectedStationId={rental.selectedStationId}
         onSelectStation={rental.selectStation}
         destination={destination}

@@ -7,6 +7,7 @@ import { RouteLandmarkMarkers } from '@/features/map/components/RouteLandmarkMar
 import { RouteTurnMarkers } from '@/features/map/components/RouteTurnMarkers';
 import { SelectedRoutePolyline } from '@/features/map/components/SelectedRoutePolyline';
 import { StationMarkers } from '@/features/map/components/StationMarkers';
+import { readSavedCamera, saveCamera } from '@/features/map/lib/mapCamera';
 import { DAEJEON_CENTER, DEFAULT_ZOOM } from '@/features/map/lib/mapDefaults';
 import {
   loadNaverMaps,
@@ -39,6 +40,8 @@ const FAILURE_TEXT: Record<MapLoadFailure, { title: string; hint: string }> = {
 interface MapViewProps {
   /** 목록을 아직 못 받았으면 지도만 그린다 */
   stations: BikeStation[] | undefined;
+  /** 대여소 표시 토글 — 꺼도 마커를 지우지 않고 숨긴다 */
+  stationsVisible: boolean;
   selectedStationId: string | null;
   onSelectStation: (stationId: string | null) => void;
   /** 08에서 고른 목적지. null이면 핀 없음 */
@@ -71,6 +74,7 @@ interface MapViewProps {
 /** 07 메인 화면의 네이버 지도 + 대여소 마커 + 목적지 핀 + 경로선 */
 export function MapView({
   stations,
+  stationsVisible,
   selectedStationId,
   onSelectStation,
   destination,
@@ -113,9 +117,13 @@ export function MapView({
       if (!container) return;
 
       const { Map, LatLng } = result.maps;
+      // 다른 탭에 다녀왔으면 떠나던 화면에서 다시 시작한다
+      const camera = readSavedCamera();
       map = new Map(container, {
-        center: new LatLng(DAEJEON_CENTER.lat, DAEJEON_CENTER.lng),
-        zoom: DEFAULT_ZOOM,
+        center: camera
+          ? new LatLng(camera.lat, camera.lng)
+          : new LatLng(DAEJEON_CENTER.lat, DAEJEON_CENTER.lng),
+        zoom: camera?.zoom ?? DEFAULT_ZOOM,
       });
       setMap(map);
       onMapReady(map);
@@ -123,6 +131,7 @@ export function MapView({
 
     return () => {
       cancelled = true;
+      if (map) saveCamera(map);
       map?.destroy();
       setMap(null);
       onMapReady(null);
@@ -147,6 +156,7 @@ export function MapView({
           selectedStationId={selectedStationId}
           onSelectStation={onSelectStation}
           pickActive={pickActive}
+          visible={stationsVisible}
         />
       ) : null}
 
@@ -163,7 +173,7 @@ export function MapView({
       {map !== null ? <DestinationMarker map={map} destination={destination} /> : null}
 
       {map === null ? null : detailRoute !== null ? (
-        <SelectedRoutePolyline map={map} route={detailRoute} />
+        <SelectedRoutePolyline map={map} route={detailRoute} fit={!followLocation} />
       ) : (
         <RoutePolylines map={map} routes={routes} selectedIndex={selectedRouteIndex} />
       )}
