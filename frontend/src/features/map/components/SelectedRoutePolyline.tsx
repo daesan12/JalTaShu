@@ -18,9 +18,14 @@ interface SelectedRoutePolylineProps {
   map: naver.maps.Map;
   /** null이면 선을 지운다 */
   route: RouteCandidate | null;
+  /**
+   * 경로 전체가 보이게 화면을 맞출지. 12 안내 중에는 끈다 — 구간별 확대(`useGuideZoom`)와
+   * 내 위치 따라가기가 화면을 맡는데, 전체 맞춤의 뒤늦은 보정이 그 확대를 덮어쓴다.
+   */
+  fit: boolean;
 }
 
-export function SelectedRoutePolyline({ map, route }: SelectedRoutePolylineProps) {
+export function SelectedRoutePolyline({ map, route, fit }: SelectedRoutePolylineProps) {
   const linesRef = useRef<naver.maps.Polyline[]>([]);
 
   useEffect(() => {
@@ -52,10 +57,10 @@ export function SelectedRoutePolyline({ map, route }: SelectedRoutePolylineProps
       );
     }
 
-    if (allPoints.length === 0) return;
+    if (allPoints.length === 0 || !fit) return;
     // 지도가 멈춘 뒤 보정하므로, 경로가 바뀌거나 화면을 떠나면 예약을 취소한다
     return fitPathAboveSheet(map, allPoints);
-  }, [map, route]);
+  }, [map, route, fit]);
 
   useEffect(() => {
     const lines = linesRef.current;

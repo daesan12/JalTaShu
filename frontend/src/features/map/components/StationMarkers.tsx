@@ -47,6 +47,11 @@ interface StationMarkersProps {
    * 마커가 지도 클릭을 가로채는 탓에, 이걸 안 하면 대여소 위에서는 핀이 움직이지 않는다.
    */
   pickActive: boolean;
+  /**
+   * 대여소 표시 토글. 꺼도 마커를 지우지 않고 숨기기만 한다 — 목록을 비워 끄면 켤 때마다
+   * 마커와 포털을 전부 새로 만들어 전환이 느렸다.
+   */
+  visible: boolean;
 }
 
 /**
@@ -64,6 +69,7 @@ export function StationMarkers({
   selectedStationId,
   onSelectStation,
   pickActive,
+  visible,
 }: StationMarkersProps) {
   const entriesRef = useRef(new Map<string, MarkerEntry>());
   // 포털을 붙일 요소 목록. 마커를 만든 뒤에야 알 수 있어 이펙트에서 채운다
@@ -74,31 +80,29 @@ export function StationMarkers({
   const select = useEffectEvent((stationId: string | null) => onSelectStation(stationId));
 
   useEffect(() => {
-    const listener = naver.maps.Event.addListener(map, 'zoom_changed', () => setZoom(map.getZoom()));
+    const listener = naver.maps.Event.addListener(map, 'zoom_changed', () =>
+      setZoom(map.getZoom()),
+    );
     return () => naver.maps.Event.removeListener(listener);
   }, [map]);
 
   const items = useMemo<MarkerItem[]>(() => {
     const { clusters, singles } = clusterStations(stations, zoom, selectedStationId);
     return [
-      ...clusters.map(
-        (cluster): MarkerItem => ({
-          key: `c:${cluster.key}`,
-          lat: cluster.lat,
-          lng: cluster.lng,
-          kind: 'cluster',
-          cluster,
-        }),
-      ),
-      ...singles.map(
-        (station): MarkerItem => ({
-          key: `s:${station.stationId}`,
-          lat: station.lat,
-          lng: station.lng,
-          kind: 'station',
-          station,
-        }),
-      ),
+      ...clusters.map((cluster): MarkerItem => ({
+        key: `c:${cluster.key}`,
+        lat: cluster.lat,
+        lng: cluster.lng,
+        kind: 'cluster',
+        cluster,
+      })),
+      ...singles.map((station): MarkerItem => ({
+        key: `s:${station.stationId}`,
+        lat: station.lat,
+        lng: station.lng,
+        kind: 'station',
+        station,
+      })),
     ];
   }, [stations, zoom, selectedStationId]);
 
@@ -126,7 +130,12 @@ export function StationMarkers({
     // fitBounds는 애니메이션 없이 즉시 반영된다 — 바로 읽어 상한을 넘겼으면 되돌린다
     map.fitBounds(
       item.cluster.stations.map((s) => new naver.maps.LatLng(s.lat, s.lng)),
-      { top: TAP_FIT_PADDING, right: TAP_FIT_PADDING, bottom: TAP_FIT_PADDING, left: TAP_FIT_PADDING },
+      {
+        top: TAP_FIT_PADDING,
+        right: TAP_FIT_PADDING,
+        bottom: TAP_FIT_PADDING,
+        left: TAP_FIT_PADDING,
+      },
     );
     if (map.getZoom() > TAP_ZOOM_LIMIT) map.setZoom(TAP_ZOOM_LIMIT);
   });
@@ -168,6 +177,11 @@ export function StationMarkers({
 
     setTargets(items.map((item) => ({ key: item.key, el: entries.get(item.key)!.el })));
   }, [map, items]);
+
+  // 새로 만든 마커도 지금 토글 상태를 따르도록 targets가 바뀔 때마다 맞춘다
+  useEffect(() => {
+    for (const entry of entriesRef.current.values()) entry.marker.setVisible(visible);
+  }, [visible, targets]);
 
   // 지도가 바뀌거나 사라질 때 마커 전부 정리
   useEffect(() => {
