@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
-import type { Pos } from '@/shared/api/types';
-import { latLngToPos } from '@/shared/lib/coords';
+import type { Pos, RouteStation } from '@/shared/api/types';
+import { latLngToPos, osrmToLatLng } from '@/shared/lib/coords';
 import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/stations';
 import { ArrivalSummaryScreen } from '@/features/map/components/ArrivalSummaryScreen';
 import { CurrentLocationButton } from '@/features/map/components/CurrentLocationButton';
+import { StationConfirmSheet } from '@/features/map/components/StationConfirmSheet';
 import { CycleReturnSheet } from '@/features/map/components/CycleReturnSheet';
 import { DestinationSheet } from '@/features/map/components/DestinationSheet';
 import { MapPickLayer } from '@/features/map/components/MapPickLayer';
@@ -35,13 +36,13 @@ import { useNoticePopup } from '@/features/map/hooks/useNoticePopup';
 import { useRentalSheets } from '@/features/map/hooks/useRentalSheets';
 import { useGuideZoom } from '@/features/map/hooks/useGuideZoom';
 import { useRouteGuide } from '@/features/map/hooks/useRouteGuide';
-import type { ReturnedUsage } from '@/features/map/hooks/useRouteGuide';
+import type { RentedStation, ReturnedUsage } from '@/features/map/hooks/useRouteGuide';
 import { useToast } from '@/shared/lib/useToast';
 import { readSavedCamera } from '@/features/map/lib/mapCamera';
 import { START_POS_FALLBACK } from '@/features/map/lib/mapDefaults';
 import { NOTICES_PATH } from '@/features/map/lib/noticeLink';
 import { QrScanView } from '@/features/rental/components/QrScanView';
-import { useCycleRental } from '@/features/map/hooks/useCycleRental';
+import { useCycleRental, type PlannedStations } from '@/features/map/hooks/useCycleRental';
 import { useDeviceHeading } from '@/features/map/hooks/useDeviceHeading';
 import { readRecommendedRouteIntent } from '@/features/map/lib/recommendedRouteIntent';
 import { distanceToRouteStart, needsRouteStartChoice } from '@/features/map/lib/routeStartGuard';
@@ -180,12 +181,21 @@ export function MapHomePage() {
   const rental = useRentalSheets(stations);
   const [returnedUsage, setReturnedUsage] = useState<ReturnedUsage | null>(null);
   const rememberReturnedUsage = useCallback(
-    (cycleUsageId: number, cycleId: string, returnedAt: string, stationId: string) => {
-      setReturnedUsage({ cycleUsageId, cycleId, returnedAt, stationId });
+    (
+      cycleUsageId: number,
+      cycleId: string,
+      returnedAt: string,
+      stationId: string,
+      stationPos: Pos | null,
+    ) => {
+      setReturnedUsage({ cycleUsageId, cycleId, returnedAt, stationId, stationPos });
     },
     [],
   );
   const clearReturnedUsage = useCallback(() => setReturnedUsage(null), []);
+  // 방금 대여한 대여소 — 안내 중이면 다음 단계로 넘기거나 경로를 다시 찾는다(#145)
+  const [rentedStation, setRentedStation] = useState<RentedStation | null>(null);
+  const clearRentedStation = useCallback(() => setRentedStation(null), []);
 
   /**
    * QR 대여·반납. 스캔 화면은 지도 위 오버레이(`?scan=1`)라 현재 위치와 경로 안내가 그대로 남는다.
@@ -194,8 +204,20 @@ export function MapHomePage() {
   const cycleRental = useCycleRental({
     location,
     showToast,
+    onRented: (station) =>
+      setRentedStation({
+        stationId: station.stationId,
+        pos: latLngToPos(station),
+        at: Date.now(),
+      }),
     onReturned: (result, input) =>
-      rememberReturnedUsage(result.cycleUsageId, input.cycleId, result.returnedAt, input.stationId),
+      rememberReturnedUsage(
+        result.cycleUsageId,
+        input.cycleId,
+        result.returnedAt,
+        input.station.stationId,
+        latLngToPos(input.station),
+      ),
   });
   /** 빌린 자전거가 있으면 하단 버튼과 대여소 시트가 "반납하기"로 바뀐다 */
   const hasRentedCycle = cycleRental.session !== null;
@@ -228,7 +250,26 @@ export function MapHomePage() {
 
   function handleScannedCode(code: string) {
     closeScanner();
-    void cycleRental.handleCode(code);
+    void cycleRental.handleCode(code, plannedStations());
+  }
+
+  /** 안내 중이면 경로가 쓰기로 한 대여소 — 대여·반납 확인 창이 이 대여소를 먼저 권한다 */
+  function plannedStations(): PlannedStations | null {
+    if (!guideActive || detailRoute === null) return null;
+    const toStation = (station: RouteStation | null) =>
+      station === null
+        ? null
+        : { stationId: station.stationId, name: station.name, ...osrmToLatLng(station.location) };
+    return { rent: toStation(detailRoute.startStation), return: toStation(detailRoute.endStation) };
+  }
+
+  /** 하단·안내 중 버튼 — 빌린 자전거가 있으면 QR 없이 반납(확인 창), 없으면 QR 대여 */
+  function rentOrReturn() {
+    if (hasRentedCycle) {
+      void cycleRental.startReturn(plannedStations());
+      return;
+    }
+    openScanner();
   }
 
   function toggleStationMarkers() {
@@ -311,6 +352,8 @@ export function MapHomePage() {
     onIntermediateArrival: journey.continueAfterReachingStart,
     returnedUsage,
     onReturnedUsageHandled: clearReturnedUsage,
+    rentedStation,
+    onRentedStationHandled: clearRentedStation,
     rentedCycleId: cycleRental.session?.cycleId ?? null,
     showToast,
   });
@@ -604,7 +647,7 @@ export function MapHomePage() {
           {showRentButton ? (
             <button
               type="button"
-              onClick={openScanner}
+              onClick={rentOrReturn}
               disabled={cycleRental.busy}
               className="flex min-h-[64px] w-full items-center gap-3 rounded-[22px] border border-white/90 bg-surface/95 px-3.5 text-left shadow-[0_12px_32px_rgba(24,33,21,0.18)] backdrop-blur-md transition-[scale,box-shadow] duration-100 active:scale-[0.985] active:shadow-lg"
             >
@@ -624,7 +667,7 @@ export function MapHomePage() {
                 <span className="block text-[15px] font-bold text-ink">{rentLabel}</span>
                 <span className="mt-0.5 block text-xs font-medium text-muted">
                   {hasRentedCycle
-                    ? `${cycleRental.session?.cycleId ?? ''} 자전거의 QR을 찍어 반납해요`
+                    ? `${cycleRental.session?.cycleId ?? ''} 자전거를 반납할 대여소를 확인해요`
                     : '자전거 QR을 찍거나 번호를 입력해요'}
                 </span>
               </span>
@@ -661,7 +704,14 @@ export function MapHomePage() {
         ensureLocation={location.ensure}
         onClose={rental.closeReturnSheet}
         onReturned={(result, cycleId, stationId) => {
-          rememberReturnedUsage(result.cycleUsageId, cycleId, result.returnedAt, stationId);
+          const station = stations?.find((s) => s.stationId === stationId);
+          rememberReturnedUsage(
+            result.cycleUsageId,
+            cycleId,
+            result.returnedAt,
+            stationId,
+            station === undefined ? null : latLngToPos(station),
+          );
           // 번호를 직접 입력해 반납해도 "빌린 자전거" 기억을 지워야 다음 QR이 대여로 잡히고
           // 버튼도 "대여하기"로 돌아간다
           cycleRental.markReturned();
@@ -726,7 +776,7 @@ export function MapHomePage() {
         >
           <button
             type="button"
-            onClick={openScanner}
+            onClick={rentOrReturn}
             disabled={cycleRental.busy}
             className="pointer-events-auto flex min-h-[48px] items-center gap-2 rounded-full border border-white/90 bg-surface/95 py-1.5 pr-4 pl-1.5 shadow-[0_10px_28px_rgba(24,33,21,0.18)] backdrop-blur-md transition-[scale] duration-100 active:scale-[0.97] disabled:opacity-60"
           >
@@ -760,6 +810,15 @@ export function MapHomePage() {
         />
       ) : null}
 
+      {/* 대여·반납 대여소 확인 — 안내 시트보다 뒤에 그려야 그 위에 뜬다 */}
+      <StationConfirmSheet
+        action={cycleRental.pending}
+        stations={stations}
+        busy={cycleRental.busy}
+        onConfirm={(station) => void cycleRental.confirmPending(station)}
+        onCancel={cycleRental.cancelPending}
+      />
+
       {/* 검색 오버레이는 탭바(z-20)를 덮고, 토스트(z-50)보다는 아래에 둔다 */}
       {searchOpen ? (
         <PlaceSearchOverlay
@@ -791,7 +850,7 @@ export function MapHomePage() {
             title="자전거 QR을 비춰주세요"
             description={
               hasRentedCycle
-                ? `${cycleRental.session?.cycleId ?? ''} 자전거의 QR을 찍으면 가장 가까운 대여소에 반납해요.`
+                ? `${cycleRental.session?.cycleId ?? ''} 자전거의 QR을 찍으면 반납할 대여소를 확인해요.`
                 : 'QR을 찍으면 가장 가까운 대여소에서 대여해요.'
             }
           />

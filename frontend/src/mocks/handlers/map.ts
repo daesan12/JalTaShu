@@ -364,7 +364,13 @@ function mockInstruction(type: string, modifier: string | null): string {
 }
 
 function mockManeuver(type: string, modifier: string | null, at: RoutePoint): RouteStep['behave'] {
-  return { type, modifier, exit: null, location: at.location, instruction: mockInstruction(type, modifier) };
+  return {
+    type,
+    modifier,
+    exit: null,
+    location: at.location,
+    instruction: mockInstruction(type, modifier),
+  };
 }
 
 /** 좌표 → 서버 응답의 GeoJSON 좌표 `[경도, 위도]` */
@@ -479,11 +485,19 @@ function buildMockRoutes(start: Pos, end: Pos): RouteCandidate[] {
       // 가운데가 hill만큼 솟는 언덕 하나
       altitude: 50 + Math.round(Math.sin((Math.PI * i) / (path.length - 1)) * hill),
     }));
-    const station = (index: number, name: string, idOffset = 0): RouteStation => ({
-      stationId: `ST${String(index + idOffset).padStart(4, '0')}`,
-      name,
-      location: points[index].location,
-    });
+    /*
+     * 경로 위 지점에서 가까운 **목업 대여소 목록의 대여소**를 쓴다(#145). 실서버는 실제 대여소를
+     * 주므로, 번호를 지어내면 그 번호로 대여·반납할 때 목업이 "없는 대여소"로 막는다.
+     * 좌표는 경로 위 지점 그대로 둔다 — 경로선이 대여소 표시를 지나가야 한다.
+     */
+    const station = (index: number, rank = 0): RouteStation => {
+      const [lng, lat] = points[index].location;
+      const nearby = [...STATIONS].sort(
+        (a, b) => Math.hypot(a.lat - lat, a.lng - lng) - Math.hypot(b.lat - lat, b.lng - lng),
+      );
+      const picked = nearby[Math.min(rank, nearby.length - 1)];
+      return { stationId: picked.stationId, name: picked.name, location: points[index].location };
+    };
     const index = stationIndexes(points.length);
     const legs = [
       toLeg(points, corners, 0, index.rent, 'WALK'),
@@ -493,12 +507,8 @@ function buildMockRoutes(start: Pos, end: Pos): RouteCandidate[] {
     return {
       type,
       stationStrategy,
-      startStation: station(
-        index.rent,
-        stationStrategy === 'BIKE_SECURE' ? '목업 확보 우선 대여소' : '목업 가까운 대여소',
-        stationStrategy === 'BIKE_SECURE' ? 100 : 0,
-      ),
-      endStation: station(index.return, '목업 반납 대여소'),
+      startStation: station(index.rent, stationStrategy === 'BIKE_SECURE' ? 1 : 0),
+      endStation: station(index.return),
       totalDistance: legs.reduce((sum, leg) => sum + leg.distance, 0),
       totalTime: legs.reduce((sum, leg) => sum + leg.time, 0),
       legs,
@@ -654,10 +664,38 @@ export const mapHandlers = [
     }
     const routeType = q.get('routeType');
     const stationStrategy = q.get('stationStrategy') ?? 'NEAREST';
-    const routes = buildMockRoutes(start, end).filter(
+    const travelStatus = q.get('travelStatus');
+    const matched = buildMockRoutes(start, end).filter(
       (route) => route.type === routeType && route.stationStrategy === stationStrategy,
     );
-    const body: PathResponse = { routes: routes.length > 0 ? routes : buildMockRoutes(start, end) };
+    const routes = matched.length > 0 ? matched : buildMockRoutes(start, end);
+    // 실서버(`PathService.buildReRouteResponse`)와 같은 모양 — 이미 지나온 구간은 빼고 준다
+    // - WALK2(반납 뒤)·도보 경로: 목적지까지 도보 한 구간, 대여소 없음
+    // - BIKE(자전거 타는 중): 첫 도보를 빼고 자전거 → 도보, 대여 대여소 없음
+    const trimmed = routes.map((route): RouteCandidate => {
+      if (travelStatus === 'WALK2' || routeType === 'WALK') {
+        const steps = route.legs.flatMap((leg) => leg.steps);
+        const walk = {
+          mode: 'WALK' as const,
+          distance: route.legs.reduce((sum, leg) => sum + leg.distance, 0),
+          time: route.legs.reduce((sum, leg) => sum + leg.time, 0),
+          steps: steps.map((step) => ({ ...step, travelMode: 'walking' })),
+        };
+        return { ...route, type: 'WALK', startStation: null, endStation: null, legs: [walk] };
+      }
+      if (travelStatus === 'BIKE') {
+        const legs = route.legs.slice(1);
+        return {
+          ...route,
+          startStation: null,
+          legs,
+          totalDistance: legs.reduce((sum, leg) => sum + leg.distance, 0),
+          totalTime: legs.reduce((sum, leg) => sum + leg.time, 0),
+        };
+      }
+      return route;
+    });
+    const body: PathResponse = { routes: trimmed };
     return HttpResponse.json(ok(body));
   }),
 
