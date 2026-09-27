@@ -67,6 +67,19 @@ export function splitByTravelStatus(
   return groups;
 }
 
+/**
+ * 저장 경로 → 지도에 그릴 구간(도보/자전거 2색). seq 순으로 정렬해 이동 수단이 바뀌는 곳에서 나눈다.
+ * 12 도착 요약이 쓰는 지도(`StaticRouteMap`)와 같은 입력 형식이라 두 화면의 지도가 같아 보인다.
+ */
+export function toMapSegments(
+  road: UsagePathPoint[],
+): { mode: 'WALK' | 'BIKE'; points: { lat: number; lng: number }[] }[] {
+  return splitByTravelStatus(road).map((group) => ({
+    mode: group.status === 'BIKE' ? 'BIKE' : 'WALK',
+    points: group.points.map((p) => ({ lat: p.latitude, lng: p.longitude })),
+  }));
+}
+
 /** 경사(%) → 4단계 등급. 내리막·평지는 flat */
 export function toGradeClass(gradePct: number): GradeClass {
   if (gradePct < 1) return 'flat';

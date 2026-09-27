@@ -6,6 +6,7 @@ import {
   pointLabel,
   splitByTravelStatus,
   stationNameAt,
+  toMapSegments,
   toGradeClass,
   toSegments,
   toSketchPath,
@@ -134,5 +135,21 @@ describe('좌표가 없는 기록', () => {
 
   it('stationNameAt은 null 좌표에 null을 돌려준다', () => {
     expect(stationNameAt(null, [])).toBeNull();
+  });
+});
+
+describe('지도 구간 변환', () => {
+  it('seq 순으로 정렬하고 이동 수단이 바뀌는 곳에서 나눈다', () => {
+    const road: UsagePathPoint[] = [
+      point({ seq: 2, travelStatus: 'BIKE', latitude: 36.362 }),
+      point({ seq: 0, travelStatus: 'WALK1', latitude: 36.36 }),
+      point({ seq: 1, travelStatus: 'WALK1', latitude: 36.361 }),
+      point({ seq: 3, travelStatus: 'WALK2', latitude: 36.363 }),
+    ];
+    expect(toMapSegments(road)).toEqual([
+      { mode: 'WALK', points: [{ lat: 36.36, lng: 127.35 }, { lat: 36.361, lng: 127.35 }] },
+      { mode: 'BIKE', points: [{ lat: 36.362, lng: 127.35 }] },
+      { mode: 'WALK', points: [{ lat: 36.363, lng: 127.35 }] },
+    ]);
   });
 });

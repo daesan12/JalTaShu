@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router';
 import { formatDate } from '@/shared/lib/format';
@@ -7,6 +7,7 @@ import { GRADE_META, WALK_COLOR } from '@/shared/ui/grade';
 import { RouteSketch } from '@/shared/ui/RouteSketch';
 import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/stations';
 import { getUsageDetail } from '@/features/history/api/rides';
+import { UsagePathMap } from '@/features/history/components/UsagePathMap';
 import {
   maxGradePct,
   pointLabel,
@@ -16,8 +17,19 @@ import {
   totalAscentM,
 } from '@/features/history/lib/usageDisplay';
 
+/** 떠 있는 헤더의 위 여백과 높이(px) — 지도 맞춤 여백 계산에도 쓴다 */
+const HEADER_TOP_PX = 16;
+const HEADER_HEIGHT_PX = 44;
+
+/** 안드로이드 상태 표시줄 높이 — Capacitor가 앱 시작 때 넣어 두는 값이라 첫 렌더에 읽을 수 있다. 웹에서는 0 */
+function readSafeAreaTop(): number {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-top');
+  const px = Number.parseFloat(raw);
+  return Number.isFinite(px) ? px : 0;
+}
+
 /**
- * 23 기록 상세 — 응답의 GPS 경로(pathInfo)에서 경로 그림·고도 그래프·구간 안내를 파생한다.
+ * 23 기록 상세 — 응답의 GPS 경로(pathInfo)에서 경로 지도·고도 그래프·구간 안내를 파생한다.
  * 경로를 저장하지 않은 기록(pathInfo null)은 요약만 보여준다.
  */
 export function RideDetailPage() {
@@ -52,17 +64,26 @@ export function RideDetailPage() {
   }, [road, ride]);
 
   const durationMin = ride ? Math.max(1, Math.round(ride.totalDuration / 60)) : 0;
+  const [safeTop] = useState(readSafeAreaTop);
 
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-canvas">
-      {/* 경로 그림 + 플로팅 헤더 */}
+      {/* 경로 지도 + 플로팅 헤더. 지도를 못 띄우면 추상 경로 그림으로 대신한다 */}
       <div className="relative shrink-0">
-        {derived ? (
-          <RouteSketch path={derived.sketch} />
+        {derived && road !== null ? (
+          <UsagePathMap
+            road={road}
+            fallback={<RouteSketch path={derived.sketch} />}
+            headerHeight={safeTop + HEADER_TOP_PX + HEADER_HEIGHT_PX}
+          />
         ) : (
           <div className="aspect-100/64 w-full bg-surface-soft" />
         )}
-        <div className="absolute top-4 right-5 left-5 flex items-center gap-3">
+        {/* 앱은 상태 표시줄 뒤까지 그리므로 안전 영역만큼 내린다 */}
+        <div
+          className="absolute right-5 left-5 flex items-center gap-3"
+          style={{ top: safeTop + HEADER_TOP_PX }}
+        >
           <button
             type="button"
             aria-label="뒤로 가기"
