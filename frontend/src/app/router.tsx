@@ -114,11 +114,11 @@ export const router = createBrowserRouter(
                   },
                   children: [
                     {
-                      index: true, // 01 히트맵
+                      index: true, // 01 대여소 이용 현황(#147, 예전 히트맵)
                       lazy: async () => {
-                        const { AdminHeatmapPage } =
-                          await import('@/features/admin/pages/AdminHeatmapPage');
-                        return { Component: AdminHeatmapPage };
+                        const { AdminStationUsagePage } =
+                          await import('@/features/admin/pages/AdminStationUsagePage');
+                        return { Component: AdminStationUsagePage };
                       },
                     },
                     {

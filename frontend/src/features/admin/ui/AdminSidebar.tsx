@@ -5,7 +5,7 @@ import { ADMIN_SESSION_QUERY_KEY } from '@/features/admin/hooks/useAdminAuth';
 
 /** Figma Admin/Sidebar의 Active 5종과 1:1. 순서도 Figma 그대로다. 아이콘은 없다. */
 const MENUS = [
-  { to: '/admin', label: '히트맵', end: true },
+  { to: '/admin', label: '대여소 이용 현황', end: true },
   { to: '/admin/users', label: '사용자 관리', end: false },
   { to: '/admin/bikes', label: '자전거 관리', end: false },
   { to: '/admin/claims', label: '제보 관리', end: false },
