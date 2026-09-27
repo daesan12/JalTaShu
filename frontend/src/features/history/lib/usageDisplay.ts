@@ -30,10 +30,10 @@ export function distanceMeters(a: UsagePoint, b: UsagePoint): number {
 const STATION_MATCH_M = 100;
 
 export function stationNameAt(
-  point: UsagePoint,
+  point: UsagePoint | null,
   stations: BikeStation[] | undefined,
 ): string | null {
-  if (!stations || stations.length === 0) return null;
+  if (point === null || !stations || stations.length === 0) return null;
   let best: { name: string; dist: number } | null = null;
   for (const station of stations) {
     const dist = distanceMeters(point, { latitude: station.lat, longitude: station.lng });
@@ -44,8 +44,12 @@ export function stationNameAt(
   return best?.name ?? null;
 }
 
-/** 이름을 못 찾으면 좌표를 사람이 알아볼 수 있는 형태로 */
-export function pointLabel(point: UsagePoint, stations: BikeStation[] | undefined): string {
+/** 좌표가 없는 기록(경로 안내 없이 QR로만 대여·반납)에 보여 줄 문구 */
+export const UNKNOWN_POINT_LABEL = '위치 정보 없음';
+
+/** 이름을 못 찾으면 좌표를 사람이 알아볼 수 있는 형태로. 좌표 자체가 없으면 안내 문구 */
+export function pointLabel(point: UsagePoint | null, stations: BikeStation[] | undefined): string {
+  if (point === null) return UNKNOWN_POINT_LABEL;
   return stationNameAt(point, stations) ?? `${point.latitude.toFixed(3)}, ${point.longitude.toFixed(3)}`;
 }
 

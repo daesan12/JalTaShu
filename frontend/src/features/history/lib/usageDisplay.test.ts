@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { BikeStation } from '@/shared/api/types';
 import type { UsagePathPoint } from '@/features/history/api/rides';
 import {
+  UNKNOWN_POINT_LABEL,
+  pointLabel,
   splitByTravelStatus,
   stationNameAt,
   toGradeClass,
@@ -119,5 +121,18 @@ describe('toSegments', () => {
       cycleRidingEndTime: null,
     });
     expect(segments.every((s) => s.durationMin === null)).toBe(true);
+  });
+});
+
+describe('좌표가 없는 기록', () => {
+  // 경로 안내 없이 QR로만 대여·반납한 기록은 출발·도착 좌표가 null로 온다(실서버).
+  // 이 값을 읽다 이동 기록 탭 전체가 죽었다 — 문구로 대신한다.
+  it('pointLabel은 null 좌표에 안내 문구를 돌려준다', () => {
+    expect(pointLabel(null, undefined)).toBe(UNKNOWN_POINT_LABEL);
+    expect(pointLabel(null, [])).toBe(UNKNOWN_POINT_LABEL);
+  });
+
+  it('stationNameAt은 null 좌표에 null을 돌려준다', () => {
+    expect(stationNameAt(null, [])).toBeNull();
   });
 });

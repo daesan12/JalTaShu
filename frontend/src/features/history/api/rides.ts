@@ -29,11 +29,15 @@ export interface UsageStats {
   totalCycleRidingTime: number;
 }
 
-/** GET /cycle/usage/list 한 건 (CycleUsageListResponse 실측) — totalDuration은 초 */
+/**
+ * GET /cycle/usage/list 한 건 (CycleUsageListResponse 실측) — totalDuration은 초.
+ * 출발·도착 좌표는 **null일 수 있다** — 경로 안내 없이 QR로 대여·반납만 한 기록은 좌표가 없다
+ * (실서버 확인: 이 값을 있다고 믿고 읽다 이동 기록 탭이 통째로 죽었다).
+ */
 export interface UsageSummary {
   usageId: number;
-  startingPoint: UsagePoint;
-  endPoint: UsagePoint;
+  startingPoint: UsagePoint | null;
+  endPoint: UsagePoint | null;
   startingDate: string;
   totalDuration: number;
   cycleId: string;
@@ -43,8 +47,8 @@ export interface UsageSummary {
 export interface UsageDetail {
   totalDuration: number;
   totalDistance: number | null;
-  startingPoint: UsagePoint;
-  endPoint: UsagePoint;
+  startingPoint: UsagePoint | null;
+  endPoint: UsagePoint | null;
   startingDate: string;
   cycleId: string;
   averageCycleRidingSpeed: number | null;
