@@ -14,8 +14,11 @@ export function formatMinutes(minutes: number): string {
 }
 
 /** ISO 시각 → "2026.08.28" */
-export function formatDate(iso: string): string {
+export function formatDate(iso: string | null | undefined): string {
+  // 서버가 시각을 비워 보내는 기록이 있다 — 화면이 죽는 것보다 빈 표시가 낫다
+  if (!iso) return '–';
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '–';
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
 }

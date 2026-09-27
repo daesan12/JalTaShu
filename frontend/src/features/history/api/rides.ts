@@ -22,18 +22,26 @@ export interface UsagePathPoint {
   seq: number;
 }
 
-/** GET /cycle/statics (CycleStatisticsResponse 실측) — 거리 m, 시간 초 */
+/**
+ * GET /cycle/statics (CycleStatisticsResponse 실측) — 거리 m, 시간 초.
+ * 거리는 **null일 수 있다** — 경로 거리가 없는 기록(QR로만 대여·반납)이 하나라도 있으면
+ * 서버는 합계를 "미확정"으로 비운다. 0으로 찍으면 거짓이므로 화면은 "–"로 보여 준다.
+ */
 export interface UsageStats {
   totalUseCnt: number;
-  totalDistance: number;
+  totalDistance: number | null;
   totalCycleRidingTime: number;
 }
 
-/** GET /cycle/usage/list 한 건 (CycleUsageListResponse 실측) — totalDuration은 초 */
+/**
+ * GET /cycle/usage/list 한 건 (CycleUsageListResponse 실측) — totalDuration은 초.
+ * 출발·도착 좌표는 **null일 수 있다** — 경로 안내 없이 QR로 대여·반납만 한 기록은 좌표가 없다
+ * (실서버 확인: 이 값을 있다고 믿고 읽다 이동 기록 탭이 통째로 죽었다).
+ */
 export interface UsageSummary {
   usageId: number;
-  startingPoint: UsagePoint;
-  endPoint: UsagePoint;
+  startingPoint: UsagePoint | null;
+  endPoint: UsagePoint | null;
   startingDate: string;
   totalDuration: number;
   cycleId: string;
@@ -43,8 +51,8 @@ export interface UsageSummary {
 export interface UsageDetail {
   totalDuration: number;
   totalDistance: number | null;
-  startingPoint: UsagePoint;
-  endPoint: UsagePoint;
+  startingPoint: UsagePoint | null;
+  endPoint: UsagePoint | null;
   startingDate: string;
   cycleId: string;
   averageCycleRidingSpeed: number | null;

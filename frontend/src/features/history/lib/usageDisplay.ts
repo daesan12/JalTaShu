@@ -30,10 +30,10 @@ export function distanceMeters(a: UsagePoint, b: UsagePoint): number {
 const STATION_MATCH_M = 100;
 
 export function stationNameAt(
-  point: UsagePoint,
+  point: UsagePoint | null,
   stations: BikeStation[] | undefined,
 ): string | null {
-  if (!stations || stations.length === 0) return null;
+  if (point === null || !stations || stations.length === 0) return null;
   let best: { name: string; dist: number } | null = null;
   for (const station of stations) {
     const dist = distanceMeters(point, { latitude: station.lat, longitude: station.lng });
@@ -44,8 +44,12 @@ export function stationNameAt(
   return best?.name ?? null;
 }
 
-/** 이름을 못 찾으면 좌표를 사람이 알아볼 수 있는 형태로 */
-export function pointLabel(point: UsagePoint, stations: BikeStation[] | undefined): string {
+/** 좌표가 없는 기록(경로 안내 없이 QR로만 대여·반납)에 보여 줄 문구 */
+export const UNKNOWN_POINT_LABEL = '위치 정보 없음';
+
+/** 이름을 못 찾으면 좌표를 사람이 알아볼 수 있는 형태로. 좌표 자체가 없으면 안내 문구 */
+export function pointLabel(point: UsagePoint | null, stations: BikeStation[] | undefined): string {
+  if (point === null) return UNKNOWN_POINT_LABEL;
   return stationNameAt(point, stations) ?? `${point.latitude.toFixed(3)}, ${point.longitude.toFixed(3)}`;
 }
 
@@ -61,6 +65,19 @@ export function splitByTravelStatus(
     else groups.push({ status: point.travelStatus, points: [point] });
   }
   return groups;
+}
+
+/**
+ * 저장 경로 → 지도에 그릴 구간(도보/자전거 2색). seq 순으로 정렬해 이동 수단이 바뀌는 곳에서 나눈다.
+ * 12 도착 요약이 쓰는 지도(`StaticRouteMap`)와 같은 입력 형식이라 두 화면의 지도가 같아 보인다.
+ */
+export function toMapSegments(
+  road: UsagePathPoint[],
+): { mode: 'WALK' | 'BIKE'; points: { lat: number; lng: number }[] }[] {
+  return splitByTravelStatus(road).map((group) => ({
+    mode: group.status === 'BIKE' ? 'BIKE' : 'WALK',
+    points: group.points.map((p) => ({ lat: p.latitude, lng: p.longitude })),
+  }));
 }
 
 /** 경사(%) → 4단계 등급. 내리막·평지는 flat */
