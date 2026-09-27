@@ -70,6 +70,8 @@
   /* 01 히트맵 오버레이 — 대여(유출)는 난색, 반납(유입)은 한색으로 방향을 구분 */
   --color-admin-heat-rent: #ea580c;
   --color-admin-heat-return: #2563eb;
+  /* 01 대여소 이용 현황 — 합계(대여+반납) 농도. 대여·반납 두 색과 헷갈리지 않는 보라 */
+  --color-admin-heat-total: #7c3aed;
 }
 
 /*
