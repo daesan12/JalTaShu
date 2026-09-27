@@ -45,6 +45,7 @@ import { NOTICES_PATH } from '@/features/map/lib/noticeLink';
 import { QrScanView } from '@/features/rental/components/QrScanView';
 import { useCycleRental, type PlannedStations } from '@/features/map/hooks/useCycleRental';
 import { useDeviceHeading } from '@/features/map/hooks/useDeviceHeading';
+import { useBackHandler } from '@/shared/hooks/useBackHandler';
 import { readRecommendedRouteIntent } from '@/features/map/lib/recommendedRouteIntent';
 import { distanceToRouteStart, needsRouteStartChoice } from '@/features/map/lib/routeStartGuard';
 import {
@@ -329,6 +330,16 @@ export function MapHomePage() {
    * 지도를 구경할 때는 화살표가 쓸모없다 — 길을 따라갈 때만 필요하다.
    */
   const heading = useDeviceHeading(guideActive);
+
+  /*
+   * 안드로이드 뒤로가기 — state로만 여는 시트는 히스토리가 없어 뒤로가기가 곧장 종료 확인으로
+   * 갔다. 열려 있는 동안 "닫기"를 등록해 둔다. 위에 겹쳐 뜨는 것(확인·정지 안내)을 나중에
+   * 등록해 먼저 닫히게 한다. URL로 여는 시트(비교·상세·검색·스캔)는 히스토리가 닫는다.
+   */
+  useBackHandler(stationSheetOpen, () => rental.selectStation(null));
+  useBackHandler(rental.returnSheetOpen, rental.closeReturnSheet);
+  useBackHandler(cycleRental.pending !== null, cycleRental.cancelPending);
+  useBackHandler(cycleRental.banReason !== null, cycleRental.dismissBan);
   const compareSheetOpen = compareActive && !stationSheetOpen && !detailActive;
   const detailSheetOpen = detailActive && !stationSheetOpen && !guideActive;
   const destinationSheetOpen =
