@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { Capacitor } from '@capacitor/core';
+import { runBackHandler } from '@/shared/lib/backHandlers';
 
 /** 이 시간 안에 뒤로가기를 한 번 더 누르면 앱 종료 */
 const EXIT_WINDOW_MS = 2000;
@@ -10,6 +11,7 @@ const TAB_ROOTS = ['/report', '/history', '/mypage'];
 
 /**
  * 안드로이드 하드웨어(제스처) 뒤로가기 처리 — 앱(Capacitor)에서만 동작, 웹은 no-op.
+ * - state로만 연 시트(대여소·반납 입력·대여소 확인·정지 안내)가 있으면 그것부터 닫는다(`backHandlers`)
  * - 지도 홈(`/`, 시트 안 열림): 두 번 눌러 종료 (첫 번째는 안내 토스트)
  * - 지도에서 시트·검색이 열려 있으면(쿼리 존재): 일반 뒤로가기 = 시트 닫기 (URL 파라미터 설계)
  * - 민원·나의 경로·마이 탭 홈: 지도로 이동
@@ -55,6 +57,9 @@ export function AndroidBackBridge() {
       };
 
       const handle = await App.addListener('backButton', ({ canGoBack }) => {
+        // 화면 위에 state로 뜬 시트가 있으면 그걸 닫는 게 뒤로가기다 — 종료로 가면 안 된다
+        if (runBackHandler()) return;
+
         const { pathname, search } = locationRef.current;
 
         // 지도 홈 — 쿼리가 있으면 시트·검색이 열린 상태라 일반 뒤로가기(= 한 단계 닫기)

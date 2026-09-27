@@ -54,7 +54,11 @@ export function QrScanView({
   return (
     <div className="flex h-full flex-col bg-canvas">
       <TopHeader title={headerTitle} onBack={onBack} />
-      <div className="flex flex-1 flex-col overflow-y-auto px-5 pb-5">
+      {/*
+        pb-safe: 앱은 시스템 바 뒤까지 그리므로, 이게 없으면 맨 아래 버튼이 안드로이드 내비게이션 바(48px)에
+        가려 누르기 어렵다(실기기 확인). 내용 쪽 여백은 각 분기의 마지막 요소가 mb로 준다.
+      */}
+      <div className="pb-safe flex flex-1 flex-col overflow-y-auto px-5">
         {manualMode ? (
           <div className="flex flex-1 flex-col justify-center py-6">
             <section className="rounded-[28px] border border-line bg-surface p-5 shadow-[0_12px_30px_rgba(42,60,34,0.07)]">
@@ -85,8 +89,8 @@ export function QrScanView({
               <h1 className="mt-1 text-[23px] font-extrabold text-ink">{title}</h1>
               <p className="mt-1.5 text-sm text-muted">{description}</p>
             </div>
-            {/* 카메라 프리뷰 */}
-            <div className="relative min-h-[390px] flex-1 overflow-hidden rounded-[28px] bg-[#172015] shadow-[0_18px_36px_rgba(24,33,21,0.18)]">
+            {/* 카메라 프리뷰 — 남는 높이를 전부 쓴다. 최소 높이는 가이드 프레임(224px)이 들어갈 만큼만 */}
+            <div className="relative min-h-[280px] flex-1 overflow-hidden rounded-[28px] bg-[#172015] shadow-[0_18px_36px_rgba(24,33,21,0.18)]">
               <video
                 ref={videoRef}
                 muted
@@ -130,11 +134,7 @@ export function QrScanView({
                 </div>
               )}
             </div>
-            <div className="mt-4 flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3.5">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-light text-sm font-bold text-primary">?</span>
-              <p className="min-w-0 flex-1 text-sm leading-snug text-muted">인식되지 않으면 QR 아래 코드를 직접 입력할 수 있어요.</p>
-            </div>
-            <Button full variant="line" className="mt-3" onClick={() => setManualMode(true)}>코드 직접 입력</Button>
+            <Button full variant="line" className="mt-4 mb-5" onClick={() => setManualMode(true)}>코드 직접 입력</Button>
           </>
         )}
       </div>
