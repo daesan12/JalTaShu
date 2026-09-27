@@ -316,6 +316,10 @@ export const reportHandlers = [
         || !Number.isFinite(body.latitude) || !Number.isFinite(body.longitude)) {
       return fail(400, '현재 위치를 확인할 수 없습니다.');
     }
+    // 정지된 계정 — 실서버 `BanUserInterceptor`처럼 403과 관리자가 적은 사유를 준다(#146).
+    // 목업에서 보려면 개발자 도구에서 localStorage `msw_user_ban_reason`에 사유를 넣는다
+    const banReason = localStorage.getItem('msw_user_ban_reason');
+    if (banReason !== null) return fail(403, banReason);
     const rented = readRentedCycles();
     if (readMyRental() !== null) {
       return fail(409, '이미 대여 중인 자전거가 있습니다.');
