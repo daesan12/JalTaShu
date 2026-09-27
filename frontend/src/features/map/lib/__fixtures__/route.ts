@@ -66,6 +66,7 @@ export interface RouteOptions {
   /** 좌표별 고도 — 인덱스가 좌표 번호 */
   altitudes?: number[];
   expectedBikeCnt?: number;
+  totalAscent?: number;
   /** 구간 거리(m) — [도보, 자전거, 도보]. 0을 넣으면 그 구간은 "이동 없음"이 된다 */
   distances?: [number, number, number];
   /** 구간 소요 시간(초) — [도보, 자전거, 도보] */
@@ -89,6 +90,7 @@ export function makeRoute(options: RouteOptions = {}): RouteCandidate {
     endStation: { stationId: 'ST0002', name: '반납 대여소', location: pointAt(8).location },
     totalDistance: legs.reduce((sum, leg) => sum + leg.distance, 0),
     totalTime: legs.reduce((sum, leg) => sum + leg.time, 0),
+    totalAscent: options.totalAscent,
     legs,
     expectedBikeCnt: options.expectedBikeCnt,
   };

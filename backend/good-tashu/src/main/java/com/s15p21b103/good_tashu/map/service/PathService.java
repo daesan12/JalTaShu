@@ -30,6 +30,8 @@ public class PathService {
     private static final int CANDIDATE_COUNT = 5;
     private static final int SECURE_CANDIDATE_COUNT = 10;
     private static final double SECURE_SEARCH_RADIUS_METERS = 1_500;
+    /** Keep the response metric aligned with osrm-uphill/config.lua. */
+    private static final double ELEVATION_SAMPLE_STEP_METERS = 15.0;
     private static final BigDecimal MIN_SECURE_BIKE_COUNT = BigDecimal.ONE;
     private final StationRepository stationRepository;
     private final OsrmClient osrm;
@@ -315,7 +317,55 @@ public class PathService {
                           Station from, Station to, BigDecimal expectedBikeCnt, List<Leg> legs) {
         return new Route(type, stationStrategy, from, to, expectedBikeCnt,
                 legs.stream().mapToDouble(Leg::distance).sum(),
-                legs.stream().mapToDouble(Leg::time).sum(), legs);
+                legs.stream().mapToDouble(Leg::time).sum(), bicycleAscent(legs), legs);
+    }
+
+    /**
+     * 누적 상승은 자전거 구간만 계산한다. OSRM 오르막 프로필과 같은 최대 15m 간격으로
+     * DEM을 다시 샘플링해 응답 geometry의 점 개수에 따라 값이 달라지지 않게 한다.
+     */
+    private long bicycleAscent(List<Leg> legs) {
+        double ascent = 0;
+        for (Leg leg : legs) {
+            if (leg.mode() != TravelMode.BICYCLE) continue;
+            Point previous = null;
+            for (Step step : leg.steps()) {
+                for (Point current : step.points()) {
+                    if (previous != null && !sameLocation(previous, current)) {
+                        ascent += sampledAscent(previous, current);
+                    }
+                    previous = current;
+                }
+            }
+        }
+        return Math.round(ascent);
+    }
+
+    private double sampledAscent(Point from, Point to) {
+        double fromLongitude = from.location().get(0);
+        double fromLatitude = from.location().get(1);
+        double toLongitude = to.location().get(0);
+        double toLatitude = to.location().get(1);
+        double distance = haversine(
+                new RouteCoordinate(fromLongitude, fromLatitude),
+                new RouteCoordinate(toLongitude, toLatitude));
+        int samples = Math.max(1, (int) Math.ceil(distance / ELEVATION_SAMPLE_STEP_METERS));
+        double previousElevation = from.altitude();
+        double ascent = 0;
+        for (int i = 1; i <= samples; i++) {
+            double t = (double) i / samples;
+            double currentElevation = i == samples ? to.altitude() : elevation.elevation(
+                    fromLongitude + (toLongitude - fromLongitude) * t,
+                    fromLatitude + (toLatitude - fromLatitude) * t);
+            ascent += Math.max(0, currentElevation - previousElevation);
+            previousElevation = currentElevation;
+        }
+        return ascent;
+    }
+
+    private boolean sameLocation(Point left, Point right) {
+        return left.location().get(0).equals(right.location().get(0))
+                && left.location().get(1).equals(right.location().get(1));
     }
 
     private BigDecimal expectedBikeCount(String stationId, double walkingSeconds) {

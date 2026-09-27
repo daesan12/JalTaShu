@@ -20,6 +20,7 @@ import java.util.concurrent.Executors;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -90,6 +91,23 @@ class PathServiceTest {
 
         assertThat(routes).hasSize(2);
         assertThat(routes).allMatch(route -> route.stationStrategy() == StationStrategy.NEAREST);
+    }
+
+    @Test
+    void reportsSampledBicycleAscentWithoutCountingWalkingLegs() {
+        // 응답 geometry 양 끝은 0m지만 중간 DEM은 20m인 언덕이다.
+        // 좌표점만 비교하면 0m이고 도보까지 세면 60m지만, 자전거 구간 재샘플링 결과는 20m다.
+        when(elevation.elevation(anyDouble(), anyDouble())).thenAnswer(invocation -> {
+            double longitude = invocation.getArgument(0);
+            double progress = (longitude - 127.3500) / 0.0010;
+            return 20 * Math.max(0, 1 - Math.abs(2 * progress - 1));
+        });
+
+        var routes = service.buildResponse(
+                new BigDecimal("36.3500"), new BigDecimal("127.3500"),
+                new BigDecimal("36.3600"), new BigDecimal("127.3600")).routes();
+
+        assertThat(routes).isNotEmpty().allMatch(route -> route.totalAscent() == 20);
     }
 
     private double duration(RouteCoordinate point, boolean fromStart) {

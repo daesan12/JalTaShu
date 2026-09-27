@@ -14,7 +14,7 @@ public record PathResponseDto(List<Route> routes) {
 
     public record Route(RouteType type, StationStrategy stationStrategy,
                         Station startStation, Station endStation, BigDecimal expectedBikeCnt,
-                        double totalDistance, double totalTime, List<Leg> legs) {}
+                        double totalDistance, double totalTime, long totalAscent, List<Leg> legs) {}
 
     /** A service leg is a travel-mode section, not an OSRM waypoint leg. */
     public record Leg(TravelMode mode, double distance, double time, List<Step> steps) {}
