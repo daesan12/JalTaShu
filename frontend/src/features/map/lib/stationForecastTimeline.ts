@@ -3,6 +3,11 @@ import { toStationStatus, type StationStatus } from '@/shared/ui/stationStatus';
 
 const SHORT_HORIZONS = [0, 5, 10, 15] as const;
 const HOUR_HORIZONS = [0, 5, 10, 15, 30, 45, 60] as const;
+/**
+ * 현재보다 이만큼 이상 줄어야 "가장 적을 때"를 짚는다(#154). 0.1대 차이로 5분을 짚으면
+ * 늘어나는 대여소에서도 줄어드는 것처럼 읽혀서다
+ */
+export const MEANINGFUL_DROP_BIKES = 1;
 
 export interface StationForecastTimelineItem {
   horizon: number;
@@ -84,4 +89,23 @@ export function findLowestUpcoming(
   }
 
   return lowest;
+}
+
+export type LowestUpcomingHint =
+  { kind: 'drop'; item: StationForecastTimelineItem } | { kind: 'steady' };
+
+/**
+ * "가장 적을 때" 안내에 쓸 내용(#154). 현재보다 `MEANINGFUL_DROP_BIKES` 이상 줄어드는 시점이 있을 때만
+ * 그 시점을 짚고, 없으면 크게 줄지 않는다고 알린다. 현재 대수를 모르거나 앞으로의 값이 없으면
+ * 비교할 수 없어 null(안내를 숨긴다).
+ */
+export function describeLowestUpcoming(
+  timeline: StationForecastTimelineItem[],
+): LowestUpcomingHint | null {
+  const current = timeline.find((item) => item.horizon === 0)?.bikes ?? null;
+  const lowest = findLowestUpcoming(timeline);
+  if (current === null || lowest === null || lowest.bikes === null) return null;
+  return current - lowest.bikes >= MEANINGFUL_DROP_BIKES
+    ? { kind: 'drop', item: lowest }
+    : { kind: 'steady' };
 }
