@@ -236,6 +236,29 @@ export const adminNoticeHandlers = [
     return HttpResponse.json(ok({ popupId: popup.popupId }));
   }),
 
+  /*
+   * 팝업 수정 — 백엔드 `updatePopup`처럼 title·photo·noticeId가 전부 선택값이다(#146).
+   * 목업은 파일을 저장할 곳이 없어 사진이 오면 **다음 번들 이미지로 바꿔** 교체가 화면에 보이게 한다.
+   */
+  http.patch('/api/admin/pop-up/:popupId', async ({ params, request }) => {
+    await delay(400);
+    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
+    const popups = getMockPopups();
+    const popupId = Number(params.popupId);
+    const target = popups.find((p) => p.popupId === popupId);
+    if (target === undefined) return fail(404, '존재하지 않는 팝업입니다.');
+    const form = await request.formData();
+    const title = form.get('title');
+    const next: MockPopup = { ...target };
+    if (typeof title === 'string' && title.trim()) next.title = title.trim();
+    if (form.get('photo')) {
+      const index = SEED_POPUPS.findIndex((p) => p.photoUrl === target.photoUrl);
+      next.photoUrl = SEED_POPUPS[(index + 1) % SEED_POPUPS.length].photoUrl;
+    }
+    setMockPopups(popups.map((p) => (p.popupId === popupId ? next : p)));
+    return HttpResponse.json(ok({ popupId }));
+  }),
+
   http.delete('/api/admin/pop-up/:popupId', async ({ params }) => {
     await delay(400);
     if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');

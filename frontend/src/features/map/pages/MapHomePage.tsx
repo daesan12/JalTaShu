@@ -7,6 +7,7 @@ import { BIKE_STATIONS_QUERY_KEY, getBikeStations } from '@/features/map/api/sta
 import { ArrivalSummaryScreen } from '@/features/map/components/ArrivalSummaryScreen';
 import { CurrentLocationButton } from '@/features/map/components/CurrentLocationButton';
 import { StationConfirmSheet } from '@/features/map/components/StationConfirmSheet';
+import { BanNoticeSheet } from '@/features/map/components/BanNoticeSheet';
 import { CycleReturnSheet } from '@/features/map/components/CycleReturnSheet';
 import { DestinationSheet } from '@/features/map/components/DestinationSheet';
 import { MapPickLayer } from '@/features/map/components/MapPickLayer';
@@ -818,6 +819,9 @@ export function MapHomePage() {
         onConfirm={(station) => void cycleRental.confirmPending(station)}
         onCancel={cycleRental.cancelPending}
       />
+
+      {/* 정지된 계정이라 대여가 막혔을 때 — 사유를 읽을 수 있게 창으로 띄운다(#146) */}
+      <BanNoticeSheet reason={cycleRental.banReason} onClose={cycleRental.dismissBan} />
 
       {/* 검색 오버레이는 탭바(z-20)를 덮고, 토스트(z-50)보다는 아래에 둔다 */}
       {searchOpen ? (

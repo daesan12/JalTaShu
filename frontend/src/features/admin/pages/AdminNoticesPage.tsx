@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/shared/api/client';
 import { formatDate } from '@/shared/lib/format';
@@ -11,8 +11,10 @@ import {
   deleteAdminNotice,
   getAdminNotice,
   getAdminNotices,
+  getAdminPopups,
   pinNotice,
   unpinNotice,
+  updatePinnedPhoto,
   type AdminNoticeSummary,
 } from '@/features/admin/api/adminNotices';
 import { PinIcon } from '@/features/admin/ui/PinIcon';
@@ -77,6 +79,8 @@ export function AdminNoticesPage() {
 
   function refreshNotices() {
     void queryClient.invalidateQueries({ queryKey: ['adminNotices'] });
+    // 고정·해제하면 팝업 목록(상세의 이미지)도 달라진다
+    void queryClient.invalidateQueries({ queryKey: ['adminPopups'] });
   }
 
   const unpin = useMutation({
@@ -255,6 +259,12 @@ export function AdminNoticesPage() {
               <p className="text-sm leading-relaxed whitespace-pre-wrap">
                 {detailQuery.data.content}
               </p>
+            )}
+            {detail.popupId !== null && (
+              <PinnedPhotoSection
+                popupId={detail.popupId}
+                onUpdated={() => showToast('팝업 이미지를 바꿨습니다')}
+              />
             )}
           </div>
         )}
@@ -476,5 +486,98 @@ function PinNoticeModal({ notice, onClose, onPinned }: PinNoticeModalProps) {
         )}
       </div>
     </AdminModal>
+  );
+}
+
+interface PinnedPhotoSectionProps {
+  popupId: number;
+  onUpdated: () => void;
+}
+
+/**
+ * 고정 공지의 팝업 이미지 — 올린 사진을 다시 보고, 다른 사진으로 바꾼다(#146).
+ * 전에는 고정할 때 한 번 올리면 관리자 화면에서 다시 볼 방법이 없었다.
+ * 공지 목록에는 이미지가 없어 팝업 목록(`GET /admin/pop-up`)에서 이 공지의 팝업을 찾는다.
+ * 새 사진은 고르면 바로 미리 보여 주고, "이미지 바꾸기"를 눌러야 서버에 올린다.
+ */
+function PinnedPhotoSection({ popupId, onUpdated }: PinnedPhotoSectionProps) {
+  const queryClient = useQueryClient();
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  const popups = useQuery({ queryKey: ['adminPopups'], queryFn: getAdminPopups });
+  const popup = popups.data?.find((p) => p.popupId === popupId) ?? null;
+
+  // 고른 파일의 미리보기 주소 — 파일이 바뀌거나 창이 닫히면 풀어 준다
+  const previewUrl = useMemo(() => (photo === null ? null : URL.createObjectURL(photo)), [photo]);
+  useEffect(() => {
+    if (previewUrl === null) return;
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
+
+  const update = useMutation({
+    mutationFn: () => updatePinnedPhoto(popupId, photo!),
+    onSuccess: () => {
+      setPhoto(null);
+      void queryClient.invalidateQueries({ queryKey: ['adminPopups'] });
+      onUpdated();
+    },
+  });
+
+  function pickPhoto(file: File | null) {
+    setFileError(null);
+    if (file && file.size > PIN_IMAGE_MAX_BYTES) {
+      setFileError('이미지는 5MB 이하만 올릴 수 있습니다.');
+      setPhoto(null);
+      return;
+    }
+    setPhoto(file);
+  }
+
+  const shownUrl = previewUrl ?? popup?.photoUrl ?? null;
+
+  return (
+    <div className="mt-2 flex flex-col gap-2 border-t border-admin-line pt-4">
+      <AdminFieldLabel label={photo === null ? '앱 팝업 이미지' : '바꿀 이미지 (미리보기)'} />
+      {popups.isPending && <p className="text-sm text-admin-muted">이미지를 불러오는 중…</p>}
+      {popups.isError && <p className="text-sm text-admin-muted">이미지를 불러오지 못했습니다.</p>}
+      {popups.isSuccess && shownUrl === null && (
+        <p className="text-sm text-admin-muted">등록된 이미지를 찾지 못했습니다.</p>
+      )}
+      {shownUrl !== null && (
+        <img
+          src={shownUrl}
+          alt={popup?.title ?? '팝업 이미지'}
+          className="max-h-80 w-fit max-w-full rounded-md border border-admin-line object-contain"
+        />
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="file"
+          accept="image/*"
+          aria-label="새 팝업 이미지 선택"
+          onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)}
+          className="block text-sm file:mr-3 file:rounded-md file:border-0 file:bg-admin-line/60 file:px-3 file:py-1.5 file:text-sm"
+        />
+        <AdminButton
+          size="sm"
+          disabled={photo === null || update.isPending}
+          onClick={() => update.mutate()}
+        >
+          {update.isPending ? '바꾸는 중…' : '이미지 바꾸기'}
+        </AdminButton>
+      </div>
+      <p className="text-xs text-admin-muted">
+        5MB 이하 이미지 파일. 바꾸면 앱 팝업에 바로 반영됩니다.
+      </p>
+      {fileError && <p className="text-sm text-admin-danger-text">{fileError}</p>}
+      {update.isError && (
+        <p className="text-sm text-admin-danger-text">
+          {update.error instanceof ApiError
+            ? update.error.message
+            : '이미지를 바꾸지 못했습니다. 다시 시도해 주세요.'}
+        </p>
+      )}
+    </div>
   );
 }

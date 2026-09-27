@@ -101,6 +101,12 @@ export function useCycleRental({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [pending, setPending] = useState<PendingStationAction | null>(null);
+  /**
+   * 정지된 계정이라 대여가 막혔을 때의 안내(#146). 백엔드가 403과 함께 관리자가 적은 정지 사유를
+   * `message`로 준다(`BanUserInterceptor`). 토스트는 금방 사라져 이유를 못 읽으므로 창으로 띄운다.
+   * 정지 종료 시각은 아직 응답에 없어 보여 주지 않는다 — 백엔드가 넣어 주면 여기에 더한다.
+   */
+  const [banReason, setBanReason] = useState<string | null>(null);
 
   // 안내 중에는 계속 갱신되는 위치 — 단발 조회가 실패했을 때 대신 쓴다
   const positionRef = useRef<Pos | null>(location.position);
@@ -151,6 +157,10 @@ export function useCycleRental({
     },
     onError: (error) => {
       if (error instanceof ApiError && error.code === 409) resyncRental();
+      if (error instanceof ApiError && error.code === 403) {
+        setBanReason(error.message);
+        return;
+      }
       showToast(error instanceof ApiError ? error.message : '대여하지 못했습니다.');
     },
   });
@@ -316,6 +326,9 @@ export function useCycleRental({
     pending,
     confirmPending,
     cancelPending: () => setPending(null),
+    /** 정지된 계정이라 대여가 막힌 이유. 없으면 null */
+    banReason,
+    dismissBan: () => setBanReason(null),
     /** 지금 빌린 자전거. 없으면 null — 화면은 이걸로 대여/반납을 가른다 */
     session,
     /** 위치 확인·대여·반납 요청 중 */
