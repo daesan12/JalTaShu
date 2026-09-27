@@ -67,7 +67,7 @@ export function RideDetailPage() {
   const [safeTop] = useState(readSafeAreaTop);
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-canvas">
+    <div className="flex h-full flex-col overflow-x-hidden overflow-y-auto bg-canvas">
       {/* 경로 지도 + 플로팅 헤더. 지도를 못 띄우면 추상 경로 그림으로 대신한다 */}
       <div className="relative shrink-0">
         {derived && road !== null ? (
@@ -95,12 +95,16 @@ export function RideDetailPage() {
             </svg>
           </button>
           {ride && (
-            <div className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-surface px-4 shadow-md">
-              <span className="truncate font-bold text-gray-900">
+            /*
+             * min-w-0: flex 항목은 기본 min-width가 내용 크기라 이름이 길면 줄어들지 못하고
+             * 알약이 화면 밖으로 밀려난다(실기기: 화면이 옆으로 늘어남). 줄어들 수 있게 해야 truncate가 먹는다.
+             */
+            <div className="flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-surface px-4 shadow-md">
+              <span className="min-w-0 truncate font-bold text-gray-900">
                 {pointLabel(ride.startingPoint, stations)}
               </span>
-              <span aria-hidden className="text-gray-800">➞</span>
-              <span className="truncate font-bold text-gray-900">
+              <span aria-hidden className="shrink-0 text-gray-800">➞</span>
+              <span className="min-w-0 truncate font-bold text-gray-900">
                 {pointLabel(ride.endPoint, stations)}
               </span>
             </div>
