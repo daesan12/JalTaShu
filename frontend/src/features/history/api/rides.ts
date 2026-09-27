@@ -22,10 +22,14 @@ export interface UsagePathPoint {
   seq: number;
 }
 
-/** GET /cycle/statics (CycleStatisticsResponse 실측) — 거리 m, 시간 초 */
+/**
+ * GET /cycle/statics (CycleStatisticsResponse 실측) — 거리 m, 시간 초.
+ * 거리는 **null일 수 있다** — 경로 거리가 없는 기록(QR로만 대여·반납)이 하나라도 있으면
+ * 서버는 합계를 "미확정"으로 비운다. 0으로 찍으면 거짓이므로 화면은 "–"로 보여 준다.
+ */
 export interface UsageStats {
   totalUseCnt: number;
-  totalDistance: number;
+  totalDistance: number | null;
   totalCycleRidingTime: number;
 }
 
