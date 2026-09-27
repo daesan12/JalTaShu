@@ -41,6 +41,8 @@ export function AdminNoticesPage() {
   const [deleteTarget, setDeleteTarget] = useState<AdminNoticeSummary | null>(null);
   /** 핀을 켜려는 공지 — 이미지를 받아야 해서 창을 거친다 */
   const [pinTarget, setPinTarget] = useState<AdminNoticeSummary | null>(null);
+  /** 고정된 공지의 팝업 이미지를 확인·교체하려는 공지(#148) */
+  const [popupEditTarget, setPopupEditTarget] = useState<AdminNoticeSummary | null>(null);
 
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['adminNotices'],
@@ -160,7 +162,7 @@ export function AdminNoticesPage() {
               <th className="w-20">번호</th>
               <th>제목</th>
               <th className="w-32">작성일</th>
-              <th className="w-16 text-center">팝업</th>
+              <th className="w-44">팝업</th>
               <th className="w-24 text-right">관리</th>
             </tr>
           </thead>
@@ -178,7 +180,8 @@ export function AdminNoticesPage() {
                 <td className="tabular-nums text-admin-muted">{notice.noticeId}</td>
                 <td className="truncate">{notice.title}</td>
                 <td className="tabular-nums text-admin-muted">{formatDate(notice.createdAt)}</td>
-                <td className="text-center">
+                {/* 왼쪽 정렬 — 고정된 줄에만 "팝업 수정"이 붙어도 핀이 줄마다 같은 자리에 있게 */}
+                <td>
                   {/* 행 전체가 상세를 여는 클릭 대상이라 핀은 전파를 끊어야 한다 */}
                   <button
                     type="button"
@@ -199,6 +202,20 @@ export function AdminNoticesPage() {
                   >
                     <PinIcon filled={notice.popupId !== null} className="h-5 w-5" />
                   </button>
+                  {/* 고정한 뒤에도 사진을 다시 보고 바꿀 수 있게 핀 옆에 바로 둔다(#148) */}
+                  {notice.popupId !== null && (
+                    <AdminButton
+                      variant="secondary"
+                      size="sm"
+                      className="ml-1 align-middle"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPopupEditTarget(notice);
+                      }}
+                    >
+                      팝업 수정
+                    </AdminButton>
+                  )}
                 </td>
                 <td className="text-right">
                   <AdminButton
@@ -295,6 +312,30 @@ export function AdminNoticesPage() {
           }}
         />
       )}
+
+      {/* 팝업 수정(#148) — 고정된 공지의 팝업 이미지를 확인하고 바꾼다 */}
+      <AdminModal
+        open={popupEditTarget !== null}
+        onClose={() => setPopupEditTarget(null)}
+        title="팝업 수정"
+        footer={
+          <AdminButton variant="secondary" onClick={() => setPopupEditTarget(null)}>
+            닫기
+          </AdminButton>
+        }
+      >
+        {popupEditTarget && popupEditTarget.popupId !== null && (
+          <div className="flex flex-col gap-3">
+            <p className="truncate rounded-md bg-admin-line/40 px-3 py-2 text-sm">
+              공지 #{popupEditTarget.noticeId} · {popupEditTarget.title}
+            </p>
+            <PinnedPhotoSection
+              popupId={popupEditTarget.popupId}
+              onUpdated={() => showToast('팝업 이미지를 바꿨습니다')}
+            />
+          </div>
+        )}
+      </AdminModal>
 
       {/* 06-a 삭제 확인 */}
       <AdminModal
