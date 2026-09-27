@@ -68,7 +68,22 @@ export const adminStationHandlers = [
       yPos: station.lat,
       ...mockHourCounts(date, stationIdx, hour),
     }));
-    return HttpResponse.json(ok(points));
+    // 대여소 이용 현황(#149)이 긴 목록·구 필터·상위 100곳을 확인할 수 있게 실제 대여소 1,372곳도 준다.
+    // 규모를 넓게 흩어 정렬이 눈에 띄게 하고, 그 시간에 0건인 곳은 실서버처럼 뺀다(INNER JOIN)
+    const realPoints = REAL_STATIONS.map((station, stationIdx) => {
+      const size = (stationIdx * 37) % 11;
+      const counts = mockHourCounts(date, stationIdx, hour);
+      return {
+        time: datetime,
+        stationId: station.stationId,
+        stationName: station.name,
+        xPos: station.lng,
+        yPos: station.lat,
+        rentCnt: Math.round((counts.rentCnt * size) / 6),
+        returnCnt: Math.round((counts.returnCnt * size) / 6),
+      };
+    }).filter((point) => point.rentCnt + point.returnCnt > 0);
+    return HttpResponse.json(ok([...points, ...realPoints]));
   }),
 
   // ── 대여소별 추이 — 오늘 제외 (term=day|week) ──
@@ -89,48 +104,6 @@ export const adminStationHandlers = [
       return { date, rentalCnt: totals.rentCnt, returnCnt: totals.returnCnt };
     });
     return HttpResponse.json(ok(points));
-  }),
-
-  // ── 대여소별 기간 집계(#147) — 백엔드 미구현, 요청한 스키마로 가정 ──
-  // 실제 대여소 1,372곳으로 준다 — 8곳 목업으로는 긴 목록·구 필터·상위 100곳을 확인할 수 없다.
-  // `:stationId`에 잡히지 않도록 그보다 먼저 등록한다
-  http.get('/api/admin/station/usage', async ({ request }) => {
-    await delay(400);
-    if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
-    const searchParams = new URL(request.url).searchParams;
-    const from = searchParams.get('from') ?? '';
-    const to = searchParams.get('to') ?? '';
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) {
-      return fail(400, '조회 기간이 올바르지 않습니다.');
-    }
-    // 양 끝을 포함한 날짜 목록 — 목업이 느려지지 않게 최대 31일로 자른다
-    const dates: string[] = [];
-    for (let d = new Date(`${from}T00:00:00`); dates.length < 31; d.setDate(d.getDate() + 1)) {
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-      if (date > to) break;
-      dates.push(date);
-    }
-    const rows = REAL_STATIONS.map((station, stationIdx) => {
-      let rentCnt = 0;
-      let returnCnt = 0;
-      // 대여소 규모를 넓게 흩어 정렬이 눈에 띄게 한다(일부는 0건)
-      const size = (stationIdx * 37) % 11;
-      for (const date of dates) {
-        const totals = mockDayTotals(date, stationIdx);
-        rentCnt += Math.round((totals.rentCnt * size) / 6);
-        returnCnt += Math.round((totals.returnCnt * size) / 6);
-      }
-      return {
-        stationId: station.stationId,
-        stationName: station.name,
-        xPos: station.lng,
-        yPos: station.lat,
-        rentCnt,
-        returnCnt,
-      };
-    });
-    return HttpResponse.json(ok(rows));
   }),
 
   // ── 대여소 상세 — 현재 수량과 오늘·24시간 전 통계뿐 (이름·주소·배치 목록 없음) ──
