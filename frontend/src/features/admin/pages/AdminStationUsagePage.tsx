@@ -8,28 +8,27 @@ import { AdminMap } from '@/features/admin/components/AdminMap';
 import { HeatmapLayer, type HeatmapCell } from '@/features/admin/components/HeatmapLayer';
 import { DISTRICTS, STATION_DISTRICT, type District } from '@/features/admin/lib/stationDistricts';
 import { AdminButton } from '@/features/admin/ui/AdminButton';
-import { AdminDateRange, AdminFilterBar, AdminSelect } from '@/features/admin/ui/AdminFilters';
+import { AdminDateInput, AdminFilterBar, AdminSelect } from '@/features/admin/ui/AdminFilters';
 import { AdminTable } from '@/features/admin/ui/AdminTable';
 import { AdminTableStatus } from '@/features/admin/ui/AdminTableStatus';
 
-type Period = 'today' | 'week' | 'custom';
 type SortKey = 'total' | 'rent' | 'return';
 type View = 'list' | 'map';
 
-const PERIOD_LABEL: Record<Period, string> = {
-  today: '오늘',
-  week: '최근 7일',
-  custom: '직접 선택',
-};
 const SORT_LABEL: Record<SortKey, string> = { total: '합계', rent: '대여', return: '반납' };
 const VIEW_LABEL: Record<View, string> = { list: '목록', map: '지도' };
 /** 구 정보가 없는 대여소(표가 만들어진 뒤 새로 생긴 곳) */
 const UNKNOWN_DISTRICT = '미분류';
 const TOP_LIMIT = 100;
+/**
+ * 처음 여는 날짜 — staging 시드 이용 기록이 9/23 02시에서 끊겨 있어 하루가 온전히 찬 9/22로 연다.
+ * 시드를 발표일 기준으로 다시 넣으면 오늘(`todayString()`)로 바꾼다
+ */
+const DEFAULT_DATE = '2026-09-22';
 
-/** 날짜를 input[type=date] 값 형식으로 — 관리자는 대전(KST)에서 쓴다 */
-function dateString(daysAgo = 0): string {
-  const d = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+/** 오늘을 input[type=date] 값 형식으로 — 관리자는 대전(KST)에서 쓴다 */
+function todayString(): string {
+  const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
@@ -61,16 +60,15 @@ const countOf: Record<SortKey, (row: StationUsage) => number> = {
 /**
  * 01 대여소 이용 현황(#147) — 예전 "히트맵" 탭.
  *
- * 관리자가 관리할 대여소를 고르는 화면이라 **목록이 먼저**다. 처음 들어오면 최근 7일 · 합계 많은 순 ·
- * 구 전체로 전체 대여소를 보여 준다("오늘"은 오전에 비어 보이고, 7일이면 평일·주말이 섞여 안정적이다).
+ * 관리자가 관리할 대여소를 고르는 화면이라 **목록이 먼저**다. 고른 **하루**의 대여소별 합계를
+ * 합계 많은 순 · 구 전체로 보여 준다. 기간 집계 API가 없어 히트맵 API를 24번 불러 더하므로(#149)
+ * 여러 날은 보지 않는다 — 일주일 추이는 대여소 상세의 7일 그래프가 맡는다.
  * 정렬·구·"상위 100곳"은 받아 온 목록을 화면에서 거른다 — 조건마다 서버를 부르지 않는다.
  * 지도는 같은 조건을 그대로 쓰고, 원 크기는 같게 두고 색 농도로 이용량을 나타낸다.
  */
 export function AdminStationUsagePage() {
   const navigate = useNavigate();
-  const [period, setPeriod] = useState<Period>('week');
-  const [customFrom, setCustomFrom] = useState(() => dateString(6));
-  const [customTo, setCustomTo] = useState(() => dateString(0));
+  const [date, setDate] = useState(DEFAULT_DATE);
   const [sortKey, setSortKey] = useState<SortKey>('total');
   const [district, setDistrict] = useState<District | typeof UNKNOWN_DISTRICT | 'all'>('all');
   const [topOnly, setTopOnly] = useState(false);
@@ -78,19 +76,13 @@ export function AdminStationUsagePage() {
   const [map, setMap] = useState<naver.maps.Map | null>(null);
   const [hover, setHover] = useState<{ stationId: string; x: number; y: number } | null>(null);
 
-  // "최근 7일"은 오늘을 포함한 7일이다
-  const [from, to] =
-    period === 'today'
-      ? [dateString(0), dateString(0)]
-      : period === 'week'
-        ? [dateString(6), dateString(0)]
-        : [customFrom, customTo];
-  const rangeValid = from !== '' && to !== '' && from <= to;
+  // 날짜 칸을 지우면 빈 문자열이 온다
+  const dateValid = date !== '';
 
   const { data, isPending, isError, refetch } = useQuery({
-    queryKey: ['adminStationUsage', from, to],
-    queryFn: () => getStationUsage(from, to),
-    enabled: rangeValid,
+    queryKey: ['adminStationUsage', date],
+    queryFn: () => getStationUsage(date),
+    enabled: dateValid,
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
   });
@@ -137,7 +129,7 @@ export function AdminStationUsagePage() {
   /*
    * 구를 고르면 **그 구 전체가 한눈에 보이는 만큼만** 확대한다 — 대전 전체 줌에서는 원이 거의 다
    * 겹쳐서, 관리할 구를 고르면 그 구로 좁혀 보이게 한다. "구 전체"면 전체 대여소에 맞춘다.
-   * **구가 바뀔 때만** 맞춘다(지도를 새로 열 때 포함). 기간·정렬·상위 100을 바꿀 때마다 맞추면
+   * **구가 바뀔 때만** 맞춘다(지도를 새로 열 때 포함). 날짜·정렬·상위 100을 바꿀 때마다 맞추면
    * 사용자가 확대해 둔 지도가 튄다.
    */
   const fittedRef = useRef<{ map: naver.maps.Map; district: string } | null>(null);
@@ -170,22 +162,19 @@ export function AdminStationUsagePage() {
         <div className="flex items-baseline gap-3">
           <h2 className="text-xl font-semibold">대여소 이용 현황</h2>
           <span className="text-sm text-admin-muted tabular-nums">
-            {rangeValid ? `${from} ~ ${to} · ${rows.length}곳` : '기간을 확인해 주세요'}
+            {dateValid ? `${date} · ${rows.length}곳` : '날짜를 골라 주세요'}
           </span>
         </div>
         <Segmented value={view} labels={VIEW_LABEL} onChange={setView} ariaLabel="보기 방식" />
       </div>
 
       <AdminFilterBar>
-        <Segmented value={period} labels={PERIOD_LABEL} onChange={setPeriod} ariaLabel="기간" />
-        {period === 'custom' && (
-          <AdminDateRange
-            from={customFrom}
-            to={customTo}
-            onFromChange={setCustomFrom}
-            onToChange={setCustomTo}
-          />
-        )}
+        <AdminDateInput
+          aria-label="조회 날짜"
+          value={date}
+          max={todayString()}
+          onChange={(e) => setDate(e.target.value)}
+        />
         <AdminSelect
           aria-label="정렬 기준"
           value={sortKey}
@@ -249,11 +238,11 @@ export function AdminStationUsagePage() {
             <tbody>
               <AdminTableStatus
                 colSpan={6}
-                isPending={rangeValid && isPending}
+                isPending={dateValid && isPending}
                 isError={isError}
                 onRetry={() => void refetch()}
                 isEmpty={rows.length === 0}
-                emptyText={rangeValid ? '표시할 대여소가 없습니다' : '시작일이 종료일보다 늦습니다'}
+                emptyText={dateValid ? '이 날짜에 이용 기록이 없습니다' : '날짜를 골라 주세요'}
               />
               {rows.map((row) => (
                 <tr key={row.stationId} onClick={() => openStation(row.stationId)}>
@@ -306,7 +295,7 @@ export function AdminStationUsagePage() {
             </div>
           )}
 
-          {rangeValid && isPending && (
+          {dateValid && isPending && (
             <div className="absolute inset-x-0 top-3 flex justify-center">
               <span className="rounded-md bg-admin-bg/95 px-3 py-1.5 text-xs text-admin-muted">
                 불러오는 중…
@@ -357,7 +346,7 @@ function SortableHeader({
   );
 }
 
-/** 몇 가지 중 하나를 고르는 버튼 묶음(기간·보기 방식) */
+/** 몇 가지 중 하나를 고르는 버튼 묶음(보기 방식) */
 function Segmented<T extends string>({
   value,
   labels,
