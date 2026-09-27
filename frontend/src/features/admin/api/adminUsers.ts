@@ -89,6 +89,21 @@ export function isActiveBan(record: AdminUserBanRecord): boolean {
   return new Date(record.banEndAt).getTime() > Date.now();
 }
 
+/**
+ * 정지·해제 직후 캐시된 목록에 바로 반영한다(#151) — 1.45만 명 목록 재조회가 끝날 때까지
+ * 옛 상태가 보이지 않게. filter는 그 목록을 불러온 상태 필터('' = 전체)로, 새 상태와 맞지 않으면 뺀다
+ */
+export function withUserStatus(
+  list: AdminUserSummary[],
+  userId: number,
+  status: UserStatus,
+  filter: UserStatus | '',
+): AdminUserSummary[] {
+  return list
+    .map((user) => (user.userId === userId ? { ...user, userStatement: status } : user))
+    .filter((user) => user.userId !== userId || filter === '' || filter === status);
+}
+
 /** statement·order는 백엔드가 실제로 받는 파라미터 — 그대로 넘긴다 */
 export function getAdminUsers(params: {
   statement?: UserStatus | '';

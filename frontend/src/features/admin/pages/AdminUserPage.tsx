@@ -13,6 +13,9 @@ import {
   getAdminUserPaths,
   isActiveBan,
   releaseAdminUserBan,
+  withUserStatus,
+  type AdminUserSummary,
+  type UserStatus,
 } from '@/features/admin/api/adminUsers';
 import {
   formatDateTime,
@@ -65,12 +68,20 @@ export function AdminUserPage() {
   });
 
   // 상세 응답에 상태가 없다 — 진행 중인 제재가 있으면 정지로 본다(목록 API와 같은 판정)
-  const activeBan = useMemo(
-    () => bans.data?.find(isActiveBan) ?? null,
-    [bans.data],
-  );
+  const activeBan = useMemo(() => bans.data?.find(isActiveBan) ?? null, [bans.data]);
 
-  function refresh() {
+  /**
+   * 정지·해제 후 — 목록 캐시(키 `['adminUsers', statement, order]`)의 이 사용자 상태를 바로 바꿔 두고,
+   * 서버 재조회는 뒤에서 그대로 한다. 무효화만 하면 목록에 돌아갔을 때 재조회가 끝날 때까지 옛 상태가 보인다
+   */
+  function refresh(status: UserStatus) {
+    for (const [key, list] of queryClient.getQueriesData<AdminUserSummary[]>({
+      queryKey: ['adminUsers'],
+    })) {
+      if (!list) continue;
+      const filter = (key[1] ?? '') as UserStatus | '';
+      queryClient.setQueryData(key, withUserStatus(list, userId, status, filter));
+    }
     void queryClient.invalidateQueries({ queryKey: ['adminUserBans', userId] });
     void queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
   }
@@ -82,7 +93,7 @@ export function AdminUserPage() {
       return releaseAdminUserBan(activeBan.banRecordId);
     },
     onSuccess: () => {
-      refresh();
+      refresh('NORMAL');
       setUnbanOpen(false);
       showToast('이용 정지가 해제되었습니다');
     },
@@ -109,7 +120,9 @@ export function AdminUserPage() {
   const totalPathMin = rides.reduce((sum, path) => sum + (path.totalDuration ?? 0), 0);
   const distanceM = paths.data?.totalUsingDistance ?? null;
   const savedMin =
-    distanceM === null ? null : Math.max(0, Math.round(distanceM / WALK_METERS_PER_MIN) - totalPathMin);
+    distanceM === null
+      ? null
+      : Math.max(0, Math.round(distanceM / WALK_METERS_PER_MIN) - totalPathMin);
 
   return (
     <div className="flex flex-col gap-6">
@@ -138,10 +151,7 @@ export function AdminUserPage() {
       <dl className="grid grid-cols-3 gap-x-6 gap-y-5 rounded-lg bg-admin-panel px-5 py-5">
         <UserInfoField label="사용자 ID" value={formatUserCode(userId)} />
         <UserInfoField label="닉네임" value={user.nickname ?? '—'} />
-        <UserInfoField
-          label="가입일"
-          value={user.createdAt ? formatDate(user.createdAt) : '—'}
-        />
+        <UserInfoField label="가입일" value={user.createdAt ? formatDate(user.createdAt) : '—'} />
         <UserInfoField
           label="최종 사용일시"
           value={user.recentUsingAt ? formatDateTimeFull(user.recentUsingAt) : '—'}
@@ -221,10 +231,7 @@ export function AdminUserPage() {
                       <td className="truncate">{ride.endPoint ?? '—'}</td>
                       <td className="tabular-nums">
                         {ride.cycleId ? (
-                          <Link
-                            to={`/admin/bikes/${ride.cycleId}`}
-                            className="underline"
-                          >
+                          <Link to={`/admin/bikes/${ride.cycleId}`} className="underline">
                             {ride.cycleId}
                           </Link>
                         ) : (
@@ -276,9 +283,7 @@ export function AdminUserPage() {
                     <td className="tabular-nums text-admin-muted">
                       {formatDate(record.banStartedAt)}
                     </td>
-                    <td className="tabular-nums text-admin-muted">
-                      {formatDate(record.banEndAt)}
-                    </td>
+                    <td className="tabular-nums text-admin-muted">{formatDate(record.banEndAt)}</td>
                     <td className="text-right tabular-nums">{record.period}일</td>
                     <td className="truncate">{record.comment ?? '—'}</td>
                     {/* 백엔드가 관리자 이름 없이 adminId만 준다 */}
@@ -305,7 +310,7 @@ export function AdminUserPage() {
           nickname={displayName}
           onClose={() => setBanOpen(false)}
           onBanned={() => {
-            refresh();
+            refresh('BANNED');
             setBanOpen(false);
             showToast('이용 정지가 등록되었습니다');
           }}
