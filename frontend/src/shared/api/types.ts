@@ -176,6 +176,8 @@ export interface RouteCandidate {
   totalDistance: number;
   /** 총 소요 시간(초) */
   totalTime: number;
+  /** 자전거 구간의 누적 상승고도(m). 구버전 서버·고정 추천 경로에는 없을 수 있다. */
+  totalAscent?: number;
   legs: RouteLeg[];
   /**
    * 대여 대여소 도착 시점에 확보 가능한 대수(#106에서 응답에 들어왔다). 소수로 온다.

@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from '@capacitor/cli';
+/// <reference types="@capacitor/push-notifications" />
 
 /**
  * Capacitor 설정 — 안드로이드 앱 래핑.
@@ -30,6 +31,9 @@ const config: CapacitorConfig = {
     // 조이는 것은 WebView에서 나가는 HTTP인데, axios→XHR이 여기서 네이티브로 우회된다
     // (플러그인 README가 지목한 해법이 정확히 이 플러그인이다).
     CapacitorHttp: { enabled: true },
+    PushNotifications: {
+      presentationOptions: ['sound', 'alert'],
+    },
   },
 };
 

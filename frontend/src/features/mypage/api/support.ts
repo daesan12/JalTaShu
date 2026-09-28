@@ -12,3 +12,16 @@ export interface Notice {
 export function getNotices(): Promise<Notice[]> {
   return apiGet<Notice[]>('/notice/list');
 }
+
+/** 공지 상세 (NoticeDetailResponse 실측) — 목록과 달리 noticeId가 없고 본문이 있다 */
+export interface NoticeDetail {
+  title: string;
+  author: string;
+  createdAt: string;
+  content: string;
+}
+
+/** GET /api/notice/{noticeId} */
+export function getNotice(noticeId: number): Promise<NoticeDetail> {
+  return apiGet<NoticeDetail>(`/notice/${noticeId}`);
+}

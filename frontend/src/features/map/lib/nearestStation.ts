@@ -1,9 +1,6 @@
 import type { BikeStation, Pos } from '@/shared/api/types';
 import { haversineMeters, posToLatLng } from '@/shared/lib/coords';
 
-/** 대여·반납을 허용할 대여소까지의 최대 거리(m). */
-export const CYCLE_STATION_RADIUS_M = 300;
-
 interface NearestResult {
   station: BikeStation;
   distanceM: number;
@@ -38,12 +35,10 @@ export function nearestStationId(
   return findNearest(stations, position)?.station.stationId ?? null;
 }
 
-/** 현재 위치에서 반경 안에 있는 가장 가까운 대여소. QR 반납 안전 검증에 사용한다. */
+/** 현재 위치에서 가장 가까운 대여소. */
 export function nearestStation(
   stations: BikeStation[] | undefined,
   position: Pos | null,
-  radiusM: number = CYCLE_STATION_RADIUS_M,
 ): BikeStation | null {
-  const result = findNearest(stations, position);
-  return result !== null && result.distanceM <= radiusM ? result.station : null;
+  return findNearest(stations, position)?.station ?? null;
 }

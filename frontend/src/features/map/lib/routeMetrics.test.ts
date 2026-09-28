@@ -22,10 +22,14 @@ describe('totalAscent', () => {
     expect(totalAscent(routeWithAltitudes([50, 50]))).toBe(0);
   });
 
-  it('구간 경계 좌표를 두 번 세지 않는다', () => {
-    // 좌표 11개가 0m에서 100m까지 10m씩 오른다 — 구간이 3개로 나뉘어도 총 상승은 100m
+  it('도보 구간은 제외하고 자전거 구간만 계산한다', () => {
+    // 전체는 0m에서 100m까지 오르지만 자전거 구간(2~8번)의 상승은 60m다.
     const climbing = Array.from({ length: 11 }, (_, i) => i * 10);
-    expect(totalAscent(makeRoute({ altitudes: climbing }))).toBe(100);
+    expect(totalAscent(makeRoute({ altitudes: climbing }))).toBe(60);
+  });
+
+  it('서버가 계산한 15m 간격 누적 상승값을 우선한다', () => {
+    expect(totalAscent(makeRoute({ totalAscent: 37, altitudes: Array(11).fill(50) }))).toBe(37);
   });
 });
 

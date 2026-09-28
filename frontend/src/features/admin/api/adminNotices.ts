@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost } from '@/shared/api/client';
+import { apiDelete, apiGet, apiPatch, apiPost } from '@/shared/api/client';
 
 /** 제목·내용 글자 수 상한 (Figma 08의 0/60·0/2000 카운터) */
 export const NOTICE_TITLE_MAX = 60;
@@ -56,7 +56,7 @@ export function deleteAdminNotice(noticeId: number): Promise<null> {
 /**
  * 핀 상태는 **공지 목록의 `popupId`**로 읽는다(`AdminNoticeSummary`). null이면 꺼짐, 값이 있으면
  * 켜짐이고 그 값이 해제에 쓸 id다. 목록 한 번으로 전부 알 수 있어 팝업 목록을 따로 부르지 않는다.
- * (관리자 전용 `GET /admin/pop-up`도 있지만 이 화면에는 필요 없다.)
+ * 목록에는 이미지가 없어서, 고정된 공지의 상세를 열 때만 `GET /admin/pop-up`으로 사진을 찾는다(#146).
  *
  * 동시에 핀할 수 있는 공지 수.
  * 앱 팝업이 좌우로 넘기는 캐러셀이라 장수가 늘수록 끝까지 보는 사람이 줄어든다.
@@ -82,4 +82,28 @@ export function pinNotice(input: {
 /** DELETE /admin/pop-up/{popupId} — 핀 끄기 */
 export function unpinNotice(popupId: number): Promise<null> {
   return apiDelete<null>(`/admin/pop-up/${popupId}`, { skipAuthRedirect: true });
+}
+
+/** 팝업 한 건 (`PopupListResponse` 실측) — `photoUrl`은 S3 서명 URL이라 시간이 지나면 만료된다 */
+export interface AdminPopup {
+  popupId: number;
+  title: string;
+  photoUrl: string;
+  noticeId: number;
+}
+
+/** GET /admin/pop-up — 고정된 팝업 목록. 고정 공지에 올린 사진을 다시 보여 줄 때 쓴다(#146) */
+export function getAdminPopups(): Promise<AdminPopup[]> {
+  return apiGet<AdminPopup[]>('/admin/pop-up', { skipAuthRedirect: true });
+}
+
+/**
+ * PATCH /admin/pop-up/{popupId} — 고정 공지의 사진 교체(#146). 백엔드 `updatePopup` 실측:
+ * multipart로 title·photo·noticeId가 전부 선택값이라 **바꿀 것만** 보낸다. 사진을 바꾸면 서버가
+ * 새로 올리고 옛 S3 파일은 지운다.
+ */
+export function updatePinnedPhoto(popupId: number, photo: File): Promise<unknown> {
+  const form = new FormData();
+  form.append('photo', photo);
+  return apiPatch<unknown>(`/admin/pop-up/${popupId}`, form, { skipAuthRedirect: true });
 }

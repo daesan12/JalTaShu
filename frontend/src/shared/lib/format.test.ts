@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatDate, formatDistance, formatMinutes, formatTimeAgo } from '@/shared/lib/format';
+import { formatDate, formatDistance, formatMinutes, formatTimeAgo, toSeoulLocalDateTime } from '@/shared/lib/format';
 
 describe('formatDistance', () => {
   it('1km 미만은 m로 반올림 표시', () => {
@@ -66,5 +66,11 @@ describe('formatTimeAgo', () => {
   // 07 갱신 배지는 react-query의 dataUpdatedAt(epoch ms)을 그대로 넘긴다
   it('epoch(ms) 숫자도 받는다', () => {
     expect(formatTimeAgo(Date.now() - 10_000)).toBe('10초 전');
+  });
+});
+
+describe('toSeoulLocalDateTime', () => {
+  it('UTC 시각을 서울 기준 LocalDateTime 문자열로 바꾼다', () => {
+    expect(toSeoulLocalDateTime(Date.UTC(2026, 8, 24, 15, 5, 9))).toBe('2026-09-25T00:05:09');
   });
 });

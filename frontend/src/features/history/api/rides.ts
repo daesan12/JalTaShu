@@ -22,18 +22,26 @@ export interface UsagePathPoint {
   seq: number;
 }
 
-/** GET /cycle/statics (CycleStatisticsResponse 실측) — 거리 m, 시간 초 */
+/**
+ * GET /cycle/statics (CycleStatisticsResponse 실측) — 거리 m, 시간 초.
+ * 거리는 **null일 수 있다** — 경로 거리가 없는 기록(QR로만 대여·반납)이 하나라도 있으면
+ * 서버는 합계를 "미확정"으로 비운다. 0으로 찍으면 거짓이므로 화면은 "–"로 보여 준다.
+ */
 export interface UsageStats {
   totalUseCnt: number;
-  totalDistance: number;
+  totalDistance: number | null;
   totalCycleRidingTime: number;
 }
 
-/** GET /cycle/usage/list 한 건 (CycleUsageListResponse 실측) — totalDuration은 초 */
+/**
+ * GET /cycle/usage/list 한 건 (CycleUsageListResponse 실측) — totalDuration은 초.
+ * 출발·도착 좌표는 **null일 수 있다** — 경로 안내 없이 QR로 대여·반납만 한 기록은 좌표가 없다
+ * (실서버 확인: 이 값을 있다고 믿고 읽다 이동 기록 탭이 통째로 죽었다).
+ */
 export interface UsageSummary {
   usageId: number;
-  startingPoint: UsagePoint;
-  endPoint: UsagePoint;
+  startingPoint: UsagePoint | null;
+  endPoint: UsagePoint | null;
   startingDate: string;
   totalDuration: number;
   cycleId: string;
@@ -43,8 +51,8 @@ export interface UsageSummary {
 export interface UsageDetail {
   totalDuration: number;
   totalDistance: number | null;
-  startingPoint: UsagePoint;
-  endPoint: UsagePoint;
+  startingPoint: UsagePoint | null;
+  endPoint: UsagePoint | null;
   startingDate: string;
   cycleId: string;
   averageCycleRidingSpeed: number | null;
@@ -68,11 +76,13 @@ export function getUsageDetail(usageId: string): Promise<UsageDetail> {
 /**
  * 안내가 끝난 경로를 이용 기록에 붙인다 — 백엔드 `POST /cycle/usage`.
  *
- * 서버가 **가장 최근에 반납한 이용 기록**에 알아서 붙이므로 usageId를 보내지 않는다.
- * 그래서 이 앱으로 대여·반납하지 않았거나(NOT_EXIST_USAGE) 이미 경로가 저장된
- * 기록이면(PATH_ALREADY_EXISTS) 실패한다 — 호출한 쪽이 실패를 삼키지 말고 알려야 한다.
+ * 반납 응답으로 받은 usageId를 함께 보내 정확한 이용 기록에 연결한다.
+ * 다른 사용자의 이용이거나(NOT_EXIST_USAGE), 반납 전이거나, 이미 경로가 저장된
+ * 기록이면 실패한다 — 호출한 쪽이 실패를 삼키지 말고 알려야 한다.
  */
 export interface SaveUsagePathInput {
+  /** 반납 응답으로 받은 이용 기록 ID */
+  cycleUsageId: number;
   pathInfo: { road: UsagePathPoint[] };
   /** 안내 시작·종료 시각 (ISO 8601) */
   createdAt: string;

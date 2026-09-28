@@ -7,6 +7,7 @@ import { RouteLandmarkMarkers } from '@/features/map/components/RouteLandmarkMar
 import { RouteTurnMarkers } from '@/features/map/components/RouteTurnMarkers';
 import { SelectedRoutePolyline } from '@/features/map/components/SelectedRoutePolyline';
 import { StationMarkers } from '@/features/map/components/StationMarkers';
+import { readSavedCamera, saveCamera } from '@/features/map/lib/mapCamera';
 import { DAEJEON_CENTER, DEFAULT_ZOOM } from '@/features/map/lib/mapDefaults';
 import {
   loadNaverMaps,
@@ -39,6 +40,8 @@ const FAILURE_TEXT: Record<MapLoadFailure, { title: string; hint: string }> = {
 interface MapViewProps {
   /** 목록을 아직 못 받았으면 지도만 그린다 */
   stations: BikeStation[] | undefined;
+  /** 대여소 표시 토글 — 꺼도 마커를 지우지 않고 숨긴다 */
+  stationsVisible: boolean;
   selectedStationId: string | null;
   onSelectStation: (stationId: string | null) => void;
   /** 08에서 고른 목적지. null이면 핀 없음 */
@@ -53,6 +56,8 @@ interface MapViewProps {
   detailRoute: RouteCandidate | null;
   /** 현재 위치. null이면 점을 그리지 않는다 */
   currentLocation: Pos | null;
+  /** 바라보는 방향(0=북, 시계방향 度). 안내 중에만 값이 있고, 없으면 화살표를 안 그린다 */
+  heading?: number | null;
   /** 값이 바뀔 때마다 현재 위치로 지도를 옮긴다(현재위치 버튼) */
   locationFocusToken: number;
   /** 경로 안내 중 — 지도가 현재 위치를 계속 따라간다 */
@@ -69,6 +74,7 @@ interface MapViewProps {
 /** 07 메인 화면의 네이버 지도 + 대여소 마커 + 목적지 핀 + 경로선 */
 export function MapView({
   stations,
+  stationsVisible,
   selectedStationId,
   onSelectStation,
   destination,
@@ -76,6 +82,7 @@ export function MapView({
   selectedRouteIndex,
   detailRoute,
   currentLocation,
+  heading = null,
   locationFocusToken,
   followLocation,
   pickActive,
@@ -110,9 +117,13 @@ export function MapView({
       if (!container) return;
 
       const { Map, LatLng } = result.maps;
+      // 다른 탭에 다녀왔으면 떠나던 화면에서 다시 시작한다
+      const camera = readSavedCamera();
       map = new Map(container, {
-        center: new LatLng(DAEJEON_CENTER.lat, DAEJEON_CENTER.lng),
-        zoom: DEFAULT_ZOOM,
+        center: camera
+          ? new LatLng(camera.lat, camera.lng)
+          : new LatLng(DAEJEON_CENTER.lat, DAEJEON_CENTER.lng),
+        zoom: camera?.zoom ?? DEFAULT_ZOOM,
       });
       setMap(map);
       onMapReady(map);
@@ -120,6 +131,7 @@ export function MapView({
 
     return () => {
       cancelled = true;
+      if (map) saveCamera(map);
       map?.destroy();
       setMap(null);
       onMapReady(null);
@@ -144,6 +156,7 @@ export function MapView({
           selectedStationId={selectedStationId}
           onSelectStation={onSelectStation}
           pickActive={pickActive}
+          visible={stationsVisible}
         />
       ) : null}
 
@@ -151,6 +164,7 @@ export function MapView({
         <CurrentLocationMarker
           map={map}
           position={currentLocation}
+          heading={heading}
           focusToken={locationFocusToken}
           follow={followLocation}
         />
@@ -159,7 +173,7 @@ export function MapView({
       {map !== null ? <DestinationMarker map={map} destination={destination} /> : null}
 
       {map === null ? null : detailRoute !== null ? (
-        <SelectedRoutePolyline map={map} route={detailRoute} />
+        <SelectedRoutePolyline map={map} route={detailRoute} fit={!followLocation} />
       ) : (
         <RoutePolylines map={map} routes={routes} selectedIndex={selectedRouteIndex} />
       )}

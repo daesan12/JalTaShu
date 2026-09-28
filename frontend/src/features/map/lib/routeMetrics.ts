@@ -1,5 +1,5 @@
 import type { RouteCandidate, RouteType, StationStrategy } from '@/shared/api/types';
-import { routePoints, toLegs } from '@/features/map/lib/routeSegments';
+import { legPoints, toLegs } from '@/features/map/lib/routeSegments';
 
 /**
  * 10 경로 비교 — 서버가 정렬·필터 없이 준 후보를 프론트에서 요약·정렬한다(방법 B).
@@ -33,13 +33,24 @@ export interface RouteSummary {
   expectedBikeCnt?: number | null;
 }
 
-/** 경로의 누적 상승(m). 내려가는 구간은 세지 않는다 */
+/** 자전거 구간의 누적 상승(m). 서버 값을 우선하고 구버전 응답만 좌표로 계산한다. */
 export function totalAscent(route: RouteCandidate): number {
-  const points = routePoints(route);
+  if (
+    route.totalAscent !== undefined &&
+    Number.isFinite(route.totalAscent) &&
+    route.totalAscent >= 0
+  ) {
+    return Math.round(route.totalAscent);
+  }
+
   let ascent = 0;
-  for (let i = 1; i < points.length; i++) {
-    const delta = points[i].altitude - points[i - 1].altitude;
-    if (delta > 0) ascent += delta;
+  for (const leg of route.legs) {
+    if (leg.mode !== 'BICYCLE') continue;
+    const points = legPoints(leg);
+    for (let i = 1; i < points.length; i++) {
+      const delta = points[i].altitude - points[i - 1].altitude;
+      if (delta > 0) ascent += delta;
+    }
   }
   return Math.round(ascent);
 }

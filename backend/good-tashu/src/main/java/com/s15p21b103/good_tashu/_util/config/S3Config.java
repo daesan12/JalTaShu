@@ -15,6 +15,11 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 @Configuration
 public class S3Config {
     @Bean
+    public Region awsRegion(@Value("${AWS_REGION:ap-northeast-2}") String region) {
+        return Region.of(region);
+    }
+
+    @Bean
     public AwsCredentialsProvider awsCredentialsProvider(
             @Value("${AWS_ACCESS_KEY_ID:}") String accessKey,
             @Value("${AWS_SECRET_ACCESS_KEY:}") String secretKey,
@@ -33,17 +38,17 @@ public class S3Config {
     }
 
     @Bean
-    public S3Client s3Client(AwsCredentialsProvider awsCredentialsProvider) {
+    public S3Client s3Client(AwsCredentialsProvider awsCredentialsProvider, Region awsRegion) {
         return S3Client.builder()
-                .region(Region.US_EAST_1)
+                .region(awsRegion)
                 .credentialsProvider(awsCredentialsProvider)
                 .build();
     }
 
     @Bean
-    public S3Presigner s3Presigner(AwsCredentialsProvider awsCredentialsProvider) {
+    public S3Presigner s3Presigner(AwsCredentialsProvider awsCredentialsProvider, Region awsRegion) {
         return S3Presigner.builder()
-                .region(Region.US_EAST_1)
+                .region(awsRegion)
                 .credentialsProvider(awsCredentialsProvider)
                 .build();
     }

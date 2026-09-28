@@ -74,8 +74,8 @@ public class AdminUserService {
         var user = userRepository.findById(userId)
                 .orElseThrow(() -> new AdminException(NOT_EXISTS_USER));
         // 현재 유효한 제재가 있으면 중복 제재 방지
-        if (userBanRecordRepository.findFirstByUser_UserIdAndReleasedAtIsNullAndScheduledEndAtAfter(
-                userId, java.time.LocalDateTime.now()).isPresent()) {
+        LocalDateTime now = LocalDateTime.now();
+        if (userBanRecordRepository.findLatestActiveBan(userId, now).isPresent()) {
             throw new AdminException(ALREADY_BANNED);
         }
         // 제재 내역을 저장
@@ -128,7 +128,8 @@ public class AdminUserService {
         String normalizedStatement = normalizeStatement(statement);
         String normalizedOrder = normalizeOrder(order);
         // 조회 결과를 관리자 화면용 응답 DTO로 변환
-        return adminUserRepository.findUserSummaries(normalizedStatement, normalizedOrder).stream()
+        LocalDateTime now = LocalDateTime.now();
+        return adminUserRepository.findUserSummaries(normalizedStatement, normalizedOrder, now).stream()
                 .map(user -> new AdminUserListResponse(
                         user.getUserId(), user.getNickname(),
                         user.getRecentUsingAt(), user.getUserStatement()))

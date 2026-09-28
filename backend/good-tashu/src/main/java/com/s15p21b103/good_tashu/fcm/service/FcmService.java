@@ -35,7 +35,7 @@ public class FcmService {
 
         //기존 토큰 존재한다면 갱신, 없다면 생성
         fcmTokenRepository.findByToken(request.token())
-                .ifPresentOrElse(FcmTokenEntity::reactivate,
+                .ifPresentOrElse(token -> token.activate(userEntity, request.platform(), request.deviceId()),
                         () -> fcmTokenRepository.save(
                                 FcmTokenEntity.builder()
                                         .token(request.token())
@@ -56,7 +56,7 @@ public class FcmService {
         FcmTokenEntity fcmToken = fcmTokenRepository.findByToken(request.token())
                 .orElseThrow(() -> new FcmException(NOT_AVAILABLE_TOKEN));
 
-        if(fcmToken.getUserEntity() != userEntity)
+        if(!fcmToken.getUserEntity().getUserId().equals(userId))
             throw new FcmException(TOKEN_DEACTIVATE_FORBIDDEN);
 
         fcmToken.deactivate();
@@ -69,7 +69,7 @@ public class FcmService {
                 .forEach(token->
                         sendToToken(new FcmMessageRequest(token.getToken()
                                 , "대여가 시작되었습니다."
-                                ,"대여 시작시간은"+formatDateTime(currentTime)+"입니다."))
+                                ,"대여 시작 시간은 "+formatDateTime(currentTime)+"입니다."))
 
                 );
     }
@@ -80,8 +80,8 @@ public class FcmService {
         fcmTokenRepository.findAllByUserEntity_UserIdAndEnabledTrue(userId)
                 .forEach(token->
                         sendToToken(new FcmMessageRequest(token.getToken()
-                                , "대여가 완료되었습니다."
-                                ,"대여 완료시간은"+formatDateTime(currentTime)+"입니다."))
+                                , "반납이 완료되었습니다."
+                                ,"반납 완료 시간은 "+formatDateTime(currentTime)+"입니다."))
 
                 );
     }

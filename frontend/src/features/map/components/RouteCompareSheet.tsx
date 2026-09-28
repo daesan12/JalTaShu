@@ -74,6 +74,8 @@ interface RouteCompareSheetProps {
   onSortChange: (sort: RouteSort[]) => void;
   selectedIndex: number | null;
   onSelect: (index: number) => void;
+  /** 이미 고른 카드를 한 번 더 누르면 11 경로 상세로 */
+  onOpenDetail: (index: number) => void;
   onStart: (index: number) => void;
   /** 확보 우선 칩을 못 쓸 때 이유를 띄운다 */
   showToast: (message: string) => void;
@@ -95,6 +97,7 @@ export function RouteCompareSheet({
   onSortChange,
   selectedIndex,
   onSelect,
+  onOpenDetail,
   onStart,
   showToast,
 }: RouteCompareSheetProps) {
@@ -170,16 +173,28 @@ export function RouteCompareSheet({
                 summary={summary}
                 selected={summary.index === selectedIndex}
                 onSelect={() => onSelect(summary.index)}
+                onOpenDetail={() => onOpenDetail(summary.index)}
               />
             ))}
           </ul>
-          <Button
-            full
-            disabled={selected === null}
-            onClick={() => selected && onStart(selected.index)}
-          >
-            {START_LABEL}
-          </Button>
+          {/*
+            안내 시작은 목록 길이와 상관없이 늘 손 닿는 곳에 있어야 한다 — 시트 바닥에 고정한다.
+            위쪽 그라데이션은 버튼 뒤로 카드가 잘려 보이는 것을 부드럽게 가린다.
+          */}
+          <div className="sticky bottom-0 -mx-4 -mb-4 px-4 pt-3 pb-4">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 -top-5 h-5 bg-gradient-to-t from-surface to-transparent"
+            />
+            <div className="absolute inset-x-0 inset-y-0 -z-10 bg-surface" />
+            <Button
+              full
+              disabled={selected === null}
+              onClick={() => selected && onStart(selected.index)}
+            >
+              {START_LABEL}
+            </Button>
+          </div>
         </div>
       )}
     </BottomSheet>
@@ -259,16 +274,20 @@ interface RouteCardProps {
   summary: RouteSummary;
   selected: boolean;
   onSelect: () => void;
+  onOpenDetail: () => void;
 }
 
-/** 후보 한 장. 카드는 경로 선택만 담당하고 안내 시작은 시트 아래 공통 버튼이 담당한다. */
-function RouteCard({ summary, selected, onSelect }: RouteCardProps) {
+/**
+ * 후보 한 장. 첫 탭은 선택, **고른 카드를 다시 누르면 상세**(11)로 들어간다.
+ * 안내 시작은 시트 아래 고정 버튼이 담당한다 — 카드는 "고르기·자세히 보기"만 한다.
+ */
+function RouteCard({ summary, selected, onSelect, onOpenDetail }: RouteCardProps) {
   return (
     <li>
       <button
         type="button"
         aria-pressed={selected}
-        onClick={onSelect}
+        onClick={selected ? onOpenDetail : onSelect}
         className={`flex w-full flex-col gap-2 rounded-2xl border p-4 text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1 active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-none ${
           selected
             ? 'border-primary bg-primary-light ring-1 ring-primary/20'

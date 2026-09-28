@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/shared/api/client';
 import { formatDate } from '@/shared/lib/format';
@@ -11,8 +11,10 @@ import {
   deleteAdminNotice,
   getAdminNotice,
   getAdminNotices,
+  getAdminPopups,
   pinNotice,
   unpinNotice,
+  updatePinnedPhoto,
   type AdminNoticeSummary,
 } from '@/features/admin/api/adminNotices';
 import { PinIcon } from '@/features/admin/ui/PinIcon';
@@ -39,6 +41,8 @@ export function AdminNoticesPage() {
   const [deleteTarget, setDeleteTarget] = useState<AdminNoticeSummary | null>(null);
   /** 핀을 켜려는 공지 — 이미지를 받아야 해서 창을 거친다 */
   const [pinTarget, setPinTarget] = useState<AdminNoticeSummary | null>(null);
+  /** 고정된 공지의 팝업 이미지를 확인·교체하려는 공지(#148) */
+  const [popupEditTarget, setPopupEditTarget] = useState<AdminNoticeSummary | null>(null);
 
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['adminNotices'],
@@ -77,6 +81,8 @@ export function AdminNoticesPage() {
 
   function refreshNotices() {
     void queryClient.invalidateQueries({ queryKey: ['adminNotices'] });
+    // 고정·해제하면 팝업 목록(상세의 이미지)도 달라진다
+    void queryClient.invalidateQueries({ queryKey: ['adminPopups'] });
   }
 
   const unpin = useMutation({
@@ -156,7 +162,7 @@ export function AdminNoticesPage() {
               <th className="w-20">번호</th>
               <th>제목</th>
               <th className="w-32">작성일</th>
-              <th className="w-16 text-center">팝업</th>
+              <th className="w-44">팝업</th>
               <th className="w-24 text-right">관리</th>
             </tr>
           </thead>
@@ -174,7 +180,8 @@ export function AdminNoticesPage() {
                 <td className="tabular-nums text-admin-muted">{notice.noticeId}</td>
                 <td className="truncate">{notice.title}</td>
                 <td className="tabular-nums text-admin-muted">{formatDate(notice.createdAt)}</td>
-                <td className="text-center">
+                {/* 왼쪽 정렬 — 고정된 줄에만 "팝업 수정"이 붙어도 핀이 줄마다 같은 자리에 있게 */}
+                <td>
                   {/* 행 전체가 상세를 여는 클릭 대상이라 핀은 전파를 끊어야 한다 */}
                   <button
                     type="button"
@@ -195,6 +202,20 @@ export function AdminNoticesPage() {
                   >
                     <PinIcon filled={notice.popupId !== null} className="h-5 w-5" />
                   </button>
+                  {/* 고정한 뒤에도 사진을 다시 보고 바꿀 수 있게 핀 옆에 바로 둔다(#148) */}
+                  {notice.popupId !== null && (
+                    <AdminButton
+                      variant="secondary"
+                      size="sm"
+                      className="ml-1 align-middle"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPopupEditTarget(notice);
+                      }}
+                    >
+                      팝업 수정
+                    </AdminButton>
+                  )}
                 </td>
                 <td className="text-right">
                   <AdminButton
@@ -256,6 +277,12 @@ export function AdminNoticesPage() {
                 {detailQuery.data.content}
               </p>
             )}
+            {detail.popupId !== null && (
+              <PinnedPhotoSection
+                popupId={detail.popupId}
+                onUpdated={() => showToast('팝업 이미지를 바꿨습니다')}
+              />
+            )}
           </div>
         )}
       </AdminModal>
@@ -285,6 +312,30 @@ export function AdminNoticesPage() {
           }}
         />
       )}
+
+      {/* 팝업 수정(#148) — 고정된 공지의 팝업 이미지를 확인하고 바꾼다 */}
+      <AdminModal
+        open={popupEditTarget !== null}
+        onClose={() => setPopupEditTarget(null)}
+        title="팝업 수정"
+        footer={
+          <AdminButton variant="secondary" onClick={() => setPopupEditTarget(null)}>
+            닫기
+          </AdminButton>
+        }
+      >
+        {popupEditTarget && popupEditTarget.popupId !== null && (
+          <div className="flex flex-col gap-3">
+            <p className="truncate rounded-md bg-admin-line/40 px-3 py-2 text-sm">
+              공지 #{popupEditTarget.noticeId} · {popupEditTarget.title}
+            </p>
+            <PinnedPhotoSection
+              popupId={popupEditTarget.popupId}
+              onUpdated={() => showToast('팝업 이미지를 바꿨습니다')}
+            />
+          </div>
+        )}
+      </AdminModal>
 
       {/* 06-a 삭제 확인 */}
       <AdminModal
@@ -476,5 +527,98 @@ function PinNoticeModal({ notice, onClose, onPinned }: PinNoticeModalProps) {
         )}
       </div>
     </AdminModal>
+  );
+}
+
+interface PinnedPhotoSectionProps {
+  popupId: number;
+  onUpdated: () => void;
+}
+
+/**
+ * 고정 공지의 팝업 이미지 — 올린 사진을 다시 보고, 다른 사진으로 바꾼다(#146).
+ * 전에는 고정할 때 한 번 올리면 관리자 화면에서 다시 볼 방법이 없었다.
+ * 공지 목록에는 이미지가 없어 팝업 목록(`GET /admin/pop-up`)에서 이 공지의 팝업을 찾는다.
+ * 새 사진은 고르면 바로 미리 보여 주고, "이미지 바꾸기"를 눌러야 서버에 올린다.
+ */
+function PinnedPhotoSection({ popupId, onUpdated }: PinnedPhotoSectionProps) {
+  const queryClient = useQueryClient();
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  const popups = useQuery({ queryKey: ['adminPopups'], queryFn: getAdminPopups });
+  const popup = popups.data?.find((p) => p.popupId === popupId) ?? null;
+
+  // 고른 파일의 미리보기 주소 — 파일이 바뀌거나 창이 닫히면 풀어 준다
+  const previewUrl = useMemo(() => (photo === null ? null : URL.createObjectURL(photo)), [photo]);
+  useEffect(() => {
+    if (previewUrl === null) return;
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
+
+  const update = useMutation({
+    mutationFn: () => updatePinnedPhoto(popupId, photo!),
+    onSuccess: () => {
+      setPhoto(null);
+      void queryClient.invalidateQueries({ queryKey: ['adminPopups'] });
+      onUpdated();
+    },
+  });
+
+  function pickPhoto(file: File | null) {
+    setFileError(null);
+    if (file && file.size > PIN_IMAGE_MAX_BYTES) {
+      setFileError('이미지는 5MB 이하만 올릴 수 있습니다.');
+      setPhoto(null);
+      return;
+    }
+    setPhoto(file);
+  }
+
+  const shownUrl = previewUrl ?? popup?.photoUrl ?? null;
+
+  return (
+    <div className="mt-2 flex flex-col gap-2 border-t border-admin-line pt-4">
+      <AdminFieldLabel label={photo === null ? '앱 팝업 이미지' : '바꿀 이미지 (미리보기)'} />
+      {popups.isPending && <p className="text-sm text-admin-muted">이미지를 불러오는 중…</p>}
+      {popups.isError && <p className="text-sm text-admin-muted">이미지를 불러오지 못했습니다.</p>}
+      {popups.isSuccess && shownUrl === null && (
+        <p className="text-sm text-admin-muted">등록된 이미지를 찾지 못했습니다.</p>
+      )}
+      {shownUrl !== null && (
+        <img
+          src={shownUrl}
+          alt={popup?.title ?? '팝업 이미지'}
+          className="max-h-80 w-fit max-w-full rounded-md border border-admin-line object-contain"
+        />
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="file"
+          accept="image/*"
+          aria-label="새 팝업 이미지 선택"
+          onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)}
+          className="block text-sm file:mr-3 file:rounded-md file:border-0 file:bg-admin-line/60 file:px-3 file:py-1.5 file:text-sm"
+        />
+        <AdminButton
+          size="sm"
+          disabled={photo === null || update.isPending}
+          onClick={() => update.mutate()}
+        >
+          {update.isPending ? '바꾸는 중…' : '이미지 바꾸기'}
+        </AdminButton>
+      </div>
+      <p className="text-xs text-admin-muted">
+        5MB 이하 이미지 파일. 바꾸면 앱 팝업에 바로 반영됩니다.
+      </p>
+      {fileError && <p className="text-sm text-admin-danger-text">{fileError}</p>}
+      {update.isError && (
+        <p className="text-sm text-admin-danger-text">
+          {update.error instanceof ApiError
+            ? update.error.message
+            : '이미지를 바꾸지 못했습니다. 다시 시도해 주세요.'}
+        </p>
+      )}
+    </div>
   );
 }

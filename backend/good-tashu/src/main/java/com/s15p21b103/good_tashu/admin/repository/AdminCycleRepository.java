@@ -116,6 +116,7 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
 
     interface HeatmapRow {
         String getStationId();
+        String getStationName();
         BigDecimal getXPos();
         BigDecimal getYPos();
         Long getRentCnt();
@@ -123,6 +124,7 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
     }
 
     interface StationDetailStats {
+        String getStationName();
         Long getCurrentBikeCnt();
         Long getTodayRentalCnt();
         Long getTodayReturnCnt();
@@ -141,7 +143,8 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
 
     // 대여·반납 이벤트를 합쳐 직전 1시간의 대여소별 건수를 집계한다.
     @Query(value = """
-            SELECT s.station_id AS stationId, s.longitude AS xPos, s.latitude AS yPos,
+            SELECT s.station_id AS stationId, s.name AS stationName,
+                   s.longitude AS xPos, s.latitude AS yPos,
                    SUM(events.rent_cnt) AS rentCnt, SUM(events.return_cnt) AS returnCnt
             FROM (
                 SELECT cu.rental_station_id AS station_id,
@@ -157,44 +160,52 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
                   AND cu.return_station_id IS NOT NULL
             ) events
             JOIN stations s ON s.station_id = events.station_id
-            GROUP BY s.station_id, s.longitude, s.latitude
+            GROUP BY s.station_id, s.name, s.longitude, s.latitude
             ORDER BY s.station_id
             """, nativeQuery = true)
     List<HeatmapRow> findHeatmap(@Param("from") LocalDateTime from,
                                @Param("to") LocalDateTime to);
 
     // 어제 수량은 현재 수량에서 최근 24시간의 대여·반납 흐름을 역산한다.
+    // 기준 시각은 호출하는 쪽이 KST로 넘긴다 — MySQL은 UTC(default-time-zone=+00:00)라
+    // CURRENT_DATE·CURRENT_TIMESTAMP를 쓰면 KST로 저장된 대여·반납 시각과 9시간 어긋난다.
     @Query(value = """
             SELECT
+                (SELECT s.name FROM stations s WHERE s.station_id = :stationId) AS stationName,
                 (SELECT COUNT(*) FROM cycles c
                  WHERE c.station_id = :stationId AND c.status = 'READY') AS currentBikeCnt,
                 (SELECT COUNT(*) FROM cycle_usages cu
                  WHERE cu.rental_station_id = :stationId
-                   AND cu.rental_at >= CURRENT_DATE AND cu.rental_at < CURRENT_DATE + INTERVAL 1 DAY) AS todayRentalCnt,
+                   AND cu.rental_at >= :todayStart AND cu.rental_at < :tomorrowStart) AS todayRentalCnt,
                 (SELECT COUNT(*) FROM cycle_usages cu
                  WHERE cu.return_station_id = :stationId
-                   AND cu.return_at >= CURRENT_DATE AND cu.return_at < CURRENT_DATE + INTERVAL 1 DAY) AS todayReturnCnt,
+                   AND cu.return_at >= :todayStart AND cu.return_at < :tomorrowStart) AS todayReturnCnt,
                 (SELECT COUNT(*) FROM claims cc
                  JOIN cycles c ON c.cycle_id = cc.cycle_id
                  WHERE c.station_id = :stationId AND cc.status = 'READY') AS currentReportCnt,
                 (SELECT COUNT(*) FROM cycles c WHERE c.station_id = :stationId AND c.status = 'READY')
                 + (SELECT COUNT(*) FROM cycle_usages cu WHERE cu.rental_station_id = :stationId
-                   AND cu.rental_at >= CURRENT_TIMESTAMP - INTERVAL 24 HOUR)
+                   AND cu.rental_at >= :dayAgo)
                 - (SELECT COUNT(*) FROM cycle_usages cu WHERE cu.return_station_id = :stationId
-                   AND cu.return_at >= CURRENT_TIMESTAMP - INTERVAL 24 HOUR) AS yesterdayBikeCnt,
+                   AND cu.return_at >= :dayAgo) AS yesterdayBikeCnt,
                 (SELECT COUNT(*) FROM cycle_usages cu WHERE cu.rental_station_id = :stationId
-                   AND cu.rental_at >= CURRENT_DATE - INTERVAL 1 DAY
-                   AND cu.rental_at < CURRENT_TIMESTAMP - INTERVAL 24 HOUR) AS yesterdayRentalCnt,
+                   AND cu.rental_at >= :yesterdayStart
+                   AND cu.rental_at < :dayAgo) AS yesterdayRentalCnt,
                 (SELECT COUNT(*) FROM cycle_usages cu WHERE cu.return_station_id = :stationId
-                   AND cu.return_at >= CURRENT_DATE - INTERVAL 1 DAY
-                   AND cu.return_at < CURRENT_TIMESTAMP - INTERVAL 24 HOUR) AS yesterdayReturnCnt,
+                   AND cu.return_at >= :yesterdayStart
+                   AND cu.return_at < :dayAgo) AS yesterdayReturnCnt,
                 (SELECT COUNT(*) FROM claims cc
                  JOIN cycles c ON c.cycle_id = cc.cycle_id
                  WHERE c.station_id = :stationId AND cc.status = 'READY'
-                   AND cc.created_at >= CURRENT_TIMESTAMP - INTERVAL 48 HOUR
-                   AND cc.created_at < CURRENT_TIMESTAMP - INTERVAL 24 HOUR) AS yesterdayReportCnt
+                   AND cc.created_at >= :twoDaysAgo
+                   AND cc.created_at < :dayAgo) AS yesterdayReportCnt
             """, nativeQuery = true)
-    StationDetailStats findStationDetailStats(@Param("stationId") String stationId);
+    StationDetailStats findStationDetailStats(@Param("stationId") String stationId,
+                                              @Param("todayStart") LocalDateTime todayStart,
+                                              @Param("tomorrowStart") LocalDateTime tomorrowStart,
+                                              @Param("yesterdayStart") LocalDateTime yesterdayStart,
+                                              @Param("dayAgo") LocalDateTime dayAgo,
+                                              @Param("twoDaysAgo") LocalDateTime twoDaysAgo);
 
     // 오늘을 제외하고 대여·반납 이벤트를 날짜별로 합산한다.
     @Query(value = """
@@ -202,17 +213,19 @@ public interface AdminCycleRepository extends JpaRepository<CycleEntity, String>
                    SUM(events.rental_cnt) AS rentalCnt, SUM(events.return_cnt) AS returnCnt
             FROM (
                 SELECT DATE(cu.rental_at) AS event_date, 1 AS rental_cnt, 0 AS return_cnt
-                FROM cycle_usages cu WHERE cu.rental_at < CURRENT_DATE
+                FROM cycle_usages cu
+                WHERE cu.rental_station_id = :stationId
+                  AND cu.rental_at >= :from AND cu.rental_at < :to
                 UNION ALL
                 SELECT DATE(cu.return_at) AS event_date, 0 AS rental_cnt, 1 AS return_cnt
-                FROM cycle_usages cu WHERE cu.return_at < CURRENT_DATE
+                FROM cycle_usages cu
+                WHERE cu.return_station_id = :stationId
+                  AND cu.return_at >= :from AND cu.return_at < :to
             ) events
-            WHERE events.event_date >= CASE
-                WHEN :term = 'day' THEN CURRENT_DATE - INTERVAL 1 DAY
-                WHEN :term = 'week' THEN CURRENT_DATE - INTERVAL 7 DAY
-                ELSE CURRENT_DATE - INTERVAL 1 DAY
-            END
             GROUP BY events.event_date ORDER BY events.event_date
             """, nativeQuery = true)
-    List<StationTrendRow> findStationTrend(@Param("term") String term);
+    List<StationTrendRow> findStationTrend(
+            @Param("stationId") String stationId,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
 }

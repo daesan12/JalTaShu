@@ -96,7 +96,9 @@ export function HistoryPage() {
                 <div className="rounded-2xl border border-line/80 bg-surface-soft px-3.5 py-3.5 text-ink">
                   <p className="text-xs font-medium opacity-70">누적 이동 거리</p>
                   <p className="tabular-nums mt-1 text-lg font-extrabold">
-                    {stats.data ? formatDistance(stats.data.totalDistance) : '–'}
+                    {stats.data && stats.data.totalDistance !== null
+                      ? formatDistance(stats.data.totalDistance)
+                      : '–'}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-line/80 bg-primary-light/55 px-3.5 py-3.5 text-ink">

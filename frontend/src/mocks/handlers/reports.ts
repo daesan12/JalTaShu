@@ -3,8 +3,6 @@ import { addMockUsage } from '@/mocks/handlers/rides';
 import { fail, getAuthState, ok, requireAuth } from '@/mocks/core';
 import { getMockClaims } from '@/mocks/handlers/adminClaims';
 import { STATIONS } from '@/mocks/stations';
-import { haversineMeters } from '@/shared/lib/coords';
-import { CYCLE_STATION_RADIUS_M } from '@/features/map/lib/nearestStation';
 
 /** 내가 접수한 민원 — 새로고침에도 유지되도록 localStorage 사용 */
 const REPORTS_KEY = 'msw_reports';
@@ -61,6 +59,30 @@ function readRentedCycles(): RentedCycles {
     return parsed as RentedCycles;
   } catch {
     return {};
+  }
+}
+
+/**
+ * 그중 **내가** 빌린 자전거 — `GET /api/cycle/rental/current`용.
+ * 위 목록은 남이 빌려 간 자전거(22B01262)도 담고 있어 따로 둔다.
+ */
+const MY_RENTAL_KEY = 'msw_my_rental';
+
+function readMyRental(): { cycleId: string; rentedAt: string } | null {
+  try {
+    const raw = localStorage.getItem(MY_RENTAL_KEY);
+    return raw === null ? null : (JSON.parse(raw) as { cycleId: string; rentedAt: string });
+  } catch {
+    return null;
+  }
+}
+
+function writeMyRental(rental: { cycleId: string; rentedAt: string } | null) {
+  try {
+    if (rental === null) localStorage.removeItem(MY_RENTAL_KEY);
+    else localStorage.setItem(MY_RENTAL_KEY, JSON.stringify(rental));
+  } catch {
+    // 저장 불가 환경 무시
   }
 }
 
@@ -263,6 +285,13 @@ export const reportHandlers = [
     return HttpResponse.json({ code: 200, message: '신고가 접수되었습니다.', data: null });
   }),
 
+  http.get('/api/cycle/rental/current', async () => {
+    await delay(200);
+    const authFail = requireAuth();
+    if (authFail) return authFail;
+    return HttpResponse.json(ok(readMyRental()));
+  }),
+
   http.post('/api/cycle/rental', async ({ request }) => {
     await delay(500);
     const authFail = requireAuth();
@@ -287,19 +316,20 @@ export const reportHandlers = [
         || !Number.isFinite(body.latitude) || !Number.isFinite(body.longitude)) {
       return fail(400, '현재 위치를 확인할 수 없습니다.');
     }
-    const distance = haversineMeters(
-      { lat: body.latitude, lng: body.longitude },
-      { lat: station.lat, lng: station.lng },
-    );
-    if (distance > CYCLE_STATION_RADIUS_M) {
-      return fail(400, `대여소 ${CYCLE_STATION_RADIUS_M}m 이내에서 이용해 주세요.`);
-    }
+    // 정지된 계정 — 실서버 `BanUserInterceptor`처럼 403과 관리자가 적은 사유를 준다(#146).
+    // 목업에서 보려면 개발자 도구에서 localStorage `msw_user_ban_reason`에 사유를 넣는다
+    const banReason = localStorage.getItem('msw_user_ban_reason');
+    if (banReason !== null) return fail(403, banReason);
     const rented = readRentedCycles();
+    if (readMyRental() !== null) {
+      return fail(409, '이미 대여 중인 자전거가 있습니다.');
+    }
     if (cycleId in rented) {
-      return fail(409, '이미 대여 중인 자전거입니다.');
+      return fail(400, '대여 가능상태가 아닌 자전거입니다.');
     }
     const rentedAt = new Date().toISOString();
     writeRentedCycles({ ...rented, [cycleId]: rentedAt });
+    writeMyRental({ cycleId, rentedAt });
     return HttpResponse.json(ok(rentedAt));
   }),
 
@@ -323,13 +353,6 @@ export const reportHandlers = [
         || !Number.isFinite(body.latitude) || !Number.isFinite(body.longitude)) {
       return fail(400, '현재 위치를 확인할 수 없습니다.');
     }
-    const distance = haversineMeters(
-      { lat: body.latitude, lng: body.longitude },
-      { lat: station.lat, lng: station.lng },
-    );
-    if (distance > CYCLE_STATION_RADIUS_M) {
-      return fail(400, `대여소 ${CYCLE_STATION_RADIUS_M}m 이내에서 이용해 주세요.`);
-    }
     const rented = readRentedCycles();
     const rentedAt = rented[cycleId];
     if (rentedAt === undefined) {
@@ -337,9 +360,10 @@ export const reportHandlers = [
     }
     const { [cycleId]: _removed, ...rest } = rented;
     writeRentedCycles(rest);
+    if (readMyRental()?.cycleId === cycleId) writeMyRental(null);
     // 실서버는 여기서 이용 기록 한 건을 만든다 — 목업도 만들어야 "나의 경로"까지 이어진다
     const returnedAt = new Date().toISOString();
-    addMockUsage({ cycleId, stationId: body.stationId, rentedAt, returnedAt });
-    return HttpResponse.json(ok(returnedAt));
+    const cycleUsageId = addMockUsage({ cycleId, stationId: body.stationId, rentedAt, returnedAt });
+    return HttpResponse.json(ok({ cycleUsageId, returnedAt }));
   }),
 ];

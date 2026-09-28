@@ -23,8 +23,8 @@ public interface AdminUserRepository extends JpaRepository<UserEntity, Long> {
             ), active_bans AS (
                 SELECT DISTINCT user_id
                 FROM user_ban_records
-                WHERE started_at <= CURRENT_TIMESTAMP
-                  AND scheduled_end_at > CURRENT_TIMESTAMP
+                WHERE started_at <= :now
+                  AND scheduled_end_at > :now
                   AND released_at IS NULL
             ), user_status AS (
                 SELECT u.user_id AS userId,
@@ -45,5 +45,6 @@ public interface AdminUserRepository extends JpaRepository<UserEntity, Long> {
                 userId ASC
             """, nativeQuery = true)
     List<UserSummary> findUserSummaries(@Param("statement") String statement,
-                                         @Param("order") String order);
+                                         @Param("order") String order,
+                                         @Param("now") LocalDateTime now);
 }

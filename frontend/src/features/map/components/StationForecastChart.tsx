@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from 'react';
 import type { StationForecastPoint } from '@/shared/api/types';
 import { formatBikes } from '@/features/map/lib/bikeCount';
 import { STATION_STATUS_LABEL, type StationStatus } from '@/shared/ui/stationStatus';
-import { findLowestUpcoming, toForecastTimeline } from '@/features/map/lib/stationForecastTimeline';
+import { describeLowestUpcoming, toForecastTimeline } from '@/features/map/lib/stationForecastTimeline';
 
 /**
  * 대여소 예상 대수 (2-1) — 대표 예측 시점을 드래그해서 보는 타임 다이얼.
@@ -42,8 +42,8 @@ export function StationForecastChart({ points, currentBikes }: StationForecastCh
   const bikesText = selected.bikes === null ? '–' : formatBikes(selected.bikes);
   const statusText = selected.bikes === null ? '정보 없음' : STATION_STATUS_LABEL[selected.status];
 
-  // 다이얼을 끝까지 끌어보지 않아도 위험한 때를 알 수 있게 미리 짚어 준다
-  const lowest = findLowestUpcoming(timeline);
+  // 다이얼을 끝까지 끌어보지 않아도 위험한 때를 알 수 있게 미리 짚어 준다 — 의미 있게 줄 때만(#154)
+  const lowestHint = describeLowestUpcoming(timeline);
   const rangeLabel = timeline[timeline.length - 1]?.label ?? '';
 
   return (
@@ -117,12 +117,17 @@ export function StationForecastChart({ points, currentBikes }: StationForecastCh
           })}
         </ol>
       </div>
-      {lowest === null || lowest.bikes === null ? null : (
+      {lowestHint === null ? null : lowestHint.kind === 'drop' ? (
         <p className="mt-3 text-center text-xs text-muted">
           앞으로 {rangeLabel} 중 가장 적을 때{' '}
           <span className="font-semibold text-ink">
-            {lowest.label} <span className="tabular-nums">{formatBikes(lowest.bikes)}</span>대
+            {lowestHint.item.label}{' '}
+            <span className="tabular-nums">{formatBikes(lowestHint.item.bikes ?? 0)}</span>대
           </span>
+        </p>
+      ) : (
+        <p className="mt-3 text-center text-xs text-muted">
+          앞으로 {rangeLabel} 동안 크게 줄지 않을 것으로 예상돼요
         </p>
       )}
       <p className="mt-2 text-center text-[11px] font-medium text-gray-400">

@@ -39,6 +39,28 @@ const GEOLOCATION_OPTIONS: PositionOptions = {
   maximumAge: 60_000,
 };
 
+/**
+ * 빠른 1차 조회 — 와이파이·기지국 위치. GPS를 잡는 몇 초 동안 화면이 멈춰 보이지 않게
+ * 먼저 대략적인 자리를 보여 주고, 정밀 위치가 오면 덮어쓴다.
+ * 오차가 커서 대여·반납 대여소를 고르는 데는 쓰지 않는다(`request`의 `quick` 참고).
+ */
+const QUICK_GEOLOCATION_OPTIONS: PositionOptions = {
+  enableHighAccuracy: false,
+  timeout: 3_000,
+  maximumAge: 5 * 60_000,
+};
+
+/**
+ * 마지막으로 받은 위치 — 탭을 옮겨 지도가 새로 만들어져도 내 위치 점을 바로 다시 그리기 위해
+ * 모듈 변수로 남긴다. 표시에만 쓰고, 새로 받기 전까지 `ensure`는 이 값을 믿지 않는다.
+ */
+let lastKnownPosition: Pos | null = null;
+
+function toPos({ coords }: GeolocationPosition): Pos {
+  // 백엔드 좌표 규칙에 맞춰 보관한다 — xPos=경도, yPos=위도
+  return { xPos: coords.longitude, yPos: coords.latitude };
+}
+
 function toErrorKind(error: GeolocationPositionError): LocationErrorKind {
   if (error.code === error.PERMISSION_DENIED) return 'denied';
   if (error.code === error.TIMEOUT) return 'timeout';
@@ -78,12 +100,10 @@ async function askNotificationPermission(): Promise<void> {
 /** 브라우저 추적 — 개발 중과 웹에서 쓴다. 화면이 꺼지면 멎는다 */
 function watchInBrowser(setState: SetLocationState): () => void {
   const id = navigator.geolocation.watchPosition(
-    ({ coords }) => {
-      setState(() => ({
-        position: { xPos: coords.longitude, yPos: coords.latitude },
-        loading: false,
-        error: null,
-      }));
+    (geoPosition) => {
+      const position = toPos(geoPosition);
+      lastKnownPosition = position;
+      setState(() => ({ position, loading: false, error: null }));
     },
     (geoError) => {
       // 추적 중 한 번 실패했다고 이미 받아둔 위치를 버리지 않는다 — 안내가 끊기지 않게
@@ -127,11 +147,9 @@ function watchInBackground(setState: SetLocationState): () => void {
         return;
       }
       if (position === undefined) return;
-      setState(() => ({
-        position: { xPos: position.longitude, yPos: position.latitude },
-        loading: false,
-        error: null,
-      }));
+      const pos: Pos = { xPos: position.longitude, yPos: position.latitude };
+      lastKnownPosition = pos;
+      setState(() => ({ position: pos, loading: false, error: null }));
     },
   )
     .then((id) => {
@@ -166,53 +184,101 @@ interface CurrentLocationState {
   error: LocationErrorKind | null;
 }
 
-const INITIAL: CurrentLocationState = { position: null, loading: false, error: null };
+/** 진행 중인 조회 — 정밀 결과와, 빠른 결과가 있으면 그것까지 포함한 "먼저 온 것" */
+interface PendingRequest {
+  precise: Promise<LocationResult>;
+  first: Promise<LocationResult>;
+}
 
 export function useCurrentLocation() {
-  const [state, setState] = useState<CurrentLocationState>(INITIAL);
+  const [state, setState] = useState<CurrentLocationState>(() => ({
+    position: lastKnownPosition,
+    loading: false,
+    error: null,
+  }));
   // 같은 조회가 겹치면 브라우저 권한 팝업이 여러 번 뜬다 — 진행 중인 요청을 하나로 모은다
-  const pendingRef = useRef<Promise<LocationResult> | null>(null);
+  const pendingRef = useRef<PendingRequest | null>(null);
+  // 이 화면에서 새로 받은 위치가 있는지. 지난번에 남긴 위치는 오래됐을 수 있어 `ensure`가 쓰지 않는다
+  const freshRef = useRef(false);
+
+  const accept = useCallback((position: Pos) => {
+    lastKnownPosition = position;
+    freshRef.current = true;
+  }, []);
 
   /**
    * 위치를 새로 조회한다. 실패를 throw하지 않는 이유: 호출부마다 try/catch를 두는 대신
    * "있으면 쓰고 없으면 기본값"으로 잇기 위해서다.
+   *
+   * 정밀(GPS)·빠른(와이파이·기지국) 조회를 같이 건다. 빠른 쪽이 먼저 오면 점을 먼저 옮기고,
+   * 정밀 위치가 오면 덮어쓴다.
+   * - 기본은 **정밀 결과를 기다린다** — 대여·반납 대여소, 안내 출발 판단처럼 수십 m가 중요한 곳
+   * - `quick: true`면 **먼저 온 결과로 바로 끝낸다** — 지도를 내 위치로 옮기는 것처럼 대략이면
+   *   되는 곳. 정밀 위치는 뒤에서 계속 받아 점만 고친다
    */
-  const request = useCallback((): Promise<LocationResult> => {
-    if (pendingRef.current !== null) return pendingRef.current;
+  const request = useCallback(
+    ({ quick = false }: { quick?: boolean } = {}): Promise<LocationResult> => {
+      const running = pendingRef.current;
+      if (running !== null) return quick ? running.first : running.precise;
 
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setState({ position: null, loading: false, error: 'unsupported' });
-      return Promise.resolve({ ok: false, error: 'unsupported' });
-    }
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        setState({ position: null, loading: false, error: 'unsupported' });
+        return Promise.resolve({ ok: false, error: 'unsupported' });
+      }
 
-    setState((prev) => ({ ...prev, loading: true, error: null }));
+      setState((prev) => ({ ...prev, loading: true, error: null }));
+      let preciseDone = false;
 
-    const pending = new Promise<LocationResult>((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        ({ coords }) => {
-          // 백엔드 좌표 규칙에 맞춰 보관한다 — xPos=경도, yPos=위도
-          const position: Pos = { xPos: coords.longitude, yPos: coords.latitude };
-          setState({ position, loading: false, error: null });
-          resolve({ ok: true, position });
-        },
-        (geoError) => {
-          const error = toErrorKind(geoError);
-          setState((prev) => ({ ...prev, loading: false, error }));
-          resolve({ ok: false, error });
-        },
-        GEOLOCATION_OPTIONS,
-      );
-    }).finally(() => {
-      pendingRef.current = null;
-    });
+      const precise = new Promise<LocationResult>((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (geoPosition) => {
+            preciseDone = true;
+            const position = toPos(geoPosition);
+            accept(position);
+            setState({ position, loading: false, error: null });
+            resolve({ ok: true, position });
+          },
+          (geoError) => {
+            preciseDone = true;
+            const error = toErrorKind(geoError);
+            setState((prev) => ({ ...prev, loading: false, error }));
+            resolve({ ok: false, error });
+          },
+          GEOLOCATION_OPTIONS,
+        );
+      }).finally(() => {
+        pendingRef.current = null;
+      });
 
-    pendingRef.current = pending;
-    return pending;
-  }, []);
+      const quickResult = new Promise<LocationResult | null>((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (geoPosition) => {
+            // 정밀 위치가 이미 왔으면 대략적인 값으로 되돌리지 않는다
+            if (preciseDone) return resolve(null);
+            const position = toPos(geoPosition);
+            accept(position);
+            // 기다리는 표시는 여기서 끈다 — 점이 떴으니 사용자는 더 기다리지 않아도 된다
+            setState({ position, loading: false, error: null });
+            resolve({ ok: true, position });
+          },
+          // 빠른 조회 실패는 알리지 않는다 — 정밀 조회가 결과와 실패 원인을 책임진다
+          () => resolve(null),
+          QUICK_GEOLOCATION_OPTIONS,
+        );
+      });
 
-  /** 이미 받아둔 위치가 있으면 그대로, 없으면 새로 조회한다 */
+      const first = quickResult.then((result) => result ?? precise);
+      pendingRef.current = { precise, first };
+      return quick ? first : precise;
+    },
+    [accept],
+  );
+
+  /** 이 화면에서 받아둔 위치가 있으면 그대로, 없으면 새로 조회한다 */
   const ensure = useCallback((): Promise<LocationResult> => {
-    if (state.position !== null) return Promise.resolve({ ok: true, position: state.position });
+    if (state.position !== null && freshRef.current) {
+      return Promise.resolve({ ok: true, position: state.position });
+    }
     return request();
   }, [state.position, request]);
 

@@ -41,8 +41,8 @@ export const FIELD_PARAM = 'field';
 export const START_FIELD_VALUE = 'start';
 
 /**
- * QR 스캔에서 돌아올 때 실린 자전거 번호(`/?code=22B01262`).
- * 다른 파라미터와 달리 화면 단계가 아니라 **한 번 처리하고 지우는 일회성 입력**이다 —
- * 남겨 두면 뒤로가기나 새로고침으로 같은 대여가 다시 나간다.
+ * 대여·반납 QR 스캔 오버레이(`?scan=1`). 지도 위에 한 단계 쌓는다 — 별도 페이지로 가면 지도가
+ * 다시 마운트돼 현재 위치·경로 안내 상태가 사라진다. 뒤로가기·← 가 곧 닫기다.
+ * 안내 중이면 `?routes=1&detail=1&guide=1&scan=1`이 되어 닫으면 안내로 그대로 돌아간다.
  */
-export const CODE_PARAM = 'code';
+export const SCAN_PARAM = 'scan';

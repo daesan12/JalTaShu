@@ -5,10 +5,8 @@ import { BottomSheet } from '@/shared/ui/BottomSheet';
 import { Button } from '@/shared/ui/Button';
 import { InputField } from '@/shared/ui/InputField';
 import { returnCycle } from '@/features/map/api/cycle';
-import {
-  CYCLE_STATION_RADIUS_M,
-  nearestStation,
-} from '@/features/map/lib/nearestStation';
+import type { CycleReturnResult } from '@/features/map/api/cycle';
+import { nearestStation } from '@/features/map/lib/nearestStation';
 import type { LocationResult } from '@/features/map/hooks/useCurrentLocation';
 import type { BikeStation } from '@/shared/api/types';
 
@@ -31,14 +29,14 @@ interface CycleReturnSheetProps {
   ensureLocation: () => Promise<LocationResult>;
   onClose: () => void;
   /** 반납 성공 — 부모가 토스트 등으로 안내한다 */
-  onReturned: () => void;
+  onReturned: (result: CycleReturnResult, cycleId: string, stationId: string) => void;
 }
 
 /**
  * 07 대여소 시트의 "반납하기" — 자전거 번호를 입력해 반납을 요청한다.
  * 반납 대여소는 대여와 같은 방식으로 **현재 위치에서 가장 가까운 대여소**로 정한다 — 시트를
  * 연 대여소와 실제로 서 있는 대여소가 다를 수 있고, 기록에 남아야 하는 건 실제 자리다.
- * 위치를 확인할 수 없거나 300m 안에 대여소가 없으면 반납 요청을 보내지 않는다.
+ * 위치를 확인할 수 없거나 대여소 정보가 없으면 반납 요청을 보내지 않는다.
  */
 export function CycleReturnSheet({
   open,
@@ -62,8 +60,8 @@ export function CycleReturnSheet({
 
   const returnMutation = useMutation({
     mutationFn: returnCycle,
-    onSuccess: () => {
-      onReturned();
+    onSuccess: (result, variables) => {
+      onReturned(result, variables.cycleId, variables.stationId);
       close();
     },
   });
@@ -95,7 +93,7 @@ export function CycleReturnSheet({
       : null;
     if (nearest === null || location === null || !location.ok) {
       setStationError(
-        `대여소에서 ${CYCLE_STATION_RADIUS_M}m 안으로 이동하고 위치 권한을 켠 뒤 다시 시도해 주세요.`,
+        '현재 위치와 대여소 정보를 확인하고 위치 권한을 켠 뒤 다시 시도해 주세요.',
       );
       return;
     }

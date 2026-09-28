@@ -2,8 +2,13 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { formatDate } from '@/shared/lib/format';
-import { formatDateTime } from '@/features/admin/lib/format';
-import { CLAIM_CATEGORY_LABEL, CLAIM_STATUS_LABEL } from '@/features/admin/api/adminClaims';
+import { useToast } from '@/shared/lib/useToast';
+import { formatDateTime, formatUserCells } from '@/features/admin/lib/format';
+import {
+  CLAIM_CATEGORY_LABEL,
+  CLAIM_STATUS_LABEL,
+  type AdminClaim,
+} from '@/features/admin/api/adminClaims';
 import {
   CYCLE_STATUS_LABEL,
   getAdminCycleClaims,
@@ -11,23 +16,27 @@ import {
   getAdminCycleOwnStatics,
   getAdminCycles,
 } from '@/features/admin/api/adminCycles';
+import { ClaimDetailModal } from '@/features/admin/components/ClaimDetailModal';
 import { AdminBadge } from '@/features/admin/ui/AdminBadge';
 import { AdminDetailState } from '@/features/admin/ui/AdminDetailState';
 import { AdminStatCard } from '@/features/admin/ui/AdminStatCard';
 import { AdminTable } from '@/features/admin/ui/AdminTable';
 import { AdminTableStatus } from '@/features/admin/ui/AdminTableStatus';
 import { AdminTabBar, AdminTabButton } from '@/features/admin/ui/AdminTabs';
+import { AdminToast } from '@/features/admin/ui/AdminToast';
 
 type DetailTab = 'rides' | 'claims';
 
 /**
- * 07 자전거 상세 — 통계 카드 + 이용 이력 / 제보(07-b) 두 탭.
+ * 07 자전거 상세 — 통계 카드 + 이용 이력 / 제보(07-b) 두 탭. 제보를 누르면 상태를 바꾼다(#157).
  * 개별 조회 API가 이용 이력만 주므로 기본 정보(상태·위치)는 목록 응답에서 찾는다
  * (목록에서 진입하는 화면이라 대부분 캐시에 있다).
  */
 export function AdminBikePage() {
   const { cycleId = '' } = useParams();
   const [tab, setTab] = useState<DetailTab>('rides');
+  const [selectedClaim, setSelectedClaim] = useState<AdminClaim | null>(null);
+  const { message, showToast } = useToast();
 
   const history = useQuery({
     queryKey: ['adminCycleHistory', cycleId],
@@ -109,72 +118,102 @@ export function AdminBikePage() {
                 <tr>
                   <th className="w-36">이용일</th>
                   <th>구간</th>
-                  <th className="w-40">이용자</th>
+                  <th className="w-40">닉네임</th>
+                  <th className="w-28">사용자 ID</th>
                 </tr>
               </thead>
               <tbody>
                 <AdminTableStatus
-                  colSpan={3}
+                  colSpan={4}
                   isPending={false}
                   isEmpty={rides.length === 0}
                   emptyText="이용 이력이 없습니다"
                 />
-                {rides.map((ride) => (
-                  <tr key={ride.recordId}>
-                    <td className="tabular-nums text-admin-muted">{formatDateTime(ride.usingAt)}</td>
-                    <td className="truncate">
-                      {ride.startingPoint} → {ride.endPoint}
-                    </td>
-                    <td className="truncate">
-                      {ride.nickname}
-                      <span className="text-admin-muted"> · #{ride.userId}</span>
-                    </td>
-                  </tr>
-                ))}
+                {rides.map((ride) => {
+                  const user = formatUserCells(ride.nickname, ride.userId);
+                  return (
+                    <tr key={ride.recordId}>
+                      <td className="tabular-nums text-admin-muted">
+                        {formatDateTime(ride.usingAt)}
+                      </td>
+                      <td className="truncate">
+                        {ride.startingPoint} → {ride.endPoint}
+                      </td>
+                      <td className="truncate">{user.nickname}</td>
+                      <td className="tabular-nums text-admin-muted">{user.userCode}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </AdminTable>
           ) : (
-            <AdminTable>
+            <AdminTable clickableRows>
               <thead>
                 <tr>
                   <th className="w-24">제보 ID</th>
                   <th className="w-28">부위</th>
                   <th>제보 내용</th>
-                  <th className="w-32">제보자</th>
+                  <th className="w-32">닉네임</th>
+                  <th className="w-28">사용자 ID</th>
                   <th className="w-28">상태</th>
                   <th className="w-32">작성일</th>
                 </tr>
               </thead>
               <tbody>
                 <AdminTableStatus
-                  colSpan={6}
+                  colSpan={7}
                   isPending={claims.isPending}
                   isEmpty={claims.data?.length === 0}
                   emptyText="접수된 제보가 없습니다"
                 />
-                {claims.data?.map((claim) => (
-                  <tr key={claim.claimId}>
-                    <td className="tabular-nums text-admin-muted">CL-{claim.claimId}</td>
-                    <td>{claim.category === null ? '-' : CLAIM_CATEGORY_LABEL[claim.category]}</td>
-                    <td className="truncate">{claim.content}</td>
-                    <td className="truncate">{claim.nickname}</td>
-                    <td>
-                      <AdminBadge state={CLAIM_STATUS_LABEL[claim.status]} />
-                    </td>
-                    <td className="tabular-nums text-admin-muted">{formatDate(claim.createdAt)}</td>
-                  </tr>
-                ))}
+                {claims.data?.map((claim) => {
+                  const user = formatUserCells(claim.nickname, claim.userId);
+                  return (
+                    <tr key={claim.claimId} onClick={() => setSelectedClaim(claim)}>
+                      <td className="tabular-nums text-admin-muted">CL-{claim.claimId}</td>
+                      <td>
+                        {claim.category === null ? '-' : CLAIM_CATEGORY_LABEL[claim.category]}
+                      </td>
+                      <td className="truncate">{claim.content}</td>
+                      <td className="truncate">{user.nickname}</td>
+                      <td className="tabular-nums text-admin-muted">{user.userCode}</td>
+                      <td>
+                        <AdminBadge state={CLAIM_STATUS_LABEL[claim.status]} />
+                      </td>
+                      <td className="tabular-nums text-admin-muted">
+                        {formatDate(claim.createdAt)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </AdminTable>
           )}
         </div>
         {tab === 'claims' && (claims.data?.length ?? 0) > 0 && (
           <p className="mt-2 text-xs text-admin-muted">
-            상태 변경은 <Link to="/admin/claims" className="underline">제보 관리</Link>에서 할 수
-            있습니다.
+            제보를 누르면 상태를 바꿀 수 있습니다. 바꾼 상태는{' '}
+            <Link to="/admin/claims" className="underline">
+              제보 관리
+            </Link>
+            에도 바로 반영됩니다.
           </p>
         )}
       </div>
+
+      {/* 제보 관리(03)와 같은 상세 모달 — 닫으면 입력이 초기화되도록 열릴 때만 마운트 */}
+      {selectedClaim && (
+        <ClaimDetailModal
+          claim={selectedClaim}
+          onClose={() => setSelectedClaim(null)}
+          onSaved={() => {
+            setSelectedClaim(null);
+            showToast('제보 상태가 변경되었습니다');
+          }}
+        />
+      )}
+
+      {message && <AdminToast message={message} />}
     </div>
   );
 }

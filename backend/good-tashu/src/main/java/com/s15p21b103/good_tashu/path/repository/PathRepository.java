@@ -20,19 +20,19 @@ public interface PathRepository extends JpaRepository<PathEntity, Long> {
         Integer getTotalDistance();
     }
 
-    // GPS JSON과 연관 엔티티를 로딩하지 않고 목록에 필요한 값만 조회한다.
+    // 길안내 경로가 없는 이용도 관리자 이용 기록에 포함되도록 이용 내역을 기준으로 조회한다.
     @Query("""
             SELECT p.createdAt AS createdAt, p.finishedAt AS finishedAt,
                    cu.rentalAt AS rentalAt, cu.returnAt AS returnAt,
                    rental.name AS startingPoint, returned.name AS endPoint,
                    cycle.cycleId AS cycleId, p.totalDistance AS totalDistance
-            FROM PathEntity p
-            LEFT JOIN p.cycleUsage cu ON cu.userEntity.userId = :userId
+            FROM CycleUsageEntity cu
+            LEFT JOIN PathEntity p ON p.cycleUsage = cu
             LEFT JOIN cu.rentalStationEntity rental
             LEFT JOIN cu.returnStationEntity returned
             LEFT JOIN cu.cycleEntity cycle
-            WHERE p.user.userId = :userId
-            ORDER BY p.createdAt DESC, p.pathId DESC
+            WHERE cu.userEntity.userId = :userId
+            ORDER BY cu.rentalAt DESC, cu.cycleUsageId DESC
             """)
     List<HistoryRow> findHistoryRowsByUserId(@Param("userId") Long userId);
 

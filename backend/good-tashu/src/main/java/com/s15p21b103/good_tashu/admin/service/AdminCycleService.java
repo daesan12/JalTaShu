@@ -20,14 +20,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static com.s15p21b103.good_tashu.admin.exception.AdminErrorCode.*;
 
 @Service
 @RequiredArgsConstructor
 public class AdminCycleService {
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private final AdminCycleRepository adminCycleRepository;
     private final StationRepository stationRepository;
     @Transactional(readOnly = true)
@@ -108,7 +114,7 @@ public class AdminCycleService {
         // 직전 1시간을 대여소별로 집계하고 time에는 조회 기준 시각을 담는다.
         return adminCycleRepository.findHeatmap(datetime.minusHours(1), datetime).stream()
                 .map(row -> new AdminHeatmapResponse(
-                        datetime, row.getStationId(),
+                        datetime, row.getStationId(), row.getStationName(),
                         row.getXPos(), row.getYPos(), row.getRentCnt(), row.getReturnCnt()))
                 .toList();
     }
@@ -122,20 +128,42 @@ public class AdminCycleService {
             throw new AdminException(NOT_EXISTS_STATION);
         }
         // 현재 수량과 오늘·24시간 전 기준 통계를 응답 DTO로 변환한다.
-        StationDetailStats stats = adminCycleRepository.findStationDetailStats(stationId);
+        // "오늘"·"24시간 전"은 KST로 계산해 넘긴다 — DB 시계(UTC)를 쓰면 9시간 어긋난다.
+        LocalDateTime now = LocalDateTime.now(SEOUL);
+        LocalDateTime todayStart = now.toLocalDate().atStartOfDay();
+        StationDetailStats stats = adminCycleRepository.findStationDetailStats(stationId,
+                todayStart, todayStart.plusDays(1), todayStart.minusDays(1),
+                now.minusHours(24), now.minusHours(48));
         return new AdminStationDetailResponse(
-                stats.getCurrentBikeCnt(), stats.getTodayRentalCnt(), stats.getTodayReturnCnt(),
+                stats.getStationName(), stats.getCurrentBikeCnt(),
+                stats.getTodayRentalCnt(), stats.getTodayReturnCnt(),
                 stats.getCurrentReportCnt(), stats.getYesterdayBikeCnt(), stats.getYesterdayRentalCnt(),
                 stats.getYesterdayReturnCnt(), stats.getYesterdayReportCnt());
     }
 
     @Transactional(readOnly = true)
-    public List<AdminStationTrendResponse> getStationTrend(String term) {
+    public List<AdminStationTrendResponse> getStationTrend(String stationId, String term) {
+        if (stationId == null || stationId.isBlank()) {
+            throw new AdminException(INVALID_STATION_ID);
+        }
+        if (!stationRepository.existsById(stationId)) {
+            throw new AdminException(NOT_EXISTS_STATION);
+        }
         String normalizedTerm = normalizeTerm(term);
-        // 오늘을 제외한 기간별 날짜 집계 결과를 응답 DTO로 변환한다.
-        return adminCycleRepository.findStationTrend(normalizedTerm).stream()
+        int days = normalizedTerm.equals("day") ? 1 : 7;
+        LocalDate today = LocalDate.now(SEOUL);
+        LocalDate fromDate = today.minusDays(days);
+
+        Map<LocalDate, AdminStationTrendResponse> trendByDate = adminCycleRepository.findStationTrend(
+                        stationId, fromDate.atStartOfDay(), today.atStartOfDay()).stream()
                 .map(row -> new AdminStationTrendResponse(
                         LocalDate.parse(row.getDate()), row.getRentalCnt(), row.getReturnCnt()))
+                .collect(Collectors.toMap(AdminStationTrendResponse::date, Function.identity()));
+
+        return IntStream.range(0, days)
+                .mapToObj(index -> fromDate.plusDays(index))
+                .map(date -> trendByDate.getOrDefault(
+                        date, new AdminStationTrendResponse(date, 0L, 0L)))
                 .toList();
     }
 

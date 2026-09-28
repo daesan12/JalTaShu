@@ -96,11 +96,23 @@ describe('관리자 핸들러 등록 순서', () => {
 
   it('station/trend(고정)가 station/:stationId에 잡히지 않고 주간 추이를 준다', async () => {
     await adminLogin();
-    const res = await get('/api/admin/station/trend?term=week');
+    const res = await get('/api/admin/station/trend?stationId=ST0001&term=week');
     expect(res.status).toBe(200);
     const { data } = await res.json();
     expect(data).toHaveLength(7);
     expect(data[0]).toHaveProperty('rentalCnt');
+  });
+
+  it('히트맵과 대여소 상세가 사람이 읽을 수 있는 현재 명칭을 함께 준다', async () => {
+    await adminLogin();
+    const datetime = '2026-09-23T08:00:00';
+    const heatmap = await (
+      await get(`/api/admin/heatmap?datetime=${encodeURIComponent(datetime)}`)
+    ).json();
+    expect(heatmap.data[0].stationName).toBe('유성구청역 대여소');
+
+    const station = await (await get('/api/admin/station/ST0001')).json();
+    expect(station.data.stationName).toBe('유성구청역 대여소');
   });
 
   it('user/list(고정)와 user/:userId(파라미터)가 각각 응답한다', async () => {
@@ -207,6 +219,15 @@ describe('도메인 간 저장소 공유', () => {
     expect(data[0]).not.toHaveProperty('content');
   });
 
+  it('모바일 이용자도 공지 상세(/notice/{id})를 읽을 수 있다', async () => {
+    await post('/api/auth/mock-login');
+    const list = await (await get('/api/notice/list')).json();
+    const res = await get(`/api/notice/${list.data[0].noticeId}`);
+    expect(res.status).toBe(200);
+    const { data } = await res.json();
+    expect(data).toHaveProperty('content');
+  });
+
   it('로그인 없이 모바일 API를 부르면 401', async () => {
     const res = await get('/api/cycle/usage/list');
     expect(res.status).toBe(401);
@@ -238,6 +259,7 @@ describe('이용 기록 저장 (POST /cycle/usage)', () => {
       .reduce((sum: number, leg: { distance: number }) => sum + leg.distance, 0);
 
     const res = await post('/api/cycle/usage', {
+      cycleUsageId: 1,
       pathInfo: { road },
       createdAt: new Date(Date.now() - 20 * 60_000).toISOString(),
       finishedAt: new Date().toISOString(),
@@ -250,6 +272,7 @@ describe('이용 기록 저장 (POST /cycle/usage)', () => {
   it('자전거 거리가 전체 거리를 넘으면 400', async () => {
     await post('/api/auth/mock-login');
     const res = await post('/api/cycle/usage', {
+      cycleUsageId: 1,
       pathInfo: { road: [{ latitude: 36.35, longitude: 127.38, altitude: 50, travelStatus: 'BIKE', seq: 0 }] },
       createdAt: new Date(Date.now() - 60_000).toISOString(),
       finishedAt: new Date().toISOString(),
@@ -360,6 +383,9 @@ describe('QR 대여 → 반납 → 이용 내역', () => {
     const before = await (await get('/api/cycle/usage/list')).json();
     const give = await post('/api/cycle/return', { cycleId: CODE, ...LOCATION });
     expect(give.status).toBe(200);
+    const returned = await give.json();
+    expect(returned.data.cycleUsageId).toEqual(expect.any(Number));
+    expect(returned.data.returnedAt).toEqual(expect.any(String));
 
     const after = await (await get('/api/cycle/usage/list')).json();
     expect(after.data).toHaveLength(before.data.length + 1);
@@ -371,14 +397,14 @@ describe('QR 대여 → 반납 → 이용 내역', () => {
     );
   });
 
-  it('대여소에서 300m 밖이면 대여 요청을 거절한다', async () => {
+  it('대여소에서 멀어도 대여 요청을 허용한다', async () => {
     await post('/api/auth/mock-login');
     const response = await post('/api/cycle/rental', {
       cycleId: 'DJ88888',
       ...LOCATION,
       latitude: LOCATION.latitude + 0.004,
     });
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
   });
 
   it('안내 도착 저장이 방금 만든 기록에 붙는다', async () => {
@@ -399,6 +425,7 @@ describe('QR 대여 → 반납 → 이용 내역', () => {
       { latitude: 36.3602, longitude: 127.3944, altitude: 52, travelStatus: 'WALK2', seq: 2 },
     ];
     const save = await post('/api/cycle/usage', {
+      cycleUsageId: usageId,
       pathInfo: { road },
       createdAt: new Date(Date.now() - 600_000).toISOString(),
       finishedAt: new Date().toISOString(),

@@ -7,6 +7,7 @@ import com.s15p21b103.good_tashu.cycle.domain.*;
 import com.s15p21b103.good_tashu.cycle.dto.req.CyclePathRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleRentalRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleReturnRequest;
+import com.s15p21b103.good_tashu.cycle.dto.res.CycleReturnResponse;
 import com.s15p21b103.good_tashu.cycle.event.CycleRentalStartedEvent;
 import com.s15p21b103.good_tashu.cycle.event.CycleReturnEvent;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
@@ -27,6 +28,7 @@ import com.s15p21b103.good_tashu.cycle.dto.res.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.ZoneId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -40,9 +42,8 @@ import static com.s15p21b103.good_tashu.user.exception.UserErrorCode.NOT_EXISTS_
 @Service
 @RequiredArgsConstructor
 public class CycleService {
-    private static final double MAX_STATION_DISTANCE_METERS = 300.0;
-    private static final double EARTH_RADIUS_METERS = 6_371_000.0;
-
+    // 컨테이너 기본 시간대(UTC일 수 있다)에 기대지 않는다 — 이용내역·월 통계가 KST 기준이다
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private final CycleRepository cycleRepository;
     private final CycleUsageRepository cycleUsageRepository;
     private final UserRepository userRepository;
@@ -150,30 +151,12 @@ public class CycleService {
                 .build());
     }
 
-    private StationEntity stationWithinRange(String stationId, BigDecimal latitude, BigDecimal longitude) {
+    private StationEntity requestedStation(String stationId, BigDecimal latitude, BigDecimal longitude) {
         if (latitude == null || longitude == null) {
             throw new CycleException(CURRENT_LOCATION_REQUIRED);
         }
-        StationEntity station = stationRepository.findById(stationId)
+        return stationRepository.findById(stationId)
                 .orElseThrow(() -> new CycleException(NOT_EXIST_STATION_ID));
-        if (station.getLatitude() == null || station.getLongitude() == null) {
-            throw new CycleException(STATION_LOCATION_UNAVAILABLE);
-        }
-        if (haversineMeters(latitude.doubleValue(), longitude.doubleValue(),
-                station.getLatitude().doubleValue(), station.getLongitude().doubleValue())
-                > MAX_STATION_DISTANCE_METERS) {
-            throw new CycleException(STATION_TOO_FAR);
-        }
-        return station;
-    }
-
-    private double haversineMeters(double latitude, double longitude,
-                                   double stationLatitude, double stationLongitude) {
-        double lat = Math.toRadians(stationLatitude - latitude);
-        double lon = Math.toRadians(stationLongitude - longitude);
-        double h = Math.pow(Math.sin(lat / 2), 2) + Math.cos(Math.toRadians(latitude))
-                * Math.cos(Math.toRadians(stationLatitude)) * Math.pow(Math.sin(lon / 2), 2);
-        return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(Math.clamp(h, 0, 1)));
     }
 
     //TODO: 동시성 처리
@@ -182,7 +165,7 @@ public class CycleService {
         UserEntity userEntity = userRepository.findById(userId)
                 .orElseThrow(() -> new UserException(NOT_EXISTS_USER));
 
-        StationEntity rentalStation = stationWithinRange(
+        StationEntity rentalStation = requestedStation(
                 request.stationId(), request.latitude(), request.longitude());
 
         //대소문자만 다른 자전거가 따로 등록되지 않도록 대문자로 맞춘다(프론트도 대문자로 입력받는다)
@@ -202,7 +185,7 @@ public class CycleService {
         }
 
         //이용 내역 저장
-        LocalDateTime currentTime = LocalDateTime.now();
+        LocalDateTime currentTime = LocalDateTime.now(SEOUL);
         cycleUsageRepository.save(CycleUsageEntity.builder()
                 .userEntity(userEntity)
                 .cycleEntity(cycleEntity)
@@ -220,14 +203,14 @@ public class CycleService {
     }
 
     @Transactional
-    public LocalDateTime returnCycle(Long userId, CycleReturnRequest request) {
+    public CycleReturnResponse returnCycle(Long userId, CycleReturnRequest request) {
         UserEntity userEntity = userRepository.findById(userId)
                 .orElseThrow(() -> new UserException(NOT_EXISTS_USER));
 
-        //조회
-        CycleEntity cycleEntity = cycleRepository.findById(request.cycleId())
+        //조회 — 대여와 같이 대문자로 맞춘다(소문자로 입력한 반납이 "없는 자전거"가 되지 않게)
+        CycleEntity cycleEntity = cycleRepository.findById(request.cycleId().toUpperCase())
                 .orElseThrow(() -> new CycleException(NOT_EXIST_CYCLE_ID));
-        StationEntity stationEntity = stationWithinRange(
+        StationEntity stationEntity = requestedStation(
                 request.stationId(), request.latitude(), request.longitude());
 
         //자전거 상태 확인
@@ -243,21 +226,35 @@ public class CycleService {
         cycleEntity.returnRental(stationEntity);
 
         //반납 기록 저장
-        LocalDateTime currentTime = LocalDateTime.now();
+        LocalDateTime currentTime = LocalDateTime.now(SEOUL);
         cycleUsageEntity.returning(stationEntity, currentTime);
 
         //알림 전송
         eventPublisher.publishEvent(new CycleReturnEvent(userId, currentTime));
 
-        return currentTime;
+        return new CycleReturnResponse(cycleUsageEntity.getCycleUsageId(), currentTime);
+    }
+
+    @Transactional(readOnly = true)
+    public CycleCurrentRentalResponse getCurrentRental(Long userId) {
+        return cycleUsageRepository
+                .findFirstByUserEntity_UserIdAndReturnAtIsNullOrderByRentalAtDescCycleUsageIdDesc(userId)
+                .map(usage -> new CycleCurrentRentalResponse(
+                        usage.getCycleEntity().getCycleId(), usage.getRentalAt()))
+                .orElse(null);
     }
 
     @Transactional
     public void savePathTrace(Long userId, CyclePathRequest request) {
         UserEntity user = userRepository.findById(userId)
             .orElseThrow(() -> new UserException(NOT_EXISTS_USER));
-        CycleUsageEntity cycleUsage = cycleUsageRepository.findFirstByUserEntity_UserIdAndReturnAtIsNotNullOrderByReturnAtDescCycleUsageIdDesc(userId)
+        CycleUsageEntity cycleUsage = cycleUsageRepository
+                .findByCycleUsageIdAndUserEntity_UserId(request.cycleUsageId(), userId)
                 .orElseThrow(() -> new CycleException(NOT_EXIST_USAGE));
+
+        if (cycleUsage.getReturnAt() == null) {
+            throw new CycleException(USAGE_NOT_COMPLETED);
+        }
 
         if (pathRepository.findByCycleUsage_CycleUsageId(cycleUsage.getCycleUsageId()).isPresent()) {
             throw new CycleException(PATH_ALREADY_EXISTS);

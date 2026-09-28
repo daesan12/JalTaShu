@@ -3,12 +3,16 @@ package com.s15p21b103.good_tashu.admin.service;
 import com.s15p21b103.good_tashu.admin.dto.res.AdminUserListResponse;
 import com.s15p21b103.good_tashu.admin.repository.AdminUserRepository;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AdminUserListTest {
@@ -22,12 +26,18 @@ class AdminUserListTest {
         when(summary.getNickname()).thenReturn("타슈이용자");
         when(summary.getRecentUsingAt()).thenReturn(recentUsingAt);
         when(summary.getUserStatement()).thenReturn("NORMAL");
-        when(repository.findUserSummaries("", "newest")).thenReturn(List.of(summary));
+        when(repository.findUserSummaries(eq(""), eq("newest"), any(LocalDateTime.class)))
+                .thenReturn(List.of(summary));
         AdminUserService service = new AdminUserService(repository, null, null, null, null, null, null);
 
+        LocalDateTime before = LocalDateTime.now();
         List<AdminUserListResponse> responses = service.getUserList("", "newest");
+        LocalDateTime after = LocalDateTime.now();
 
         assertThat(responses).containsExactly(new AdminUserListResponse(
                 7L, "타슈이용자", recentUsingAt, "NORMAL"));
+        ArgumentCaptor<LocalDateTime> nowCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(repository).findUserSummaries(eq(""), eq("newest"), nowCaptor.capture());
+        assertThat(nowCaptor.getValue()).isBetween(before, after);
     }
 }

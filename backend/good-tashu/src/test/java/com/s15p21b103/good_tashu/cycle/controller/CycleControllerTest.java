@@ -13,8 +13,10 @@ import com.s15p21b103.good_tashu.cycle.dto.res.CycleStatisticsResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageDetailResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleUsageListResponse;
 import com.s15p21b103.good_tashu.cycle.dto.res.CycleStatementResponse;
+import com.s15p21b103.good_tashu.cycle.dto.res.CycleReturnResponse;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleRentalRequest;
 import com.s15p21b103.good_tashu.cycle.dto.req.CycleReturnRequest;
+import com.s15p21b103.good_tashu.cycle.dto.req.CyclePathRequest;
 import com.s15p21b103.good_tashu.cycle.exception.CycleException;
 import com.s15p21b103.good_tashu.claim.exception.ClaimException;
 import static com.s15p21b103.good_tashu.claim.exception.ClaimErrorCode.*;
@@ -125,7 +127,7 @@ class CycleControllerTest {
     @Test
     void returnEndpointBindsStationAndCurrentLocation() throws Exception {
         when(cycleService.returnCycle(eq(1L), any()))
-                .thenReturn(LocalDateTime.of(2026, 9, 22, 10, 30));
+                .thenReturn(new CycleReturnResponse(77L, LocalDateTime.of(2026, 9, 22, 10, 30)));
 
         mvc.perform(post("/api/cycle/return")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -133,7 +135,9 @@ class CycleControllerTest {
                                 {"cycleId":"DJ99999","stationId":"ST0001",
                                  "latitude":36.3504,"longitude":127.3845}
                                 """))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cycleUsageId").value(77))
+                .andExpect(jsonPath("$.data.returnedAt").exists());
 
         ArgumentCaptor<CycleReturnRequest> captor = ArgumentCaptor.forClass(CycleReturnRequest.class);
         verify(cycleService).returnCycle(eq(1L), captor.capture());
@@ -331,5 +335,39 @@ class CycleControllerTest {
                 .andExpect(jsonPath("$.data.pathInfo.road[0].seq").value(1));
 
         verify(cycleService).getUsageDetail(1L, 12L);
+    }
+
+    @Test
+    void pathEndpointRequiresAndBindsCycleUsageId() throws Exception {
+        String body = """
+                {
+                  "cycleUsageId": 77,
+                  "pathInfo": {"road": [{
+                    "latitude": 36.3504,
+                    "longitude": 127.3845,
+                    "altitude": 50,
+                    "travelStatus": "BIKE",
+                    "seq": 0
+                  }]},
+                  "createdAt": "2026-09-23T10:00:00",
+                  "finishedAt": "2026-09-23T10:20:00",
+                  "totalDistance": 3000,
+                  "bikeDistance": 2000
+                }
+                """;
+
+        mvc.perform(post("/api/cycle/usage")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<CyclePathRequest> captor = ArgumentCaptor.forClass(CyclePathRequest.class);
+        verify(cycleService).savePathTrace(eq(1L), captor.capture());
+        assertThat(captor.getValue().cycleUsageId()).isEqualTo(77L);
+
+        mvc.perform(post("/api/cycle/usage")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body.replace("\"cycleUsageId\": 77,", "")))
+                .andExpect(status().isBadRequest());
     }
 }

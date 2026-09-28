@@ -6,8 +6,8 @@ import { AdminDetailState } from '@/features/admin/ui/AdminDetailState';
 import { AdminStatCard } from '@/features/admin/ui/AdminStatCard';
 
 /**
- * 02 대여소 상세 — 히트맵(01)의 원을 눌러 진입한다.
- * 백엔드 응답에 이름·주소·거치대·배치 자전거 목록이 없어(전달 목록) 통계 카드 중심으로 구성한다.
+ * 02 대여소 상세 — 대여소 이용 현황(01)의 목록 행이나 지도 원을 눌러 진입한다.
+ * 백엔드 대여소 마스터의 현재 한글 명칭과 통계를 보여준다.
  */
 export function AdminStationPage() {
   const { stationId = '' } = useParams();
@@ -16,10 +16,11 @@ export function AdminStationPage() {
     queryKey: ['adminStation', stationId],
     queryFn: () => getAdminStation(stationId),
   });
-  // ⚠ 서버 추이는 대여소 구분 없는 전체 합계다 (대여소별은 백엔드 전달 목록)
+  // 현재 상세 화면의 대여소만 조회하고 캐시도 대여소별로 분리한다.
   const trend = useQuery({
-    queryKey: ['adminStationTrend'],
-    queryFn: getAdminStationTrend,
+    queryKey: ['adminStationTrend', stationId],
+    queryFn: () => getAdminStationTrend(stationId),
+    enabled: stationId.length > 0,
   });
 
   if (detail.isPending || detail.isError) {
@@ -37,10 +38,11 @@ export function AdminStationPage() {
     <div className="flex flex-col gap-6">
       <div>
         <Link to="/admin" className="text-sm text-admin-muted hover:text-admin-text">
-          ← 히트맵
+          ← 대여소 이용 현황
         </Link>
         <div className="mt-2 flex items-baseline gap-3">
-          <h2 className="text-xl font-semibold tabular-nums">대여소 {stationId}</h2>
+          <h2 className="text-xl font-semibold">{station.stationName}</h2>
+          <span className="text-sm text-admin-muted tabular-nums">{stationId}</span>
           <span className="text-sm text-admin-muted">어제 대비는 24시간 전 기준</span>
         </div>
       </div>
@@ -70,10 +72,10 @@ export function AdminStationPage() {
         />
       </div>
 
-      {/* 7일 추이 — 서버가 전체 합계만 줘서 이 대여소만의 추이가 아니다 */}
+      {/* 현재 대여소의 최근 7일 추이 */}
       <section className="rounded-lg border border-admin-line p-5">
         <h3 className="mb-4 text-base font-semibold">
-          최근 7일 대여·반납 <span className="text-sm font-normal text-admin-muted">(전체 대여소)</span>
+          최근 7일 대여·반납
         </h3>
         {trend.isPending && <p className="text-sm text-admin-muted">불러오는 중…</p>}
         {trend.isError && <p className="text-sm text-admin-muted">추이를 불러오지 못했습니다.</p>}

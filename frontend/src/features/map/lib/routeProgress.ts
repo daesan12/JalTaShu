@@ -54,8 +54,17 @@ function nearestPoint(points: RoutePoint[], position: Pos): { index: number; dis
   return { index, distanceM };
 }
 
-/** 현재 위치 기준 진행 상황. 위치를 모르면 출발 상태(첫 구간, 전체 남음)로 본다 */
-export function getRouteProgress(route: RouteCandidate, position: Pos | null): RouteProgress {
+/**
+ * 현재 위치 기준 진행 상황. 위치를 모르면 출발 상태(첫 구간, 전체 남음)로 본다.
+ *
+ * `minLegIndex` — 적어도 이 구간까지는 왔다고 보는 하한(#145). 대여·반납에 성공하면 GPS가
+ * 대여소 근처로 잡히지 않아도 다음 구간으로 넘어가야 한다. 위치가 그보다 뒤에 있으면 위치를 따른다.
+ */
+export function getRouteProgress(
+  route: RouteCandidate,
+  position: Pos | null,
+  minLegIndex = 0,
+): RouteProgress {
   const legs = toLegs(route);
   if (legs.length === 0) return EMPTY;
 
@@ -67,8 +76,10 @@ export function getRouteProgress(route: RouteCandidate, position: Pos | null): R
   if (totalM <= 0) return EMPTY;
 
   const nearest = position === null ? null : nearestPoint(points, position);
-  const traveledM = nearest === null ? 0 : cumulative[nearest.index];
   const legEndM = legEndIndexes.map((index) => cumulative[index]);
+  const floorLeg = Math.min(Math.max(0, minLegIndex), legs.length - 1);
+  const floorM = floorLeg === 0 ? 0 : legEndM[floorLeg - 1];
+  const traveledM = Math.max(nearest === null ? 0 : cumulative[nearest.index], floorM);
   // 아직 끝나지 않은 첫 구간이 지금 가고 있는 구간이다. 다 지났으면 마지막 구간에 머문다
   const firstUnfinished = legEndM.findIndex((end) => traveledM < end);
   const legIndex = firstUnfinished === -1 ? legs.length - 1 : firstUnfinished;
@@ -82,26 +93,6 @@ export function getRouteProgress(route: RouteCandidate, position: Pos | null): R
     traveledM,
     offRouteM: nearest === null ? 0 : Math.round(nearest.distanceM),
   };
-}
-
-/** 도착 판정 거리(m) — GPS 오차를 감안해 정확히 0m이 아니라 이 안쪽이면 도착으로 본다 */
-const ARRIVAL_THRESHOLD_M = 30;
-
-/**
- * 목적지에 실제로 도착했는지 — 12 안내 자동 종료 판단에 쓴다.
- * `RouteProgress.remainingM`은 쓰지 않는다 — 그건 "경로 위 가장 가까운 점"까지의 거리라, 사용자가
- * 경로에서 멀리 떨어져 있어도(다른 지역 등) 그 점이 우연히 도착지 쪽 끝이면 0에 가깝게 나온다.
- * 도착 판정은 **목적지 좌표까지의 직선 거리**로만 본다.
- */
-export function hasArrived(route: RouteCandidate, position: Pos | null): boolean {
-  if (position === null) return false;
-  const { points } = outlineRoute(route);
-  const destination = points[points.length - 1];
-  if (destination === undefined) return false;
-  return (
-    haversineMeters(posToLatLng(position), osrmToLatLng(destination.location)) <=
-    ARRIVAL_THRESHOLD_M
-  );
 }
 
 /**

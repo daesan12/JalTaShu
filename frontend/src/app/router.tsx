@@ -14,6 +14,7 @@ import { BikeInsurancePage } from '@/features/mypage/pages/BikeInsurancePage';
 import { OpenApiPage } from '@/features/mypage/pages/OpenApiPage';
 import { FaqPage } from '@/features/mypage/pages/FaqPage';
 import { GuidePage } from '@/features/mypage/pages/GuidePage';
+import { NoticeDetailPage } from '@/features/mypage/pages/NoticeDetailPage';
 import { NoticesPage } from '@/features/mypage/pages/NoticesPage';
 import { SettingsPage } from '@/features/mypage/pages/SettingsPage';
 import { SupportPage } from '@/features/mypage/pages/SupportPage';
@@ -28,6 +29,7 @@ import { QrScanPage } from '@/features/rental/pages/QrScanPage';
 import { MyReportsPage } from '@/features/report/pages/MyReportsPage';
 import { ReportPage } from '@/features/report/pages/ReportPage';
 import { InstallLandingPage } from '@/features/install/pages/InstallLandingPage';
+import { NotificationsPage } from '@/features/notification/pages/NotificationsPage';
 
 /** 배포 경로(예: /staging/)에서도 라우팅이 동작하도록 Vite base를 basename으로 사용 */
 const basename = import.meta.env.BASE_URL.replace(/\/+$/, '') || '/';
@@ -51,6 +53,7 @@ export const router = createBrowserRouter(
               element: <MobileLayout />,
               children: [
                 { path: '/', element: <MapHomePage /> }, // 07~16 지도·경로 (만두)
+                { path: '/notifications', element: <NotificationsPage /> },
                 { path: '/report', element: <ReportPage /> }, // 17-0~17-3 자전거·민원 (?type= 전환)
                 { path: '/report/scan', element: <QrScanPage /> }, // QR 스캔 (상태확인·신고 공용)
                 { path: '/report/bikes/:code', element: <BikeStatusPage /> }, // 18 자전거 상태
@@ -67,6 +70,7 @@ export const router = createBrowserRouter(
                 { path: '/mypage/bike-info/open-api', element: <OpenApiPage /> }, // Open API
                 { path: '/mypage/support', element: <SupportPage /> }, // 고객센터
                 { path: '/mypage/support/notices', element: <NoticesPage /> }, // 공지사항
+                { path: '/mypage/support/notices/:noticeId', element: <NoticeDetailPage /> }, // 공지사항 상세
                 { path: '/mypage/support/faq', element: <FaqPage /> }, // 자주 묻는 질문
                 { path: '/mypage/settings', element: <SettingsPage /> }, // 설정
                 { path: '/mypage/withdraw', element: <WithdrawPage /> }, // 회원 탈퇴
@@ -110,11 +114,11 @@ export const router = createBrowserRouter(
                   },
                   children: [
                     {
-                      index: true, // 01 히트맵
+                      index: true, // 01 대여소 이용 현황(#147, 예전 히트맵)
                       lazy: async () => {
-                        const { AdminHeatmapPage } =
-                          await import('@/features/admin/pages/AdminHeatmapPage');
-                        return { Component: AdminHeatmapPage };
+                        const { AdminStationUsagePage } =
+                          await import('@/features/admin/pages/AdminStationUsagePage');
+                        return { Component: AdminStationUsagePage };
                       },
                     },
                     {

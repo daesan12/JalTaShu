@@ -27,12 +27,12 @@ public interface CycleUsageRepository extends JpaRepository<CycleUsageEntity, Lo
         Long getMonthlyTimeSeconds();
     }
 
-    // 반납일이 이번 달인 완료 이용만 집계하며, 경로 거리가 빠진 이용이 있으면 거리 합계는 미확정이다.
+    // 반납일이 이번 달인 완료 이용만 집계한다.
+    // 거리는 경로가 저장된 이용만 더한다(#153). 경로 없이 QR로만 대여·반납한 이용이 하나라도 있으면
+    // 합계 전체를 null로 비우던 정책은, 쌓아 둔 거리가 화면에서 사라져 보여 "아는 것만 합산"으로 바꿨다.
     @Query(value = """
             SELECT COUNT(*) AS monthlyMoveCnt,
-                   CASE WHEN COUNT(*) = 0 THEN 0
-                        WHEN COUNT(p.total_distance) < COUNT(*) THEN NULL
-                        ELSE SUM(p.total_distance) END AS monthlyMoveDisMeters,
+                   COALESCE(SUM(p.total_distance), 0) AS monthlyMoveDisMeters,
                    COALESCE(SUM(TIMESTAMPDIFF(SECOND, cu.rental_at, cu.return_at)), 0)
                        AS monthlyTimeSeconds
             FROM cycle_usages cu
@@ -46,12 +46,10 @@ public interface CycleUsageRepository extends JpaRepository<CycleUsageEntity, Lo
             @Param("monthStart") LocalDateTime monthStart,
             @Param("nextMonthStart") LocalDateTime nextMonthStart);
 
-    // 완료된 이용만 집계. 거리 미수집 기록이 있으면 총거리는 미확정(null).
+    // 완료된 이용만 집계. 거리는 경로가 저장된 이용만 더한다(#153) — 위 월별 통계와 같은 이유.
     @Query(value = """
             SELECT COUNT(*) AS totalUseCnt,
-                   CASE WHEN COUNT(*) = 0 THEN 0
-                        WHEN COUNT(p.total_distance) < COUNT(*) THEN NULL
-                        ELSE SUM(p.total_distance) END AS totalDistance,
+                   COALESCE(SUM(p.total_distance), 0) AS totalDistance,
                    COALESCE(SUM(TIMESTAMPDIFF(SECOND, cu.rental_at, cu.return_at)), 0) AS totalCycleRidingTime
             FROM cycle_usages cu
             LEFT JOIN paths p ON p.cycle_usage_id = cu.cycle_usage_id AND p.user_id = cu.user_id
@@ -70,6 +68,11 @@ public interface CycleUsageRepository extends JpaRepository<CycleUsageEntity, Lo
             String cycleId);
 
     boolean existsByUserEntity_UserIdAndReturnAtIsNull(Long userId);
+
+    // 반납 전인 대여 — 앱이 기억한 "빌린 자전거"를 서버 기준으로 맞출 때 쓴다
+    @EntityGraph(attributePaths = {"cycleEntity"})
+    Optional<CycleUsageEntity> findFirstByUserEntity_UserIdAndReturnAtIsNullOrderByRentalAtDescCycleUsageIdDesc(
+            Long userId);
 
     Optional<CycleUsageEntity> findByUserEntityAndCycleEntityAndReturnAtIsNull(
             UserEntity userEntity,

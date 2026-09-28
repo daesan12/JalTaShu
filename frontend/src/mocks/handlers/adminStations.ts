@@ -1,6 +1,7 @@
 import { delay, http, HttpResponse } from 'msw';
 import { fail, isAdminLoggedIn, ok } from '@/mocks/core';
 import { STATIONS } from '@/mocks/stations';
+import { REAL_STATIONS } from '@/mocks/realStations';
 
 /**
  * 관리자 히트맵·대여소 목업 — AdminCycleController 실스키마 기준.
@@ -61,32 +62,46 @@ export const adminStationHandlers = [
     const points = STATIONS.map((station, stationIdx) => ({
       time: datetime,
       stationId: station.stationId,
+      stationName: station.name,
       // xPos=경도, yPos=위도 (coords.ts 규약)
       xPos: station.lng,
       yPos: station.lat,
       ...mockHourCounts(date, stationIdx, hour),
     }));
-    return HttpResponse.json(ok(points));
+    // 대여소 이용 현황(#149)이 긴 목록·구 필터·상위 100곳을 확인할 수 있게 실제 대여소 1,372곳도 준다.
+    // 규모를 넓게 흩어 정렬이 눈에 띄게 하고, 그 시간에 0건인 곳은 실서버처럼 뺀다(INNER JOIN)
+    const realPoints = REAL_STATIONS.map((station, stationIdx) => {
+      const size = (stationIdx * 37) % 11;
+      const counts = mockHourCounts(date, stationIdx, hour);
+      return {
+        time: datetime,
+        stationId: station.stationId,
+        stationName: station.name,
+        xPos: station.lng,
+        yPos: station.lat,
+        rentCnt: Math.round((counts.rentCnt * size) / 6),
+        returnCnt: Math.round((counts.returnCnt * size) / 6),
+      };
+    }).filter((point) => point.rentCnt + point.returnCnt > 0);
+    return HttpResponse.json(ok([...points, ...realPoints]));
   }),
 
-  // ── 추이 — ⚠ 실서버처럼 대여소 구분 없는 전체 합계, 오늘 제외 (term=day|week) ──
+  // ── 대여소별 추이 — 오늘 제외 (term=day|week) ──
   // trend가 아래 :stationId에 잡히지 않도록 반드시 먼저 등록한다
   http.get('/api/admin/station/trend', async ({ request }) => {
     await delay(350);
     if (!isAdminLoggedIn()) return fail(401, '관리자 로그인이 필요합니다.');
-    const term = new URL(request.url).searchParams.get('term') ?? '';
+    const searchParams = new URL(request.url).searchParams;
+    const stationId = searchParams.get('stationId') ?? '';
+    const term = searchParams.get('term') ?? '';
     if (term !== 'day' && term !== 'week') return fail(400, '조회 기간이 올바르지 않습니다.');
+    const stationIdx = STATIONS.findIndex((station) => station.stationId === stationId);
+    if (stationIdx < 0) return fail(404, '존재하지 않는 대여소입니다.');
     const days = term === 'day' ? 1 : 7;
     const points = Array.from({ length: days }, (_, i) => {
       const date = mockDateString(days - i);
-      const totals = STATIONS.reduce(
-        (acc, _station, stationIdx) => {
-          const day = mockDayTotals(date, stationIdx);
-          return { rentalCnt: acc.rentalCnt + day.rentCnt, returnCnt: acc.returnCnt + day.returnCnt };
-        },
-        { rentalCnt: 0, returnCnt: 0 },
-      );
-      return { date, ...totals };
+      const totals = mockDayTotals(date, stationIdx);
+      return { date, rentalCnt: totals.rentCnt, returnCnt: totals.returnCnt };
     });
     return HttpResponse.json(ok(points));
   }),
@@ -103,6 +118,7 @@ export const adminStationHandlers = [
     const yesterday = mockDayTotals(mockDateString(1), stationIdx);
     return HttpResponse.json(
       ok({
+        stationName: station.name,
         currentBikeCnt: station.currentBikes,
         todayRentalCnt: today.rentCnt,
         todayReturnCnt: today.returnCnt,
