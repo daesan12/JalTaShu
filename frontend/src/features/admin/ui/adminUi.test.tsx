@@ -106,7 +106,7 @@ describe('formatUserCells', () => {
       nickname: '조용한산책366',
       userCode: 'U-000315',
     });
-    // 소셜 로그인만 하고 가입을 끝내지 않은 사용자
+    // 가입 전 GUEST — 이용 이력·제보에는 나오지 않지만 API 타입상 대비
     expect(formatUserCells(null, 7)).toEqual({ nickname: '-', userCode: 'U-000007' });
     // 앱을 거치지 않은 이용 이력 — 가리킬 사람이 없다
     expect(formatUserCells(null, null)).toEqual({ nickname: '-', userCode: '-' });
