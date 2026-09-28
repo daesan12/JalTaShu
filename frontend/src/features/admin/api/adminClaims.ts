@@ -9,6 +9,9 @@ import { apiGet, apiPatch } from '@/shared/api/client';
 /** 서버 enum(ClaimStatus 실측) — 한글 라벨로 바꾸는 건 화면에서 한다 (AdminBadge 규칙) */
 export type ClaimStatus = 'READY' | 'IN_PROGRESS' | 'COMPLETED';
 
+/** 통계 카드·필터·처리 상태 선택지의 순서 */
+export const CLAIM_STATUS_ORDER: ClaimStatus[] = ['READY', 'IN_PROGRESS', 'COMPLETED'];
+
 export const CLAIM_STATUS_LABEL: Record<ClaimStatus, '미해결' | '처리중' | '해결됨'> = {
   READY: '미해결',
   IN_PROGRESS: '처리중',
