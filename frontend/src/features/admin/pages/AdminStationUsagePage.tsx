@@ -9,6 +9,7 @@ import { HeatmapLayer, type HeatmapCell } from '@/features/admin/components/Heat
 import { DISTRICTS, STATION_DISTRICT, type District } from '@/features/admin/lib/stationDistricts';
 import { AdminButton } from '@/features/admin/ui/AdminButton';
 import { AdminDateInput, AdminFilterBar, AdminSelect } from '@/features/admin/ui/AdminFilters';
+import { AdminPagination } from '@/features/admin/ui/AdminPagination';
 import { AdminTable } from '@/features/admin/ui/AdminTable';
 import { AdminTableStatus } from '@/features/admin/ui/AdminTableStatus';
 
@@ -20,6 +21,8 @@ const VIEW_LABEL: Record<View, string> = { list: '목록', map: '지도' };
 /** 구 정보가 없는 대여소(표가 만들어진 뒤 새로 생긴 곳) */
 const UNKNOWN_DISTRICT = '미분류';
 const TOP_LIMIT = 100;
+/** 목록 한 페이지에 보이는 대여소 수 — 지도는 페이지와 상관없이 조건에 맞는 곳을 모두 그린다 */
+const PAGE_SIZE = 50;
 /**
  * 처음 여는 날짜 — staging 시드 이용 기록이 9/23 02시에서 끊겨 있어 하루가 온전히 찬 9/22로 연다.
  * 시드를 발표일 기준으로 다시 넣으면 오늘(`todayString()`)로 바꾼다
@@ -73,6 +76,7 @@ export function AdminStationUsagePage() {
   const [district, setDistrict] = useState<District | typeof UNKNOWN_DISTRICT | 'all'>('all');
   const [topOnly, setTopOnly] = useState(false);
   const [view, setView] = useState<View>('list');
+  const [page, setPage] = useState(1);
   const [map, setMap] = useState<naver.maps.Map | null>(null);
   const [hover, setHover] = useState<{ stationId: string; x: number; y: number } | null>(null);
 
@@ -100,6 +104,15 @@ export function AdminStationUsagePage() {
       .slice(0, topOnly ? TOP_LIMIT : undefined)
       .map((row, index) => ({ ...row, rank: index + 1 }));
   }, [data, sortKey, district, topOnly]);
+
+  // 순위는 거른 목록 전체 기준이라, 페이지를 넘겨도 51위·52위…로 이어진다
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  /** 조건이 바뀌면 목록이 달라지므로 첫 페이지로 돌아간다 */
+  const changeSortKey = (key: SortKey) => {
+    setSortKey(key);
+    setPage(1);
+  };
 
   const rowById = useMemo(() => new Map(rows.map((row) => [row.stationId, row])), [rows]);
 
@@ -173,12 +186,15 @@ export function AdminStationUsagePage() {
           aria-label="조회 날짜"
           value={date}
           max={todayString()}
-          onChange={(e) => setDate(e.target.value)}
+          onChange={(e) => {
+            setDate(e.target.value);
+            setPage(1);
+          }}
         />
         <AdminSelect
           aria-label="정렬 기준"
           value={sortKey}
-          onChange={(e) => setSortKey(e.target.value as SortKey)}
+          onChange={(e) => changeSortKey(e.target.value as SortKey)}
         >
           {(Object.keys(SORT_LABEL) as SortKey[]).map((key) => (
             <option key={key} value={key}>
@@ -189,7 +205,10 @@ export function AdminStationUsagePage() {
         <AdminSelect
           aria-label="구"
           value={district}
-          onChange={(e) => setDistrict(e.target.value as typeof district)}
+          onChange={(e) => {
+            setDistrict(e.target.value as typeof district);
+            setPage(1);
+          }}
         >
           <option value="all">구 전체</option>
           {DISTRICTS.map((name) => (
@@ -203,7 +222,10 @@ export function AdminStationUsagePage() {
           <input
             type="checkbox"
             checked={topOnly}
-            onChange={(e) => setTopOnly(e.target.checked)}
+            onChange={(e) => {
+              setTopOnly(e.target.checked);
+              setPage(1);
+            }}
             className="h-4 w-4 accent-admin-indicator"
           />
           상위 {TOP_LIMIT}곳만 보기
@@ -221,17 +243,17 @@ export function AdminStationUsagePage() {
                 <SortableHeader
                   label="대여"
                   active={sortKey === 'rent'}
-                  onClick={() => setSortKey('rent')}
+                  onClick={() => changeSortKey('rent')}
                 />
                 <SortableHeader
                   label="반납"
                   active={sortKey === 'return'}
-                  onClick={() => setSortKey('return')}
+                  onClick={() => changeSortKey('return')}
                 />
                 <SortableHeader
                   label="합계"
                   active={sortKey === 'total'}
-                  onClick={() => setSortKey('total')}
+                  onClick={() => changeSortKey('total')}
                 />
               </tr>
             </thead>
@@ -244,7 +266,7 @@ export function AdminStationUsagePage() {
                 isEmpty={rows.length === 0}
                 emptyText={dateValid ? '이 날짜에 이용 기록이 없습니다' : '날짜를 골라 주세요'}
               />
-              {rows.map((row) => (
+              {pageRows.map((row) => (
                 <tr key={row.stationId} onClick={() => openStation(row.stationId)}>
                   <td className="tabular-nums text-admin-muted">{row.rank}</td>
                   <td className="truncate">{row.stationName}</td>
@@ -258,6 +280,14 @@ export function AdminStationUsagePage() {
               ))}
             </tbody>
           </AdminTable>
+          {rows.length > 0 && (
+            <AdminPagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              totalCount={rows.length}
+              onChange={setPage}
+            />
+          )}
         </div>
       ) : (
         <div className="relative min-h-[520px] flex-1 overflow-hidden rounded-lg border border-admin-line">
