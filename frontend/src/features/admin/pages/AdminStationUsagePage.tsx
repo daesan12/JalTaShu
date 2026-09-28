@@ -250,8 +250,6 @@ export function AdminStationUsagePage() {
    */
   const deficitColor = readCssToken('--color-admin-heat-deficit');
   const surplusColor = readCssToken('--color-admin-heat-surplus');
-  // 순증감 0 — 들어오고 나간 게 같아 손댈 필요 없는 곳은 회색
-  const evenColor = readCssToken('--color-admin-muted');
   const heatColor = readCssToken(
     sortKey === 'rent'
       ? '--color-admin-heat-rent'
@@ -265,15 +263,11 @@ export function AdminStationUsagePage() {
         stationId: row.stationId,
         ...posToLatLng(row),
         count: isNetSort(sortKey) ? Math.abs(row.netCnt) : sortValueOf[sortKey](row),
-        color: !isNetSort(sortKey)
-          ? heatColor
-          : row.netCnt < 0
-            ? deficitColor
-            : row.netCnt > 0
-              ? surplusColor
-              : evenColor,
+        color: !isNetSort(sortKey) ? heatColor : row.netCnt < 0 ? deficitColor : surplusColor,
+        // 순증감 정렬에서는 빨강·파랑만 보인다 — 0(들고 난 게 같은 곳)은 손댈 필요가 없어 감춘다
+        hidden: isNetSort(sortKey) && row.netCnt === 0,
       })),
-    [rows, sortKey, heatColor, deficitColor, surplusColor, evenColor],
+    [rows, sortKey, heatColor, deficitColor, surplusColor],
   );
   /*
    * 농도 기준(가장 진한 값). 슬라이더로 한 시간을 볼 때는 **하루 중 가장 큰 한 시간 값**으로 고정한다 —
