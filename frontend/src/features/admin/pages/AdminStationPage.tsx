@@ -6,7 +6,7 @@ import { AdminDetailState } from '@/features/admin/ui/AdminDetailState';
 import { AdminStatCard } from '@/features/admin/ui/AdminStatCard';
 
 /**
- * 02 대여소 상세 — 히트맵(01)의 원을 눌러 진입한다.
+ * 02 대여소 상세 — 대여소 이용 현황(01)의 목록 행이나 지도 원을 눌러 진입한다.
  * 백엔드 대여소 마스터의 현재 한글 명칭과 통계를 보여준다.
  */
 export function AdminStationPage() {
@@ -38,7 +38,7 @@ export function AdminStationPage() {
     <div className="flex flex-col gap-6">
       <div>
         <Link to="/admin" className="text-sm text-admin-muted hover:text-admin-text">
-          ← 히트맵
+          ← 대여소 이용 현황
         </Link>
         <div className="mt-2 flex items-baseline gap-3">
           <h2 className="text-xl font-semibold">{station.stationName}</h2>

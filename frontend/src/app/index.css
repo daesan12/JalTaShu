@@ -72,6 +72,10 @@
   --color-admin-heat-return: #2563eb;
   /* 01 대여소 이용 현황 — 합계(대여+반납) 농도. 대여·반납 두 색과 헷갈리지 않는 보라 */
   --color-admin-heat-total: #7c3aed;
+  /* 순증감(반납 − 대여, #159) — 빠져나감(보충)은 빨강, 쌓임(회수)은 파랑. 지도 원 색 */
+  --color-admin-heat-deficit: #dc2626;
+  --color-admin-heat-surplus: #2563eb;
+  --color-admin-info-text: #1e40af; /* 표의 + 순증감 숫자 (− 는 danger-text) */
 }
 
 /*
@@ -159,7 +163,8 @@
     border: 7px solid var(--color-surface);
     border-radius: 999px;
     background: var(--color-primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 28%, transparent),
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--color-primary) 28%, transparent),
       0 4px 12px rgb(24 33 21 / 18%);
   }
 
@@ -179,7 +184,8 @@
     border: 7px solid var(--color-surface);
     border-radius: 999px;
     background: var(--color-primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 28%, transparent),
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--color-primary) 28%, transparent),
       0 4px 12px rgb(24 33 21 / 18%);
   }
 
@@ -188,7 +194,8 @@
   }
 
   .forecast-range:focus-visible::-webkit-slider-thumb {
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 24%, transparent),
+    box-shadow:
+      0 0 0 4px color-mix(in srgb, var(--color-primary) 24%, transparent),
       0 4px 12px rgb(24 33 21 / 18%);
   }
 }
