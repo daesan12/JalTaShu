@@ -5,7 +5,7 @@ import { AdminFieldLabel } from '@/features/admin/ui/AdminField';
 import { AdminPagination } from '@/features/admin/ui/AdminPagination';
 import { AdminStatCard } from '@/features/admin/ui/AdminStatCard';
 import { AdminTableStatus } from '@/features/admin/ui/AdminTableStatus';
-import { formatUserName } from '@/features/admin/lib/format';
+import { formatUserCells } from '@/features/admin/lib/format';
 
 /** 관리자 공통 컴포넌트의 분기(증감 색·표 상태·카운터·페이지 버튼)를 잠그는 렌더 테스트 */
 
@@ -100,13 +100,16 @@ describe('AdminTableStatus', () => {
   });
 });
 
-describe('formatUserName', () => {
-  it('닉네임과 사용자 연결 여부를 구분해 표시한다', () => {
-    expect(formatUserName('조용한산책366', 315)).toBe('조용한산책366 · #315');
+describe('formatUserCells', () => {
+  it('닉네임과 사용자 ID를 두 칸으로 나누고 없는 값은 "-"로 둔다', () => {
+    expect(formatUserCells('조용한산책366', 315)).toEqual({
+      nickname: '조용한산책366',
+      userCode: 'U-000315',
+    });
     // 소셜 로그인만 하고 가입을 끝내지 않은 사용자
-    expect(formatUserName(null, 7)).toBe('닉네임 미설정 · #7');
+    expect(formatUserCells(null, 7)).toEqual({ nickname: '-', userCode: 'U-000007' });
     // 앱을 거치지 않은 이용 이력 — 가리킬 사람이 없다
-    expect(formatUserName(null, null)).toBe('연결된 사용자 없음');
+    expect(formatUserCells(null, null)).toEqual({ nickname: '-', userCode: '-' });
   });
 });
 
