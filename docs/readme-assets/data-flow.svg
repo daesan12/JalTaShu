@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1140" height="390" viewBox="0 0 1140 390" role="img" aria-labelledby="title desc">
+<title id="title">잘타슈 수집과 조회 흐름</title><desc id="desc">Collector에서 Kafka, Spark, MySQL, AI 예측 배치, Redis, Backend로 연결한다. Collector는 원본 Parquet을 S3에 보관하고 현재 상태를 Redis에 전달한다. 모델과 처리 코드는 팀 작업이다.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#638737"/></marker></defs>
+<style>text{font-family:Segoe UI,Malgun Gothic,sans-serif;fill:#203126}.title{font-size:24px;font-weight:700}.label{font-size:17px;font-weight:600}.body{font-size:14px;fill:#647469}.edge{fill:none;stroke:#638737;stroke-width:2;marker-end:url(#arrow)}.box{fill:#fff;stroke:#ceddc2}</style>
+<rect width="1140" height="390" rx="16" fill="#f8faf7"/>
+<text x="28" y="44" class="title">수집에서 예측, 앱 조회까지</text>
+<text x="28" y="73" class="body">전체 팀 데이터 흐름 — 개인 기여는 모듈의 실행 환경, 연결과 권한 구성입니다.</text>
+<g class="box"><rect x="25" y="180" width="136" height="80" rx="8"/><rect x="184" y="180" width="136" height="80" rx="8"/><rect x="343" y="180" width="136" height="80" rx="8"/><rect x="502" y="180" width="136" height="80" rx="8"/><rect x="661" y="180" width="136" height="80" rx="8"/><rect x="820" y="180" width="136" height="80" rx="8"/><rect x="979" y="180" width="136" height="80" rx="8"/></g>
+<g text-anchor="middle"><text x="93" y="211" class="label">Collector</text><text x="93" y="237" class="body">대여소 / 날씨</text><text x="252" y="211" class="label">Kafka</text><text x="252" y="237" class="body">이벤트 전달</text><text x="411" y="211" class="label">Spark</text><text x="411" y="237" class="body">스트리밍 처리</text><text x="570" y="211" class="label">MySQL</text><text x="570" y="237" class="body">최근 원본 이력</text><text x="729" y="211" class="label">AI 예측 배치</text><text x="729" y="237" class="body">이력 + 학습 모델</text><text x="888" y="211" class="label">Redis</text><text x="888" y="237" class="body">현재 상태 / 예측</text><text x="1047" y="211" class="label">Backend</text><text x="1047" y="237" class="body">앱에 결과 제공</text></g>
+<g class="edge"><path d="M161 220H184"/><path d="M320 220H343"/><path d="M479 220H502"/><path d="M638 220H661"/><path d="M797 220H820"/><path d="M956 220H979"/></g>
+<path d="M93 180V127H888V180" class="edge"/><rect x="373" y="111" width="218" height="28" fill="#f8faf7"/><text x="482" y="131" text-anchor="middle" class="body">현재 대여소 / 날씨 상태</text>
+<path d="M93 260V309H248" class="edge"/><rect x="248" y="283" width="230" height="56" rx="8" fill="#e8f2dc"/><text x="363" y="317" text-anchor="middle" class="label">로컬 Parquet → S3 보관</text>
+<text x="28" y="369" class="body">예측 모델과 경로 계산은 별개입니다. 오르막 회피 경로는 OSRM과 고도 데이터를 사용합니다.</text>
+</svg>

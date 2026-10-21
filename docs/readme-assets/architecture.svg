@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="660" viewBox="0 0 1040 660" role="img" aria-labelledby="title desc">
+<title id="title">잘타슈 서비스와 실행 환경</title><desc id="desc">Server A는 서비스와 수집, Server B는 데이터 처리와 배포 및 관측을 담당한다. 팀 서비스 및 데이터 코드와 장대산의 실행 환경, 연결, 배포 담당을 구분한다.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#638737"/></marker></defs>
+<style>text{font-family:Segoe UI,Malgun Gothic,sans-serif;fill:#203126}.title{font-size:24px;font-weight:700}.label{font-size:17px;font-weight:600}.body{font-size:15px}.muted{fill:#647469;font-size:14px}.small{font-size:13px;fill:#647469}.line{stroke:#638737;stroke-width:2;fill:none;marker-end:url(#arrow)}</style>
+<rect width="1040" height="660" rx="16" fill="#f8faf7"/>
+<text x="32" y="44" class="title">팀 서비스를 연결한 두 서버의 실행 환경</text>
+<text x="32" y="72" class="muted">모듈의 기능은 팀 담당자가 개발하고, 인프라 담당은 실행·연결·배포 환경을 구성했습니다.</text>
+<rect x="183" y="98" width="294" height="42" rx="21" fill="#e8f2dc"/>
+<text x="330" y="125" text-anchor="middle" class="label">모바일 앱 / 관리자 웹</text>
+<path d="M330 140V180" class="line"/><text x="342" y="164" class="small">HTTPS</text>
+<rect x="32" y="180" width="596" height="402" rx="14" fill="#fff" stroke="#ceddc2"/>
+<text x="56" y="214" class="label">SERVER A</text><text x="190" y="213" class="muted">서비스 / 수집</text>
+<rect x="58" y="232" width="544" height="48" rx="7" fill="#f2f6ed"/><text x="330" y="262" text-anchor="middle" class="label">Nginx</text>
+<path d="M330 280V310" class="line"/>
+<rect x="58" y="310" width="544" height="87" rx="8" fill="#f8fafc" stroke="#dce3e9"/>
+<text x="78" y="338" class="label">React / Spring Boot</text><text x="78" y="368" class="body">Staging + Production Blue / Green</text>
+<text x="78" y="386" class="small">운영 요청은 활성 슬롯 한 곳으로 전달</text>
+<path d="M330 397V425" class="line"/>
+<rect x="58" y="425" width="169" height="61" rx="7" fill="#f2f6ed"/><text x="142" y="450" text-anchor="middle" class="label">MySQL</text><text x="142" y="472" text-anchor="middle" class="small">서비스 DB / 처리 이력</text>
+<rect x="245" y="425" width="169" height="61" rx="7" fill="#f2f6ed"/><text x="330" y="450" text-anchor="middle" class="label">Redis</text><text x="330" y="472" text-anchor="middle" class="small">인증 / 현재 상태 / 예측</text>
+<rect x="433" y="425" width="169" height="61" rx="7" fill="#f2f6ed"/><text x="518" y="450" text-anchor="middle" class="label">OSRM</text><text x="518" y="472" text-anchor="middle" class="small">도보 / 자전거 / 오르막</text>
+<rect x="58" y="506" width="544" height="49" rx="7" fill="#f8fafc" stroke="#dce3e9"/><text x="78" y="536" class="label">Collectors</text><text x="210" y="536" class="body">대여소 / 날씨 수집</text>
+<rect x="676" y="180" width="332" height="402" rx="14" fill="#fff" stroke="#ceddc2"/>
+<text x="700" y="214" class="label">SERVER B</text><text x="829" y="213" class="muted">데이터 / 배포 / 관측</text>
+<rect x="700" y="232" width="284" height="112" rx="8" fill="#f8fafc" stroke="#dce3e9"/><text x="718" y="262" class="label">Kafka / Spark</text><text x="718" y="287" class="body">팀 데이터 모듈의 실행 환경</text><text x="718" y="318" class="label">AI 예측 배치</text><text x="878" y="318" class="small">주기 실행</text>
+<rect x="700" y="362" width="284" height="86" rx="8" fill="#f2f6ed"/><text x="718" y="393" class="label">Jenkins</text><text x="718" y="420" class="body">Controller + Build Agent</text>
+<rect x="700" y="466" width="284" height="89" rx="8" fill="#f2f6ed"/><text x="718" y="497" class="label">Prometheus / Grafana</text><text x="718" y="524" class="body">Loki 및 로그 수집</text>
+<path d="M628 355H676" stroke="#879b74" stroke-width="2" stroke-dasharray="5 4"/><text x="652" y="332" text-anchor="middle" class="small">사설 연결</text>
+<text x="32" y="616" class="body">배포 경로: Jenkins → Commit SHA 이미지 → Amazon ECR → 실행 서버</text>
+<text x="32" y="641" class="small">두 서버는 역할 분리입니다. 운영 Blue/Green은 동일 Server A와 DB를 공유합니다.</text>
+</svg>
